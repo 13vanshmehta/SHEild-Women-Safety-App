@@ -1,0 +1,20 @@
+// Simple static colors - no theme system needed
+export const Colors = {
+  primary: '#8B5CF6',
+  primaryLight: '#A78BFA',
+  primaryDark: '#7C3AED',
+  secondary: '#F3F4F6',
+  background: '#FFFFFF',
+  surface: '#F9FAFB',
+  text: '#111827',
+  textSecondary: '#6B7280',
+  textLight: '#9CA3AF',
+  accent: '#8B5CF6',
+  error: '#EF4444',
+  success: '#10B981',
+  warning: '#F59E0B',
+  info: '#3B82F6',
+  skip: '#6B7280',
+  border: '#E5E7EB',
+  cardBackground: '#FFFFFF',
+};

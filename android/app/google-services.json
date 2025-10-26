@@ -1,0 +1,42 @@
+{
+  "project_info": {
+    "project_number": "15129086803",
+    "project_id": "sheild-097",
+    "storage_bucket": "sheild-097.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:15129086803:android:ccd4bcfdbd7215537a2fa6",
+        "android_client_info": {
+          "package_name": "com.sheild"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "387247252263-e6f6adbnoh2tmf79mb2bq36nd480au0e.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.sheild",
+            "certificate_hash": "sha1"
+          }
+        },
+        {
+          "client_id": "387247252263-fggkf3drod1j2fn9ms7sa9gruep1cpg0.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyABVUpFRSC9VAcgn29cZZIeKw963n2IuAg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,4 +1,4 @@
-package com.frontend
+package com.sheild;
 
 import android.app.Application
 import com.facebook.react.PackageList
