@@ -12,6 +12,7 @@ import {
   Alert,
   Image,
   Pressable,
+  StatusBar,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { Colors } from '../constants';
@@ -179,6 +180,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignupSuccess, onNavigate
 
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
       <KeyboardAvoidingView 
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

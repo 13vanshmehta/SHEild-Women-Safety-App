@@ -3,7 +3,7 @@ import { View, StyleSheet, TouchableOpacity, Text, Platform } from 'react-native
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors } from '../constants';
 
-type Tab = 'Home' | 'TrackMe' | 'SOS' | 'Groups' | 'Profile';
+type Tab = 'Home' | 'TrackMe' | 'SOS' | 'TrustCircle' | 'Profile';
 
 interface BottomTabNavigatorProps {
   activeTab: Tab;
@@ -61,21 +61,21 @@ const BottomTabNavigator: React.FC<BottomTabNavigatorProps> = ({ activeTab, onTa
 
           <TouchableOpacity
             style={styles.tab}
-            onPress={() => onTabChange('Groups')}
+            onPress={() => onTabChange('TrustCircle')}
             activeOpacity={0.7}
           >
             <Icon
               name="account-group-outline"
               size={22}
-              color={activeTab === 'Groups' ? Colors.primary : Colors.textLight}
+              color={activeTab === 'TrustCircle' ? Colors.primary : Colors.textLight}
             />
             <Text
               style={[
                 styles.label,
-                { color: activeTab === 'Groups' ? Colors.primary : Colors.textLight },
+                { color: activeTab === 'TrustCircle' ? Colors.primary : Colors.textLight },
               ]}
             >
-              Groups
+              Trust Circle
             </Text>
           </TouchableOpacity>
 

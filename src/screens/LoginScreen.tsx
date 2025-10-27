@@ -11,6 +11,7 @@ import {
   Alert,
   Image,
   Pressable,
+  StatusBar,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { Colors } from '../constants';
@@ -149,6 +150,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNavigateToS
 
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
       <KeyboardAvoidingView 
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
