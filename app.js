@@ -22,9 +22,13 @@ app.use(passport.initialize());
 // Routes
 const authRoutes = require('./routers/auth');
 const googleAuthRoutes = require('./routers/googleAuth');
+const emergencyContactRoutes = require('./routers/emergencyContacts');
+const groupRoutes = require('./routers/groups');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/auth', googleAuthRoutes);
+app.use('/api/emergency-contacts', emergencyContactRoutes);
+app.use('/api/groups', groupRoutes);
 
 const http = require("http");
 const { Server } = require("socket.io");
