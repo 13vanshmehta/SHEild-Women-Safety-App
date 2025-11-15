@@ -11,9 +11,9 @@ export const API_CONFIG = {
   },
 };
 
-// Google Places API Configuration
-// IMPORTANT: In production, store this in environment variables or fetch from backend
-export const GOOGLE_PLACES_API_KEY = 'YOUR_GOOGLE_PLACES_API_KEY_HERE';
+// // Google Places API Configuration
+// // IMPORTANT: In production, store this in environment variables or fetch from backend
+// export const GOOGLE_PLACES_API_KEY = 'YOUR_GOOGLE_PLACES_API_KEY_HERE';
 
 // App Configuration
 export const APP_CONFIG = {

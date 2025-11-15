@@ -1,5 +1,6 @@
 // API Service for SHEild Women Safety App
 const BASE_URL = 'http://192.168.29.17:8000'; // Update this with your actual IP
+export const API_BASE_URL = BASE_URL;
 
 export interface ServerResponse {
   status: 'success' | 'error';
@@ -139,6 +140,33 @@ class ApiService {
       return data;
     } catch (error) {
       console.error('DELETE request failed:', error);
+      throw error;
+    }
+  }
+
+  // Multipart upload (for audio/image files)
+  async upload(url: string, formData: FormData): Promise<any> {
+    try {
+      const headers = await this.getHeaders();
+      // Let fetch/React Native set the correct multipart boundary
+      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+      delete headers['Content-Type'];
+
+      const response = await fetch(`${this.baseUrl}${url}`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('UPLOAD request failed:', error);
       throw error;
     }
   }

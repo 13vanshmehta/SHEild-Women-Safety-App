@@ -108,6 +108,22 @@ android {
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
     }
+    
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+}
+
+// Force all Kotlin modules to use JVM target 17
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+    kotlinOptions {
+        jvmTarget = "17"
+    }
 }
 
 dependencies {
@@ -120,5 +136,3 @@ dependencies {
         implementation jscFlavor
     }
 }
-
-apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"
