@@ -1,5 +1,6 @@
 import Contacts from 'react-native-contacts';
 import { PermissionsAndroid, Platform, Alert } from 'react-native';
+import type { EmergencyContact } from './emergencyContactService';
 
 export interface Contact {
   recordID: string;

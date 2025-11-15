@@ -1,20 +1,27 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Image,
   RefreshControl,
   Alert,
   TextInput,
+  Linking,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAuth } from '../contexts/AuthContext';
 import { Colors } from '../constants/colors';
+import { GEOAPIFY_API_KEY } from '../constants/api';
 import Skeleton, { SkeletonList } from '../components/Skeleton';
+import locationService, { Location } from '../services/locationService';
+import placesService, { Place } from '../services/placesService';
+import emergencyContactService, { EmergencyContact } from '../services/emergencyContactService';
+import recentContactService from '../services/recentContactService';
+import SafeSpotsScreen from './SafeSpotsScreen';
 
 interface SafetyCategory {
   id: string;
@@ -23,117 +30,168 @@ interface SafetyCategory {
   color: string;
 }
 
-interface UpcomingCheckIn {
-  id: string;
-  title: string;
-  description: string;
-  date: string;
-  time: string;
-  contactName: string;
-  contactImage: string | null;
-}
-
 interface RecentContact {
   id: string;
   name: string;
   phoneNumber: string;
-  lastContactType: 'call' | 'text';
-  lastContactTime: string;
   contactImage: string | null;
-  isInTrustCircle: boolean;
+  initials: string;
 }
 
 const HomeScreen: React.FC = () => {
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [searchText, setSearchText] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [isDataLoading, setIsDataLoading] = useState(true);
+  const [showSafeSpotsScreen, setShowSafeSpotsScreen] = useState(false);
+  const [showAllPoliceStations, setShowAllPoliceStations] = useState(false);
+  
+  // Loading states - only true when actually fetching data
+  const [isLoadingPlaces, setIsLoadingPlaces] = useState(false);
+  const [isLoadingContacts, setIsLoadingContacts] = useState(false);
+  
+  const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
+  const [safeSpots, setSafeSpots] = useState<Place[]>([]);
+  const [policeStations, setPoliceStations] = useState<Place[]>([]);
+  const [recentContacts, setRecentContacts] = useState<RecentContact[]>([]);
+  const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContact[]>([]);
+  const [locationPermissionGranted, setLocationPermissionGranted] = useState(false);
 
   const safetyCategories: SafetyCategory[] = [
     { id: '1', name: 'Emergency', icon: 'alarm-light', color: '#EF4444' },
     { id: '2', name: 'Safe Spots', icon: 'map-marker', color: '#3B82F6' },
     { id: '3', name: 'Trust Circle', icon: 'account-group', color: '#10B981' },
-    { id: '4', name: 'Location Share', icon: 'share-variant', color: '#8B5CF6' },
+    { id: '4', name: 'Location Share', icon: 'share-variant', color: Colors.primary },
     { id: '5', name: 'Safety Tips', icon: 'shield-check', color: '#F59E0B' },
-  ];
-
-  const upcomingCheckIn: UpcomingCheckIn = {
-    id: '1',
-    title: 'Sarah Johnson',
-    description: 'Safety Check-in with Emergency Contact',
-    date: 'Wed, 7 Sep 2024',
-    time: '10:30 - 11:30 AM',
-    contactName: 'Sarah Johnson',
-    contactImage: 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face', // Sample profile image
-  };
-
-  const recentContacts: RecentContact[] = [
-    {
-      id: '1',
-      name: 'Emma Davis',
-      phoneNumber: '+1 (555) 123-4567',
-      lastContactType: 'call',
-      lastContactTime: '2 hours ago',
-      contactImage: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face',
-      isInTrustCircle: true,
-    },
-    {
-      id: '2',
-      name: 'Sarah Johnson',
-      phoneNumber: '+1 (555) 234-5678',
-      lastContactType: 'text',
-      lastContactTime: '4 hours ago',
-      contactImage: 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face',
-      isInTrustCircle: true,
-    },
-    {
-      id: '3',
-      name: 'Mike Wilson',
-      phoneNumber: '+1 (555) 345-6789',
-      lastContactType: 'call',
-      lastContactTime: '1 day ago',
-      contactImage: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
-      isInTrustCircle: false,
-    },
-    {
-      id: '4',
-      name: 'Lisa Brown',
-      phoneNumber: '+1 (555) 456-7890',
-      lastContactType: 'text',
-      lastContactTime: '2 days ago',
-      contactImage: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop&crop=face',
-      isInTrustCircle: false,
-    },
   ];
 
   const userName = user ? `${user.firstName} ${user.lastName}` : 'User';
 
-  // Simulate initial loading
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 1500);
-    return () => clearTimeout(timer);
+  // Get initials from name
+  const getInitials = (name: string): string => {
+    const parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  };
+
+  // Fetch recent contacts from app interaction history (not full contact book)
+  const fetchRecentContacts = useCallback(async () => {
+    try {
+      setIsLoadingContacts(true);
+
+      const stored = await recentContactService.getRecentContacts(8);
+      const mapped: RecentContact[] = stored.map((entry) => {
+        const name = entry.name || entry.phoneNumber;
+        return {
+          id: entry.id,
+          name,
+          phoneNumber: entry.phoneNumber,
+          contactImage: entry.contactImage || null,
+          initials: getInitials(name),
+        };
+      });
+
+      setRecentContacts(mapped);
+    } catch (error) {
+      console.error('Error loading recent contacts:', error);
+    } finally {
+      setIsLoadingContacts(false);
+    }
   }, []);
 
-  // Simulate data loading
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsDataLoading(false);
-    }, 2000);
-    return () => clearTimeout(timer);
+  const fetchEmergencyContacts = useCallback(async () => {
+    try {
+      const response = await emergencyContactService.getEmergencyContacts();
+      let contacts: EmergencyContact[] = [];
+
+      if (response.success) {
+        if (Array.isArray(response.data)) {
+          contacts = response.data;
+        } else if ('contacts' in response.data && Array.isArray(response.data.contacts)) {
+          contacts = response.data.contacts;
+        }
+      }
+
+      setEmergencyContacts(contacts);
+    } catch (error) {
+      console.error('Error fetching emergency contacts:', error);
+    }
   }, []);
 
-  const onRefresh = React.useCallback(() => {
+  // Initialize location and fetch places
+  const initializeLocationAndPlaces = useCallback(async () => {
+    try {
+      // Request location permission
+      const hasPermission = await locationService.requestPermission();
+      setLocationPermissionGranted(hasPermission);
+
+      if (!hasPermission) {
+        return;
+      }
+
+      // Get current location
+      const location = await locationService.getCurrentLocation();
+      if (location) {
+        setCurrentLocation(location);
+        
+        // Initialize Geoapify Places API
+        if (GEOAPIFY_API_KEY) {
+          placesService.setApiKey(GEOAPIFY_API_KEY);
+          
+          // Fetch safe spots and police stations
+          await fetchPlaces(location);
+        } else {
+          console.warn('Geoapify Places API key is not configured');
+        }
+      }
+    } catch (error) {
+      console.error('Error initializing location:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    initializeLocationAndPlaces();
+    fetchRecentContacts();
+    fetchEmergencyContacts();
+  }, [initializeLocationAndPlaces, fetchRecentContacts, fetchEmergencyContacts]);
+
+
+  const fetchPlaces = async (location: Location) => {
+    try {
+      setIsLoadingPlaces(true);
+      
+      // Fetch safe spots and police stations in parallel
+      const [safeSpotsResponse, policeStationsResponse] = await Promise.all([
+        placesService.getSafeSpotsNearMe(location, 2000),
+        placesService.getPoliceStationsNearMe(location, 5000),
+      ]);
+
+      if (safeSpotsResponse.success && safeSpotsResponse.data) {
+        setSafeSpots(safeSpotsResponse.data);
+      }
+
+      if (policeStationsResponse.success && policeStationsResponse.data) {
+        setPoliceStations(policeStationsResponse.data);
+      }
+    } catch (error) {
+      console.error('Error fetching places:', error);
+    } finally {
+      setIsLoadingPlaces(false);
+    }
+  };
+
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    setIsDataLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setRefreshing(false);
-      setIsDataLoading(false);
-    }, 1500);
-  }, []);
+    
+    // Refresh all data in parallel
+    await Promise.all([
+      currentLocation ? fetchPlaces(currentLocation) : initializeLocationAndPlaces(),
+      fetchRecentContacts(),
+    ]);
+    
+    setRefreshing(false);
+  }, [currentLocation, fetchRecentContacts, initializeLocationAndPlaces]);
 
   const handleSOS = () => {
     Alert.alert(
@@ -147,8 +205,16 @@ const HomeScreen: React.FC = () => {
   };
 
   const handleSafeSpots = () => {
-    // Navigate to safe spots screen or show nearby safe spots
-    console.log('View safe spots near me');
+    // Navigate to dedicated Safe Spots screen
+    setShowSafeSpotsScreen(true);
+  };
+
+  const openAllSafeSpots = () => {
+    setShowSafeSpotsScreen(true);
+  };
+
+  const openAllPoliceStations = () => {
+    setShowAllPoliceStations(true);
   };
 
   const handleCategoryPress = (categoryId: string) => {
@@ -173,20 +239,142 @@ const HomeScreen: React.FC = () => {
     }
   };
 
-  const handleContactCall = (contact: RecentContact) => {
-    console.log(`Calling ${contact.name} at ${contact.phoneNumber}`);
-    // Implement phone call functionality
+  const handleContactCall = async (contact: RecentContact) => {
+    try {
+      await recentContactService.addRecentContact({
+        id: contact.id,
+        name: contact.name,
+        phoneNumber: contact.phoneNumber,
+        contactImage: contact.contactImage || undefined,
+      });
+      fetchRecentContacts();
+
+      const phoneNumber = contact.phoneNumber.replace(/\D/g, ''); // Remove formatting
+      Linking.openURL(`tel:${phoneNumber}`).catch((err) => {
+        console.error('Error making phone call:', err);
+        Alert.alert('Error', 'Unable to make phone call');
+      });
+    } catch (error) {
+      console.error('Error updating recent contacts on call:', error);
+    }
   };
 
-  const handleContactText = (contact: RecentContact) => {
-    console.log(`Texting ${contact.name} at ${contact.phoneNumber}`);
-    // Implement text message functionality
+  const handleContactText = async (contact: RecentContact) => {
+    try {
+      await recentContactService.addRecentContact({
+        id: contact.id,
+        name: contact.name,
+        phoneNumber: contact.phoneNumber,
+        contactImage: contact.contactImage || undefined,
+      });
+      fetchRecentContacts();
+
+      const phoneNumber = contact.phoneNumber.replace(/\D/g, ''); // Remove formatting
+      Linking.openURL(`sms:${phoneNumber}`).catch((err) => {
+        console.error('Error opening SMS:', err);
+        Alert.alert('Error', 'Unable to open SMS');
+      });
+    } catch (error) {
+      console.error('Error updating recent contacts on text:', error);
+    }
   };
 
-  const handleAddToTrustCircle = (contact: RecentContact) => {
-    console.log(`Adding ${contact.name} to Trust Circle`);
-    // Implement add to trust circle functionality
+  const handlePlacePress = (place: Place) => {
+    if (place.geometry?.location) {
+      placesService.openMapsDirections(
+        place.geometry.location.lat,
+        place.geometry.location.lng,
+        place.name
+      );
+    }
   };
+
+  const handlePoliceStationCall = (place: Place, event: any) => {
+    event.stopPropagation();
+    const phoneNumber = place.formatted_phone_number || place.international_phone_number;
+    if (phoneNumber) {
+      placesService.makePhoneCall(phoneNumber);
+    } else {
+      Alert.alert('No Phone Number', 'Phone number is not available for this police station.');
+    }
+  };
+
+  const isInEmergencyContacts = (phoneNumber: string): boolean => {
+    const cleaned = phoneNumber.replace(/\D/g, '');
+    if (!cleaned) return false;
+    return emergencyContacts.some((contact) =>
+      (contact.phoneNumber || '').replace(/\D/g, '') === cleaned,
+    );
+  };
+
+  const handleAddToEmergency = async (contact: RecentContact) => {
+    try {
+      const cleaned = contact.phoneNumber.replace(/\D/g, '');
+      const payload: Omit<EmergencyContact, '_id' | 'createdAt' | 'updatedAt'> = {
+        name: contact.name,
+        phoneNumber: cleaned,
+        email: undefined,
+        relationship: 'friend',
+        isPrimary: false,
+        isActive: true,
+        addedFrom: 'contact_book',
+        contactImage: contact.contactImage || undefined,
+        notes: undefined,
+        emergencyPriority: 3,
+      };
+
+      const response = await emergencyContactService.createEmergencyContact(payload);
+      if (response.success) {
+        Alert.alert('Added', `${contact.name} has been added to emergency contacts`);
+        fetchEmergencyContacts();
+      } else {
+        Alert.alert('Error', response.message || 'Failed to add emergency contact');
+      }
+    } catch (error) {
+      console.error('Error adding emergency contact:', error);
+      Alert.alert('Error', 'Unable to add to emergency contacts');
+    }
+  };
+
+  const getPlaceIcon = (place: Place): string => {
+    if (place.types?.some(type => type.includes('police'))) {
+      return 'police-badge';
+    }
+    if (place.types?.some(type => type.includes('hospital'))) {
+      return 'hospital-building';
+    }
+    if (place.types?.some(type => type.includes('restaurant') || type.includes('cafe'))) {
+      return 'silverware-fork-knife';
+    }
+    if (place.types?.some(type => type.includes('lodging'))) {
+      return 'hotel';
+    }
+    if (place.types?.some(type => type.includes('gas_station'))) {
+      return 'gas-station';
+    }
+    return 'map-marker';
+  };
+
+  const getPlaceColor = (place: Place): string => {
+    if (place.types?.some(type => type.includes('police'))) {
+      return Colors.primary;
+    }
+    if (place.types?.some(type => type.includes('hospital'))) {
+      return Colors.success;
+    }
+    if (place.types?.some(type => type.includes('restaurant') || type.includes('cafe'))) {
+      return Colors.warning;
+    }
+    return Colors.info;
+  };
+
+  if (showSafeSpotsScreen) {
+    return (
+      <SafeSpotsScreen
+        onBack={() => setShowSafeSpotsScreen(false)}
+      />
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -199,17 +387,8 @@ const HomeScreen: React.FC = () => {
         <View style={styles.greetingContainer}>
           <View style={styles.greetingContent}>
             <View style={styles.greetingTextContainer}>
-              {isLoading ? (
-                <View>
-                  <Skeleton width={120} height={32} style={styles.greetingSkeleton} />
-                  <Skeleton width={150} height={32} style={styles.userNameSkeleton} />
-                </View>
-              ) : (
-                <>
-                  <Text style={styles.greetingText}>Hello,</Text>
-                  <Text style={styles.userNameText}>{userName}!</Text>
-                </>
-              )}
+              <Text style={styles.greetingText}>Hello,</Text>
+              <Text style={styles.userNameText}>{userName}!</Text>
             </View>
             <TouchableOpacity style={styles.notificationButton}>
               <Icon name="bell-outline" size={24} color={Colors.text} />
@@ -219,153 +398,177 @@ const HomeScreen: React.FC = () => {
 
         {/* Search Bar */}
         <View style={styles.searchContainer}>
-          {isLoading ? (
-            <Skeleton width="100%" height={48} borderRadius={12} />
-          ) : (
-            <View style={styles.searchBar}>
-              <Icon name="magnify" size={20} color={Colors.textLight} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search safe spots, contacts..."
-                placeholderTextColor={Colors.textLight}
-                value={searchText}
-                onChangeText={setSearchText}
-              />
-            </View>
-          )}
+          <View style={styles.searchBar}>
+            <Icon name="magnify" size={20} color={Colors.textLight} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search safe spots, contacts..."
+              placeholderTextColor={Colors.textLight}
+              value={searchText}
+              onChangeText={setSearchText}
+            />
+          </View>
         </View>
 
         {/* Safety Categories */}
         <View style={styles.section}>
-          {isLoading ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoriesScroll}>
-              {Array.from({ length: 5 }).map((_, index) => (
-                <View key={index} style={styles.categoryCard}>
-                  <Skeleton width={60} height={60} borderRadius={15} style={styles.categoryIconSkeleton} />
-                  <Skeleton width={60} height={16} borderRadius={4} style={styles.categoryNameSkeleton} />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoriesScroll}>
+            {safetyCategories.map((category) => (
+              <TouchableOpacity 
+                key={category.id} 
+                style={styles.categoryCard}
+                onPress={() => handleCategoryPress(category.id)}
+              >
+                <View style={[styles.categoryIcon, { backgroundColor: category.color + '20' }]}>
+                  <Icon name={category.icon} size={24} color={category.color} />
                 </View>
-              ))}
-            </ScrollView>
-          ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoriesScroll}>
-              {safetyCategories.map((category) => (
-                <TouchableOpacity 
-                  key={category.id} 
-                  style={styles.categoryCard}
-                  onPress={() => handleCategoryPress(category.id)}
-                >
-                  <View style={[styles.categoryIcon, { backgroundColor: category.color + '20' }]}>
-                    <Icon name={category.icon} size={24} color={category.color} />
-                  </View>
-                  <Text style={styles.categoryName}>{category.name}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          )}
+                <Text style={styles.categoryName}>{category.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
 
-        {/* Upcoming Safety Check-in */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Upcoming Safety Check-in</Text>
-          {isDataLoading ? (
-            <View style={styles.upcomingCard}>
-              <View style={styles.upcomingContent}>
-                <View style={styles.upcomingHeader}>
-                  <Skeleton width={60} height={60} borderRadius={30} style={styles.upcomingImageSkeleton} />
-                  <View style={styles.upcomingDetails}>
-                    <Skeleton width="80%" height={20} style={styles.upcomingTitleSkeleton} />
-                    <Skeleton width="90%" height={16} style={styles.upcomingDescriptionSkeleton} />
-                  </View>
+        {/* Police Stations (top 2) */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionTitleContainer}>
+                  <Icon name="police-badge" size={20} color={Colors.primary} style={styles.sectionIcon} />
+                  <Text style={styles.sectionTitle}>Police Stations</Text>
                 </View>
-                <View style={styles.upcomingTime}>
-                  <Skeleton width={120} height={16} style={styles.timeSkeleton} />
-                  <Skeleton width={100} height={16} style={styles.timeSkeleton} />
-                </View>
+                {locationPermissionGranted ? (
+                  <TouchableOpacity onPress={openAllPoliceStations}>
+                    <Text style={styles.viewAllText}>View All</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity onPress={initializeLocationAndPlaces}>
+                    <Text style={styles.enableLocationText}>Enable Location</Text>
+                  </TouchableOpacity>
+                )}
               </View>
-            </View>
-          ) : (
-            <View style={styles.upcomingCard}>
-              <View style={styles.upcomingContent}>
-                <View style={styles.upcomingHeader}>
-                  <View style={styles.contactImageContainer}>
-                    {upcomingCheckIn.contactImage ? (
-                      <Image source={{ uri: upcomingCheckIn.contactImage }} style={styles.upcomingContactImage} />
-                    ) : (
-                      <View style={styles.skeletonProfileImage}>
-                        <Icon name="account" size={24} color="#FFFFFF" />
+              {isLoadingPlaces ? (
+                <SkeletonList items={3} />
+              ) : policeStations.length > 0 ? (
+                <View style={styles.placesContainer}>
+                  {policeStations
+                    .slice(0, showAllPoliceStations ? policeStations.length : 2)
+                    .map((station) => (
+                    <TouchableOpacity
+                      key={station.place_id}
+                      style={styles.placeCard}
+                      onPress={() => handlePlacePress(station)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.placeIcon, { backgroundColor: Colors.primary + '20' }]}>
+                        <Icon name="police-badge" size={24} color={Colors.primary} />
                       </View>
-                    )}
-                  </View>
-                  <View style={styles.upcomingDetails}>
-                    <Text style={styles.upcomingTitle}>{upcomingCheckIn.contactName}</Text>
-                    <Text style={styles.upcomingDescription}>{upcomingCheckIn.description}</Text>
-                  </View>
+                      <View style={styles.placeInfo}>
+                        <Text style={styles.placeName} numberOfLines={1}>{station.name}</Text>
+                        <Text style={styles.placeAddress} numberOfLines={1}>
+                          {station.vicinity || station.formatted_address || 'Address not available'}
+                        </Text>
+                        <View style={styles.placeMeta}>
+                          <Text style={styles.placeDistance}>{station.formattedDistance || 'Distance unknown'}</Text>
+                          {station.opening_hours?.open_now !== undefined && (
+                            <Text style={[styles.placeStatus, station.opening_hours.open_now && styles.placeStatusOpen]}>
+                              {station.opening_hours.open_now ? 'Open Now' : 'Closed'}
+                            </Text>
+                          )}
+                        </View>
+                      </View>
+                      <View style={styles.placeActions}>
+                        {station.formatted_phone_number || station.international_phone_number ? (
+                          <TouchableOpacity
+                            style={styles.callButton}
+                            onPress={(e) => handlePoliceStationCall(station, e)}
+                          >
+                            <Icon name="phone" size={18} color="#FFFFFF" />
+                          </TouchableOpacity>
+                        ) : null}
+                        <Icon name="chevron-right" size={20} color={Colors.textLight} />
+                      </View>
+                    </TouchableOpacity>
+                  ))}
                 </View>
-                <View style={styles.upcomingTime}>
-                  <View style={styles.timeItem}>
-                    <Icon name="calendar" size={16} color="#FFFFFF" />
-                    <Text style={styles.timeText}>{upcomingCheckIn.date}</Text>
-                  </View>
-                  <View style={styles.timeItem}>
-                    <Icon name="clock" size={16} color="#FFFFFF" />
-                    <Text style={styles.timeText}>{upcomingCheckIn.time}</Text>
-                  </View>
+              ) : locationPermissionGranted ? (
+                <View style={styles.emptyState}>
+                  <Icon name="map-marker-off" size={48} color={Colors.textLight} />
+                  <Text style={styles.emptyStateText}>No police stations found nearby</Text>
                 </View>
+              ) : (
+                <View style={styles.emptyState}>
+                  <Icon name="map-marker-question" size={48} color={Colors.textLight} />
+                  <Text style={styles.emptyStateText}>Enable location to find police stations</Text>
+                  <TouchableOpacity style={styles.enableButton} onPress={initializeLocationAndPlaces}>
+                    <Text style={styles.enableButtonText}>Enable Location</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+
+            {/* Safe Spots (top 5) */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionTitleContainer}>
+                  <Icon name="shield-check" size={20} color={Colors.success} style={styles.sectionIcon} />
+                  <Text style={styles.sectionTitle}>Safe Spots</Text>
+                </View>
+                <TouchableOpacity onPress={openAllSafeSpots}>
+                  <Text style={styles.viewAllText}>View All</Text>
+                </TouchableOpacity>
               </View>
+              {isLoadingPlaces ? (
+                <SkeletonList items={3} />
+              ) : safeSpots.length > 0 ? (
+                <View style={styles.placesContainer}>
+                  {safeSpots.slice(0, 5).map((spot) => (
+                    <TouchableOpacity
+                      key={spot.place_id}
+                      style={styles.placeCard}
+                      onPress={() => handlePlacePress(spot)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.placeIcon, { backgroundColor: getPlaceColor(spot) + '20' }]}>
+                        <Icon name={getPlaceIcon(spot)} size={24} color={getPlaceColor(spot)} />
+                      </View>
+                      <View style={styles.placeInfo}>
+                        <Text style={styles.placeName} numberOfLines={1}>{spot.name}</Text>
+                        <Text style={styles.placeAddress} numberOfLines={1}>
+                          {spot.vicinity || spot.formatted_address || 'Address not available'}
+                        </Text>
+                        <View style={styles.placeMeta}>
+                          <Text style={styles.placeDistance}>{spot.formattedDistance || 'Distance unknown'}</Text>
+                          {spot.opening_hours?.open_now !== undefined && (
+                            <Text style={[styles.placeStatus, spot.opening_hours.open_now && styles.placeStatusOpen]}>
+                              {spot.opening_hours.open_now ? 'Open Now' : 'Closed'}
+                            </Text>
+                          )}
+                          {spot.rating && (
+                            <View style={styles.ratingContainer}>
+                              <Icon name="star" size={12} color={Colors.warning} />
+                              <Text style={styles.ratingText}>{spot.rating.toFixed(1)}</Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                      <Icon name="chevron-right" size={20} color={Colors.textLight} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ) : locationPermissionGranted ? (
+                <View style={styles.emptyState}>
+                  <Icon name="map-marker-off" size={48} color={Colors.textLight} />
+                  <Text style={styles.emptyStateText}>No safe spots found nearby</Text>
+                </View>
+              ) : (
+                <View style={styles.emptyState}>
+                  <Icon name="map-marker-question" size={48} color={Colors.textLight} />
+                  <Text style={styles.emptyStateText}>Enable location to find safe spots</Text>
+                  <TouchableOpacity style={styles.enableButton} onPress={initializeLocationAndPlaces}>
+                    <Text style={styles.enableButtonText}>Enable Location</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
-          )}
-        </View>
-
-        {/* Safe Spots Near Me */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Safe Spots Near Me</Text>
-            <TouchableOpacity onPress={handleSafeSpots}>
-              <Text style={styles.viewAllText}>View All</Text>
-            </TouchableOpacity>
-          </View>
-          {isDataLoading ? (
-            <SkeletonList items={3} />
-          ) : (
-            <View style={styles.safeSpotsContainer}>
-              <TouchableOpacity style={styles.safeSpotCard} onPress={handleSafeSpots}>
-                <View style={styles.safeSpotIcon}>
-                  <Icon name="hospital-building" size={24} color={Colors.success} />
-                </View>
-                <View style={styles.safeSpotInfo}>
-                  <Text style={styles.safeSpotName}>City Hospital</Text>
-                  <Text style={styles.safeSpotDistance}>0.3 km away</Text>
-                  <Text style={styles.safeSpotStatus}>Open 24/7</Text>
-                </View>
-                <Icon name="chevron-right" size={20} color={Colors.textLight} />
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.safeSpotCard} onPress={handleSafeSpots}>
-                <View style={styles.safeSpotIcon}>
-                  <Icon name="police-badge" size={24} color={Colors.primary} />
-                </View>
-                <View style={styles.safeSpotInfo}>
-                  <Text style={styles.safeSpotName}>Police Station</Text>
-                  <Text style={styles.safeSpotDistance}>0.8 km away</Text>
-                  <Text style={styles.safeSpotStatus}>Open 24/7</Text>
-                </View>
-                <Icon name="chevron-right" size={20} color={Colors.textLight} />
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.safeSpotCard} onPress={handleSafeSpots}>
-                <View style={styles.safeSpotIcon}>
-                  <Icon name="store" size={24} color={Colors.warning} />
-                </View>
-                <View style={styles.safeSpotInfo}>
-                  <Text style={styles.safeSpotName}>Safe Zone Store</Text>
-                  <Text style={styles.safeSpotDistance}>1.2 km away</Text>
-                  <Text style={styles.safeSpotStatus}>Open until 10 PM</Text>
-                </View>
-                <Icon name="chevron-right" size={20} color={Colors.textLight} />
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
 
         {/* Recent Contacts */}
         <View style={styles.section}>
@@ -375,85 +578,82 @@ const HomeScreen: React.FC = () => {
               <Text style={styles.viewAllText}>See All</Text>
             </TouchableOpacity>
           </View>
-          {isDataLoading ? (
+          {isLoadingContacts ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.contactsScroll}>
               {Array.from({ length: 4 }).map((_, index) => (
                 <View key={index} style={styles.contactCard}>
                   <View style={styles.contactHeader}>
-                    <Skeleton width={50} height={50} borderRadius={25} style={styles.contactImageSkeleton} />
+                    <Skeleton width={60} height={60} borderRadius={30} style={styles.contactImageSkeleton} />
                     <View style={styles.contactInfo}>
                       <Skeleton width="80%" height={18} style={styles.contactNameSkeleton} />
                       <Skeleton width="90%" height={14} style={styles.contactPhoneSkeleton} />
-                      <Skeleton width="60%" height={12} style={styles.contactMetaSkeleton} />
-                      <Skeleton width="50%" height={20} borderRadius={10} style={styles.trustBadgeSkeleton} />
                     </View>
                   </View>
                   <View style={styles.contactActions}>
                     <Skeleton width={40} height={40} borderRadius={20} style={styles.actionButtonSkeleton} />
-                    <Skeleton width={40} height={40} borderRadius={20} style={styles.actionButtonSkeleton} />
+                    <Skeleton width={80} height={32} borderRadius={16} style={styles.actionButtonSkeleton} />
                     <Skeleton width={40} height={40} borderRadius={20} style={styles.actionButtonSkeleton} />
                   </View>
                 </View>
               ))}
             </ScrollView>
-          ) : (
+          ) : recentContacts.length > 0 ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.contactsScroll}>
-              {recentContacts.map((contact) => (
-                <TouchableOpacity key={contact.id} style={styles.contactCard}>
-                  <View style={styles.contactHeader}>
-                    <View style={styles.contactImageContainer}>
-                      {contact.contactImage ? (
-                        <Image source={{ uri: contact.contactImage }} style={styles.contactImage} />
-                      ) : (
-                        <View style={styles.skeletonContactImage}>
-                          <Icon name="account" size={20} color={Colors.primary} />
-                        </View>
-                      )}
-                    </View>
-                    <View style={styles.contactInfo}>
-                      <Text style={styles.contactName}>{contact.name}</Text>
-                      <Text style={styles.contactPhone}>{contact.phoneNumber}</Text>
-                      <View style={styles.contactMeta}>
-                        <Icon 
-                          name={contact.lastContactType === 'call' ? 'phone' : 'message-text'} 
-                          size={12} 
-                          color={Colors.textSecondary} 
-                        />
-                        <Text style={styles.contactTime}>{contact.lastContactTime}</Text>
+              {recentContacts.map((contact) => {
+                const inEmergency = isInEmergencyContacts(contact.phoneNumber);
+                return (
+                  <TouchableOpacity key={contact.id} style={styles.contactCard}>
+                    <View style={styles.contactHeader}>
+                      <View style={styles.contactImageContainer}>
+                        {contact.contactImage ? (
+                          <Image source={{ uri: contact.contactImage }} style={styles.contactImage} />
+                        ) : (
+                          <View style={styles.contactInitialsContainer}>
+                            <Text style={styles.contactInitials}>{contact.initials}</Text>
+                          </View>
+                        )}
                       </View>
-                      {contact.isInTrustCircle && (
-                        <View style={styles.trustCircleBadge}>
-                          <Icon name="shield-check" size={12} color={Colors.success} />
-                          <Text style={styles.trustCircleText}>Trust Circle</Text>
-                        </View>
-                      )}
+                      <View style={styles.contactInfo}>
+                        <Text style={styles.contactName} numberOfLines={1}>{contact.name}</Text>
+                        <Text style={styles.contactPhone} numberOfLines={1}>{contact.phoneNumber}</Text>
+                      </View>
                     </View>
-                  </View>
-                  <View style={styles.contactActions}>
-                    <TouchableOpacity 
-                      style={styles.callButton}
-                      onPress={() => handleContactCall(contact)}
-                    >
-                      <Icon name="phone" size={16} color="#FFFFFF" />
-                    </TouchableOpacity>
-                    <TouchableOpacity 
-                      style={styles.textButton}
-                      onPress={() => handleContactText(contact)}
-                    >
-                      <Icon name="message-text" size={16} color={Colors.primary} />
-                    </TouchableOpacity>
-                    {!contact.isInTrustCircle && (
+                    <View style={styles.contactActions}>
                       <TouchableOpacity 
-                        style={styles.addButton}
-                        onPress={() => handleAddToTrustCircle(contact)}
+                        style={styles.contactCallButton}
+                        onPress={() => handleContactCall(contact)}
                       >
-                        <Icon name="plus" size={16} color={Colors.primary} />
+                        <Icon name="phone" size={18} color="#FFFFFF" />
                       </TouchableOpacity>
-                    )}
-                  </View>
-                </TouchableOpacity>
-              ))}
+
+                      {inEmergency ? (
+                        <View style={styles.contactAddPlaceholder} />
+                      ) : (
+                        <TouchableOpacity
+                          style={styles.contactAddButton}
+                          onPress={() => handleAddToEmergency(contact)}
+                        >
+                          <Icon name="shield-plus" size={16} color={Colors.primary} />
+                          <Text style={styles.contactAddButtonText}>Add</Text>
+                        </TouchableOpacity>
+                      )}
+
+                      <TouchableOpacity 
+                        style={styles.textButton}
+                        onPress={() => handleContactText(contact)}
+                      >
+                        <Icon name="message-text" size={18} color={Colors.primary} />
+                      </TouchableOpacity>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
+          ) : (
+            <View style={styles.emptyState}>
+              <Icon name="account-off" size={48} color={Colors.textLight} />
+              <Text style={styles.emptyStateText}>No contacts found</Text>
+            </View>
           )}
         </View>
       </ScrollView>
@@ -518,6 +718,11 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     paddingHorizontal: 15,
     paddingVertical: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
   searchInput: {
     flex: 1,
@@ -535,16 +740,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 15,
   },
+  sectionTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  sectionIcon: {
+    marginRight: 8,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: Colors.text,
-    marginBottom: 15,
   },
   viewAllText: {
     fontSize: 14,
     color: Colors.primary,
     fontWeight: '600',
+  },
+  enableLocationText: {
+    fontSize: 12,
+    color: Colors.primary,
+    fontWeight: '500',
   },
   categoriesScroll: {
     marginBottom: 10,
@@ -568,48 +784,40 @@ const styles = StyleSheet.create({
     color: Colors.text,
     textAlign: 'center',
   },
+  // Upcoming Safety Check-in (Nearest Police Station) Styles
   upcomingCard: {
     backgroundColor: Colors.primary,
     borderRadius: 20,
     padding: 20,
     marginBottom: 10,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   upcomingContent: {
     flex: 1,
   },
-  upcomingHeader: {
+  upcomingTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  upcomingHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     marginBottom: 15,
   },
-  contactImageContainer: {
+  upcomingIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 15,
-  },
-  upcomingContactImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: Colors.background,
-  },
-  skeletonProfileImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: Colors.primary + '20',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: Colors.primary + '40',
-  },
-  skeletonContactImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: Colors.primary + '20',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: Colors.primary + '40',
   },
   upcomingDetails: {
     flex: 1,
@@ -618,92 +826,160 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#FFFFFF',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   upcomingDescription: {
     fontSize: 14,
     color: '#FFFFFF',
     opacity: 0.9,
+    marginBottom: 10,
   },
-  upcomingTime: {
+  upcomingMeta: {
     flexDirection: 'row',
-    gap: 20,
+    alignItems: 'center',
+    gap: 16,
+    flexWrap: 'wrap',
   },
-  timeItem: {
+  upcomingMetaItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
-  timeText: {
-    fontSize: 14,
+  upcomingMetaText: {
+    fontSize: 13,
     color: '#FFFFFF',
     fontWeight: '500',
   },
-  contactsScroll: {
-    marginBottom: 10,
+  upcomingPillPrimary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF20',
+    gap: 6,
   },
-  contactCard: {
+  upcomingPillText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  upcomingPillSecondary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    gap: 6,
+  },
+  upcomingPillSecondaryText: {
+    color: Colors.primary,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  upcomingActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 10,
+  },
+  upcomingCallButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.success,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 6,
+  },
+  upcomingCallButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  upcomingDirectionsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 6,
+  },
+  upcomingDirectionsButtonText: {
+    color: Colors.primary,
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  placesContainer: {
+    gap: 12,
+  },
+  placeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: Colors.background,
-    borderRadius: 15,
     padding: 15,
-    marginRight: 15,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: Colors.border,
-    width: 220,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  contactHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 15,
-  },
-  contactImage: {
+  placeIcon: {
     width: 50,
     height: 50,
     borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 15,
   },
-  contactInfo: {
+  placeInfo: {
     flex: 1,
-    paddingTop: 2,
   },
-  contactName: {
+  placeName: {
     fontSize: 16,
     fontWeight: 'bold',
     color: Colors.text,
     marginBottom: 4,
   },
-  contactPhone: {
-    fontSize: 14,
+  placeAddress: {
+    fontSize: 13,
     color: Colors.textSecondary,
     marginBottom: 6,
   },
-  contactMeta: {
+  placeMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 6,
+    gap: 12,
   },
-  contactTime: {
+  placeDistance: {
+    fontSize: 12,
+    color: Colors.primary,
+    fontWeight: '600',
+  },
+  placeStatus: {
+    fontSize: 12,
+    color: Colors.error,
+    fontWeight: '500',
+  },
+  placeStatusOpen: {
+    color: Colors.success,
+  },
+  ratingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  ratingText: {
     fontSize: 12,
     color: Colors.textSecondary,
-    marginLeft: 4,
+    fontWeight: '500',
   },
-  trustCircleBadge: {
+  placeActions: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.success + '20',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
-    alignSelf: 'flex-start',
-  },
-  trustCircleText: {
-    fontSize: 10,
-    color: Colors.success,
-    fontWeight: '600',
-    marginLeft: 2,
-  },
-  contactActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     gap: 8,
   },
@@ -714,107 +990,174 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.success,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: Colors.success,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  enableButton: {
+    marginTop: 16,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  enableButtonText: {
+    color: Colors.background,
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  contactsScroll: {
+    marginBottom: 10,
+  },
+  contactCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 18,
+    marginRight: 15,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    width: 260,
+  },
+  contactHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 15,
+  },
+  contactImageContainer: {
+    marginRight: 12,
+  },
+  contactImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+  },
+  contactInitialsContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  contactInitials: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  contactInfo: {
+    flex: 1,
+    paddingTop: 4,
+  },
+  contactName: {
+    fontSize: 17,
+    fontWeight: 'bold',
+    color: Colors.text,
+    marginBottom: 6,
+  },
+  contactPhone: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+  },
+  contactActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+  },
+  contactCallButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.success,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: Colors.success,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  contactAddButton: {
+    minWidth: 80,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.background,
+    gap: 6,
+  },
+  contactAddButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.primary,
+  },
+  contactAddPlaceholder: {
+    minWidth: 80,
+    height: 32,
   },
   textButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: Colors.primary + '20',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  addButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.secondary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  // Safe Spots Styles
-  safeSpotsContainer: {
-    gap: 10,
-  },
-  safeSpotCard: {
+  fullScreenHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.background,
-    padding: 15,
-    borderRadius: 15,
+    marginBottom: 16,
+  },
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: Colors.border,
-  },
-  safeSpotIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: Colors.secondary,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 15,
+    marginRight: 10,
+    backgroundColor: Colors.background,
   },
-  safeSpotInfo: {
-    flex: 1,
-  },
-  safeSpotName: {
-    fontSize: 16,
+  fullScreenTitle: {
+    fontSize: 18,
     fontWeight: 'bold',
     color: Colors.text,
-    marginBottom: 4,
   },
-  safeSpotDistance: {
-    fontSize: 14,
-    color: Colors.primary,
-    marginBottom: 2,
-  },
-  safeSpotStatus: {
-    fontSize: 12,
-    color: Colors.textSecondary,
+  fullScreenSearchContainer: {
+    marginBottom: 16,
   },
   // Skeleton styles
-  greetingSkeleton: {
-    marginBottom: 4,
-  },
-  userNameSkeleton: {
-    marginTop: 4,
-  },
-  categoryIconSkeleton: {
-    marginBottom: 8,
-  },
-  categoryNameSkeleton: {
-    marginTop: 4,
-  },
-  upcomingImageSkeleton: {
-    marginRight: 15,
-  },
-  upcomingTitleSkeleton: {
-    marginBottom: 8,
-  },
-  upcomingDescriptionSkeleton: {
-    marginBottom: 12,
-  },
-  timeSkeleton: {
-    marginRight: 20,
-  },
   contactImageSkeleton: {
-    marginRight: 15,
+    marginRight: 12,
   },
   contactNameSkeleton: {
-    marginBottom: 6,
+    marginBottom: 8,
   },
   contactPhoneSkeleton: {
     marginBottom: 8,
   },
-  contactMetaSkeleton: {
-    marginBottom: 8,
-  },
-  trustBadgeSkeleton: {
-    marginTop: 4,
-  },
   actionButtonSkeleton: {
-    marginRight: 8,
+    marginRight: 12,
   },
 });
 
 export default HomeScreen;
-

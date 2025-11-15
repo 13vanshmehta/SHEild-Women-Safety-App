@@ -11,6 +11,10 @@ export const API_CONFIG = {
   },
 };
 
+// Google Places API Configuration
+// IMPORTANT: In production, store this in environment variables or fetch from backend
+export const GOOGLE_PLACES_API_KEY = 'YOUR_GOOGLE_PLACES_API_KEY_HERE';
+
 // App Configuration
 export const APP_CONFIG = {
   APP_NAME: 'SHEild',
@@ -18,3 +22,5 @@ export const APP_CONFIG = {
   VERSION: '1.0.0',
   ONBOARDING_TIMEOUT: 2000, // 2 seconds
 };
+
+export const GEOAPIFY_API_KEY = 'e2999a4e883c4232b894f21b21bf7a49';

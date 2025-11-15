@@ -29,7 +29,13 @@ const SlideView: React.FC<SlideViewProps> = ({ children, currentIndex, onIndexCh
 
   const childrenWithWidth = React.Children.map(children, (child, index) => {
     return React.cloneElement(child, {
-      style: [child.props.style, { width: SCREEN_WIDTH }],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ...(child.props as any),
+      style: [
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (child.props as any).style,
+        { width: SCREEN_WIDTH },
+      ],
       key: `slide-${index}`,
     });
   });

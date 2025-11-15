@@ -54,7 +54,7 @@ const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({
       // await authService.verifyResetCodeAndSetPassword(email, normalizedCode, password);
       
       // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise<void>(resolve => setTimeout(() => resolve(), 2000));
       
       Alert.alert('Success', 'Password has been reset. Please sign in.', [
         { text: 'OK', onPress: onPasswordReset },
@@ -74,7 +74,7 @@ const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({
       // await authService.sendPasswordResetEmail(email);
       
       // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise<void>(resolve => setTimeout(() => resolve(), 1000));
       
       Alert.alert('New code sent', 'Please check your inbox for the latest code. Use the newest code only.');
     } catch (err: any) {

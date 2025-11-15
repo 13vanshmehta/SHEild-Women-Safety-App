@@ -1,15 +1,16 @@
 // Simple static colors - no theme system needed
+// Primary brand color is aligned with the Emergency SOS button on the bottom navigation
 export const Colors = {
-  primary: '#8B5CF6',
-  primaryLight: '#A78BFA',
-  primaryDark: '#7C3AED',
+  primary: '#1E3A8A',
+  primaryLight: '#2745A3',
+  primaryDark: '#162665',
   secondary: '#F3F4F6',
   background: '#FFFFFF',
   surface: '#F9FAFB',
   text: '#111827',
   textSecondary: '#6B7280',
   textLight: '#9CA3AF',
-  accent: '#8B5CF6',
+  accent: '#1E3A8A',
   error: '#EF4444',
   success: '#10B981',
   warning: '#F59E0B',

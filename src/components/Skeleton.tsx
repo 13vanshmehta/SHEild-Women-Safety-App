@@ -3,8 +3,8 @@ import { View, Animated, StyleSheet, ViewStyle } from 'react-native';
 import { Colors } from '../constants/colors';
 
 interface SkeletonProps {
-  width?: number | string;
-  height?: number | string;
+  width?: ViewStyle['width'];
+  height?: ViewStyle['height'];
   borderRadius?: number;
   style?: ViewStyle;
   children?: React.ReactNode;
@@ -70,8 +70,8 @@ const Skeleton: React.FC<SkeletonProps> = ({
       style={[
         styles.skeleton,
         {
-          width,
-          height,
+          width: width as any,
+          height: height as any,
           borderRadius,
           backgroundColor,
         },
@@ -82,7 +82,7 @@ const Skeleton: React.FC<SkeletonProps> = ({
 };
 
 // Predefined skeleton components for common use cases
-export const SkeletonText: React.FC<{ lines?: number; width?: number | string }> = ({
+export const SkeletonText: React.FC<{ lines?: number; width?: ViewStyle['width'] }> = ({
   lines = 1,
   width = '100%',
 }) => (
@@ -90,9 +90,9 @@ export const SkeletonText: React.FC<{ lines?: number; width?: number | string }>
     {Array.from({ length: lines }).map((_, index) => (
       <Skeleton
         key={index}
-        width={index === lines - 1 ? '80%' : width}
+        width={(index === lines - 1 ? '80%' : width) as any}
         height={16}
-        style={[styles.textLine, { marginBottom: index < lines - 1 ? 8 : 0 }]}
+        style={[styles.textLine, { marginBottom: index < lines - 1 ? 8 : 0 }] as any}
       />
     ))}
   </View>
