@@ -10,7 +10,6 @@ import {
   FlatList,
   TouchableOpacity,
   TextInput,
-  Alert,
   Modal,
   StatusBar,
   ActivityIndicator,
@@ -39,6 +38,8 @@ import locationService from '../services/locationService';
 import { requestPermissionWithRationale, PermissionStatus } from '../services/permissionService';
 import { getGeoapifyMapUrl } from '../services/geoapifyMapService';
 import { GEOAPIFY_API_KEY } from '../constants/api';
+import { useCustomAlert } from '../components/CustomAlert';
+import { useToast } from '../components/Toast';
 
 // Create Group Modal Component
 const CreateGroupModal: React.FC<{ 
@@ -48,14 +49,23 @@ const CreateGroupModal: React.FC<{
   setSuccessModal: (modal: any) => void;
   shareJoinCode: (code: string, name: string) => void;
   showToast: (message: string, type: 'success' | 'error') => void;
-}> = ({ visible, onClose, onSuccess: _onSuccess, setSuccessModal, shareJoinCode: _shareJoinCode }) => {
+  showAlert: (title: string, message: string, buttons?: any[], icon?: string, iconColor?: string) => void;
+}> = ({ visible, onClose, onSuccess: _onSuccess, setSuccessModal, shareJoinCode: _shareJoinCode, showAlert }) => {
   const [groupName, setGroupName] = useState('');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Reset form when modal is closed
+  useEffect(() => {
+    if (!visible) {
+      setGroupName('');
+      setDescription('');
+    }
+  }, [visible]);
+
   const handleCreate = async () => {
     if (!groupName.trim()) {
-      Alert.alert('Error', 'Please enter a group name');
+      showAlert('Error', 'Please enter a group name', undefined, 'alert-circle', '#EF4444');
       return;
     }
 
@@ -71,8 +81,13 @@ const CreateGroupModal: React.FC<{
       if (response && response.success) {
         const joinCode = response.data?.joinCode;
         const createdGroupName = response.data?.name || groupName;
+        
+        // Clear form fields
         setGroupName('');
         setDescription('');
+        
+        // Close the create group modal
+        onClose();
         
         // Show custom success modal
         setSuccessModal({
@@ -83,12 +98,12 @@ const CreateGroupModal: React.FC<{
           groupName: createdGroupName,
         });
       } else {
-        Alert.alert('Error', response?.message || 'Failed to create group');
+        showAlert('Error', response?.message || 'Failed to create group', undefined, 'alert-circle', '#EF4444');
       }
     } catch (error: any) {
       console.error('Error creating group:', error);
       const errorMessage = error?.response?.data?.message || error?.message || 'Failed to create group';
-      Alert.alert('Error', errorMessage);
+      showAlert('Error', errorMessage, undefined, 'alert-circle', '#EF4444');
     } finally {
       setLoading(false);
     }
@@ -160,13 +175,14 @@ const JoinGroupModal: React.FC<{
   onClose: () => void; 
   onSuccess: () => void;
   showToast: (message: string, type: 'success' | 'error') => void;
-}> = ({ visible, onClose, onSuccess }) => {
+  showAlert: (title: string, message: string, buttons?: any[], icon?: string, iconColor?: string) => void;
+}> = ({ visible, onClose, onSuccess, showAlert }) => {
   const [joinCode, setJoinCode] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleJoin = async () => {
     if (!joinCode.trim()) {
-      Alert.alert('Error', 'Please enter a join code');
+      showAlert('Error', 'Please enter a join code', undefined, 'alert-circle', '#EF4444');
       return;
     }
 
@@ -182,12 +198,12 @@ const JoinGroupModal: React.FC<{
         setJoinCode('');
         onSuccess();
       } else {
-        Alert.alert('Error', response?.message || 'Invalid join code');
+        showAlert('Error', response?.message || 'Invalid join code', undefined, 'alert-circle', '#EF4444');
       }
     } catch (error: any) {
       console.error('Error joining group:', error);
       const errorMessage = error?.response?.data?.message || error?.message || 'Failed to join group';
-      Alert.alert('Unable to Join', errorMessage);
+      showAlert('Unable to Join', errorMessage, undefined, 'alert-circle', '#EF4444');
     } finally {
       setLoading(false);
     }
@@ -360,7 +376,12 @@ const ImageMessageBubble: React.FC<{
 };
 
 // Group Chat Screen Component - Rewritten with proper layout
-const GroupChatScreen: React.FC<{ group: any; onBack: () => void; onOpenGroupDetails: () => void }> = ({ group, onBack, onOpenGroupDetails }) => {
+const GroupChatScreen: React.FC<{ 
+  group: any; 
+  onBack: () => void; 
+  onOpenGroupDetails: () => void;
+  showAlert: (title: string, message: string, buttons?: any[], icon?: string, iconColor?: string) => void;
+}> = ({ group, onBack, onOpenGroupDetails, showAlert }) => {
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -535,7 +556,7 @@ const GroupChatScreen: React.FC<{ group: any; onBack: () => void; onOpenGroupDet
       console.log('Resolved media URL:', mediaUrl);
       
       if (!mediaUrl) {
-        Alert.alert('Error', 'Failed to upload image.');
+        showAlert('Error', 'Failed to upload image.', undefined, 'alert-circle', '#EF4444');
         return;
       }
 
@@ -553,7 +574,7 @@ const GroupChatScreen: React.FC<{ group: any; onBack: () => void; onOpenGroupDet
         stack: error?.stack,
         response: error?.response,
       });
-      Alert.alert('Error', `Failed to send image: ${error?.message || 'Unknown error'}`);
+      showAlert('Error', `Failed to send image: ${error?.message || 'Unknown error'}`, undefined, 'alert-circle', '#EF4444');
     }
   };
 
@@ -561,7 +582,7 @@ const GroupChatScreen: React.FC<{ group: any; onBack: () => void; onOpenGroupDet
     try {
       const hasPerm = await requestMediaPermissionsIfNeeded();
       if (!hasPerm) {
-        Alert.alert('Permission required', 'Please allow camera and media access to send images.');
+        showAlert('Permission Required', 'Please allow camera and media access to send images.', undefined, 'camera', '#F59E0B');
         return;
       }
 
@@ -575,7 +596,7 @@ const GroupChatScreen: React.FC<{ group: any; onBack: () => void; onOpenGroupDet
       await uploadAndSendImage(result.assets[0]);
     } catch (error) {
       console.error('Error picking/sending image:', error);
-      Alert.alert('Error', 'Failed to send image.');
+      showAlert('Error', 'Failed to send image.', undefined, 'alert-circle', '#EF4444');
     }
   };
 
@@ -583,7 +604,7 @@ const GroupChatScreen: React.FC<{ group: any; onBack: () => void; onOpenGroupDet
     try {
       const hasPerm = await requestMediaPermissionsIfNeeded();
       if (!hasPerm) {
-        Alert.alert('Permission required', 'Please allow camera and media access to send images.');
+        showAlert('Permission Required', 'Please allow camera and media access to send images.', undefined, 'camera', '#F59E0B');
         return;
       }
 
@@ -598,7 +619,7 @@ const GroupChatScreen: React.FC<{ group: any; onBack: () => void; onOpenGroupDet
       await uploadAndSendImage(result.assets[0]);
     } catch (error) {
       console.error('Error capturing/sending image:', error);
-      Alert.alert('Error', 'Failed to send captured image.');
+      showAlert('Error', 'Failed to send captured image.', undefined, 'alert-circle', '#EF4444');
     }
   };
 
@@ -701,8 +722,8 @@ const GroupChatScreen: React.FC<{ group: any; onBack: () => void; onOpenGroupDet
       return;
     }
 
-    Alert.alert(
-      'Delete messages',
+    showAlert(
+      'Delete Messages',
       `Are you sure you want to delete ${selectedMessageIds.length} message${
         selectedMessageIds.length > 1 ? 's' : ''
       }?`,
@@ -724,11 +745,13 @@ const GroupChatScreen: React.FC<{ group: any; onBack: () => void; onOpenGroupDet
               clearMessageSelection();
             } catch (error) {
               console.error('Bulk delete error:', error);
-              Alert.alert('Error', 'Failed to delete some messages.');
+              showAlert('Error', 'Failed to delete some messages.', undefined, 'alert-circle', '#EF4444');
             }
           },
         },
       ],
+      'delete',
+      '#EF4444',
     );
   };
 
@@ -744,7 +767,7 @@ const GroupChatScreen: React.FC<{ group: any; onBack: () => void; onOpenGroupDet
       setMessages(prev => prev.filter((m) => m._id !== activeMessage._id));
     } catch (error) {
       console.error('Error deleting message:', error);
-      Alert.alert('Error', 'Failed to delete message.');
+      showAlert('Error', 'Failed to delete message.', undefined, 'alert-circle', '#EF4444');
     } finally {
       setIsMessageActionsVisible(false);
       setActiveMessage(null);
@@ -764,7 +787,7 @@ const GroupChatScreen: React.FC<{ group: any; onBack: () => void; onOpenGroupDet
     if (!activeMessage) return;
     const trimmed = editText.trim();
     if (!trimmed) {
-      Alert.alert('Error', 'Message cannot be empty.');
+      showAlert('Error', 'Message cannot be empty.', undefined, 'alert-circle', '#EF4444');
       return;
     }
     try {
@@ -778,7 +801,7 @@ const GroupChatScreen: React.FC<{ group: any; onBack: () => void; onOpenGroupDet
       );
     } catch (error) {
       console.error('Error editing message:', error);
-      Alert.alert('Error', 'Failed to edit message.');
+      showAlert('Error', 'Failed to edit message.', undefined, 'alert-circle', '#EF4444');
     } finally {
       setIsEditModalVisible(false);
       setActiveMessage(null);
@@ -812,7 +835,7 @@ const GroupChatScreen: React.FC<{ group: any; onBack: () => void; onOpenGroupDet
       setIsForwardModalVisible(true);
     } catch (error) {
       console.error('Error preparing forward:', error);
-      Alert.alert('Error', 'Failed to load groups for forwarding.');
+      showAlert('Error', 'Failed to load groups for forwarding.', undefined, 'alert-circle', '#EF4444');
     }
   };
 
@@ -843,7 +866,7 @@ const GroupChatScreen: React.FC<{ group: any; onBack: () => void; onOpenGroupDet
       setActiveMessage(null);
     } catch (error) {
       console.error('Error forwarding message:', error);
-      Alert.alert('Error', 'Failed to forward message.');
+      showAlert('Error', 'Failed to forward message.', undefined, 'alert-circle', '#EF4444');
     }
   };
 
@@ -1042,7 +1065,7 @@ const GroupChatScreen: React.FC<{ group: any; onBack: () => void; onOpenGroupDet
               style={[styles.chatMenuItem, styles.chatMenuItemDestructive]}
               onPress={() => {
                 setIsMenuVisible(false);
-                Alert.alert('Leave group', 'Leaving group will be available in a future update from here.');
+                showAlert('Leave Group', 'Leaving group will be available in a future update from here.', undefined, 'information', Colors.primary);
               }}
             >
               <Icon name="logout" size={20} color="#EF4444" />
@@ -1647,7 +1670,7 @@ const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({ visible, groupId,
   const handleCopyCode = () => {
     if (group?.joinCode) {
       Clipboard.setString(group.joinCode);
-      Alert.alert('Copied', 'Joining code copied to clipboard.');
+      onShareJoinCode(group.joinCode, group.name); // Use the toast instead
     }
   };
 
@@ -1752,6 +1775,8 @@ const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({ visible, groupId,
 };
 
 const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> = ({ onChatStateChange }) => {
+  const { showAlert, AlertComponent } = useCustomAlert();
+  const { showToast: showToastNotification, ToastComponent } = useToast();
   const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContact[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1761,7 +1786,6 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [showJoinGroup, setShowJoinGroup] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [toast, setToast] = useState<{ visible: boolean; message: string; type: 'success' | 'error' }>({ visible: false, message: '', type: 'success' });
   const [successModal, setSuccessModal] = useState<{ visible: boolean; title: string; message: string; joinCode?: string; groupName?: string }>({ visible: false, title: '', message: '' });
   const [activeTab, setActiveTab] = useState<'groups' | 'emergency'>('groups');
   const [currentScreen, setCurrentScreen] = useState<'main' | 'chat' | 'contactSelection'>('main');
@@ -1780,6 +1804,7 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
   // Emergency contact actions
   const [contactActionsVisible, setContactActionsVisible] = useState(false);
   const [actionContact, setActionContact] = useState<any | null>(null);
+  const isDeletingContactRef = useRef(false);
   
   const [tabIndex, setTabIndex] = useState(0);
   const loadEmergencyContacts = useCallback(async () => {
@@ -1853,14 +1878,53 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
   useEffect(() => {
     loadEmergencyContacts();
     loadGroups();
+
+    // Set up socket listeners for real-time group updates
+    let socketInstance: any;
+    const setupSocketListeners = async () => {
+      try {
+        socketInstance = await connectSocket();
+        
+        // Listen for new messages in any group
+        const handleGroupMessage = (message: any) => {
+          console.log('Received group message, refreshing groups list');
+          // Refresh groups to update last message preview
+          loadGroups();
+        };
+
+        const handleMessageSent = (message: any) => {
+          console.log('Message sent, refreshing groups list');
+          // Refresh groups to update last message preview
+          loadGroups();
+        };
+
+        socketInstance.on('groupMessage', handleGroupMessage);
+        socketInstance.on('messageSent', handleMessageSent);
+
+        return () => {
+          if (socketInstance) {
+            socketInstance.off('groupMessage', handleGroupMessage);
+            socketInstance.off('messageSent', handleMessageSent);
+          }
+        };
+      } catch (error) {
+        console.error('Error setting up socket listeners:', error);
+      }
+    };
+
+    setupSocketListeners();
+
+    return () => {
+      if (socketInstance) {
+        socketInstance.off('groupMessage');
+        socketInstance.off('messageSent');
+      }
+    };
   }, [loadEmergencyContacts, loadGroups]);
 
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
-    setToast({ visible: true, message, type });
-    setTimeout(() => {
-      setToast({ visible: false, message: '', type: 'success' });
-    }, 3000);
-  }, []);
+    showToastNotification(message, type);
+  }, [showToastNotification]);
 
   const shareGroupCode = useCallback((code: string, name: string) => {
     const shareMessage = `Join my group "${name}" on SHEild!\n\nJoin Code: ${code}\n\nUse this code to join my group and stay safe together!`;
@@ -1967,8 +2031,8 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
       return;
     }
 
-    Alert.alert(
-      'Delete groups',
+    showAlert(
+      'Delete Groups',
       `Are you sure you want to delete ${selectedGroupIds.length} group${
         selectedGroupIds.length > 1 ? 's' : ''
       }?`,
@@ -1996,6 +2060,8 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
           },
         },
       ],
+      'delete',
+      '#EF4444',
     );
   };
 
@@ -2107,6 +2173,7 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
           group={selectedGroup}
           onBack={handleBackToMain}
           onOpenGroupDetails={() => openGroupDetails(selectedGroup)}
+          showAlert={showAlert}
         />
         {showGroupDetails && groupDetailsId && (
           <GroupDetailsModal
@@ -2116,6 +2183,7 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
             onShareJoinCode={shareGroupCode}
           />
         )}
+        <AlertComponent />
       </>
     );
   }
@@ -2212,7 +2280,10 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
                 if (group.lastMessage) {
                   // Show "You" if current user sent it, otherwise show sender name
                   const isOwnMessage = group.lastMessage.isOwn === true;
-                  const senderName = isOwnMessage ? 'You' : (group.lastMessage.sender?.name || 'Someone');
+                  // Backend sends senderName directly, not nested in sender object
+                  const fullSenderName = group.lastMessage.senderName || 'Someone';
+                  const senderFirstName = fullSenderName.split(' ')[0] || fullSenderName;
+                  const senderName = isOwnMessage ? 'You' : senderFirstName;
                   const messageType = group.lastMessage.messageType;
                   
                   if (messageType === 'image') {
@@ -2436,7 +2507,7 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
                 style={styles.groupActionsItem}
                 onPress={() => {
                   setGroupActionsVisible(false);
-                  Alert.alert('Edit group', 'Editing group details will be available in a future update.');
+                  showAlert('Edit Group', 'Editing group details will be available in a future update.', undefined, 'information', Colors.primary);
                 }}
               >
                 <Icon name="pencil" size={20} color={Colors.text} />
@@ -2447,8 +2518,8 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
                 style={styles.groupActionsItem}
                 onPress={() => {
                   setGroupActionsVisible(false);
-                  Alert.alert(
-                    'Delete group',
+                  showAlert(
+                    'Delete Group',
                     'Are you sure you want to delete this group?',
                     [
                       { text: 'Cancel', style: 'cancel' },
@@ -2467,6 +2538,8 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
                         },
                       },
                     ],
+                    'delete',
+                    '#EF4444',
                   );
                 }}
               >
@@ -2494,28 +2567,70 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
           visible={contactActionsVisible}
           transparent
           animationType="fade"
-          onRequestClose={() => setContactActionsVisible(false)}
+          onRequestClose={() => {
+            setContactActionsVisible(false);
+            setActionContact(null);
+          }}
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.groupActionsContent}>
+          <TouchableOpacity 
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => {
+              setContactActionsVisible(false);
+              setActionContact(null);
+            }}
+          >
+            <View style={styles.groupActionsContent} onStartShouldSetResponder={() => true}>
               <Text style={styles.groupActionsTitle}>{actionContact.name}</Text>
               
               <TouchableOpacity
                 style={styles.groupActionsItem}
                 onPress={() => {
+                  // Prevent multiple presses
+                  if (isDeletingContactRef.current) {
+                    console.log('Already processing delete, ignoring');
+                    return;
+                  }
+                  
+                  isDeletingContactRef.current = true;
+                  const contactToDelete = actionContact;
                   setContactActionsVisible(false);
-                  Alert.alert(
-                    'Delete Contact',
-                    `Are you sure you want to delete ${actionContact.name} from your emergency contacts?`,
-                    [
-                      { text: 'Cancel', style: 'cancel' },
-                      { 
-                        text: 'Delete', 
-                        style: 'destructive',
-                        onPress: handleDeleteContact
-                      }
-                    ]
-                  );
+                  setActionContact(null);
+                  
+                  // Small delay to ensure modal is closed before showing alert
+                  setTimeout(() => {
+                    showAlert(
+                      'Delete Contact',
+                      `Are you sure you want to delete ${contactToDelete.name} from your emergency contacts?`,
+                      [
+                        { 
+                          text: 'Cancel', 
+                          style: 'cancel',
+                          onPress: () => {
+                            isDeletingContactRef.current = false;
+                          }
+                        },
+                        { 
+                          text: 'Delete', 
+                          style: 'destructive',
+                          onPress: async () => {
+                            try {
+                              await emergencyContactService.deleteEmergencyContact(contactToDelete._id);
+                              setEmergencyContacts(prev => prev.filter(c => c._id !== contactToDelete._id));
+                              showToast('Emergency contact deleted', 'success');
+                            } catch (error) {
+                              console.error('Error deleting contact:', error);
+                              showToast('Failed to delete contact', 'error');
+                            } finally {
+                              isDeletingContactRef.current = false;
+                            }
+                          }
+                        }
+                      ],
+                      'delete',
+                      '#EF4444',
+                    );
+                  }, 150);
                 }}
               >
                 <Icon name="delete" size={20} color="#EF4444" />
@@ -2524,12 +2639,15 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
 
               <TouchableOpacity
                 style={styles.modalCancelButton}
-                onPress={() => setContactActionsVisible(false)}
+                onPress={() => {
+                  setContactActionsVisible(false);
+                  setActionContact(null);
+                }}
               >
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </TouchableOpacity>
         </Modal>
       )}
 
@@ -2567,6 +2685,7 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
           setSuccessModal={setSuccessModal}
           shareJoinCode={shareGroupCode}
           showToast={showToast}
+          showAlert={showAlert}
         />
       )}
 
@@ -2579,21 +2698,16 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
             loadGroups();
           }}
           showToast={showToast}
+          showAlert={showAlert}
         />
       )}
 
+      {/* Custom Alert Component */}
+      <AlertComponent />
+
 
       {/* Toast Notification */}
-      {toast.visible && (
-        <View style={[styles.toast, toast.type === 'success' ? styles.toastSuccess : styles.toastError]}>
-          <Icon 
-            name={toast.type === 'success' ? 'check-circle' : 'alert-circle'} 
-            size={24} 
-            color="#FFFFFF" 
-          />
-          <Text style={styles.toastText}>{toast.message}</Text>
-        </View>
-      )}
+      <ToastComponent />
 
       {/* Beautiful Success Modal */}
       {successModal.visible && (

@@ -18,6 +18,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors } from '../constants/colors';
 import contactService, { Contact } from '../services/contactService';
 import emergencyContactService, { EmergencyContact } from '../services/emergencyContactService';
+import { useToast } from '../components/Toast';
 
 interface ContactSelectionScreenProps {
   onContactSelected?: (contact: EmergencyContact) => void | Promise<void>;
@@ -32,6 +33,7 @@ const ContactSelectionScreen: React.FC<ContactSelectionScreenProps> = ({
   mode = 'single',
   selectedContacts = []
 }) => {
+  const { showToast, ToastComponent } = useToast();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [filteredContacts, setFilteredContacts] = useState<Contact[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -133,29 +135,21 @@ const ContactSelectionScreen: React.FC<ContactSelectionScreenProps> = ({
       if (response.success) {
         console.log('Contact added successfully!');
         
-        Alert.alert(
-          'Success',
-          'Emergency contact added successfully!',
-          [
-            { 
-              text: 'OK', 
-              onPress: () => {
-                // Call the callback to trigger refresh in parent component
-                if (onContactSelected && response.data) {
-                  // Pass the saved contact from backend response
-                  const savedContact = Array.isArray(response.data) ? response.data[0] : response.data;
-                  onContactSelected(savedContact as EmergencyContact);
-                }
-                setShowRelationshipPicker(false);
-                setSelectedContact(null);
-                onBack?.();
-              }
-            }
-          ]
-        );
+        // Show success toast
+        showToast('Emergency contact added successfully!', 'success');
+        
+        // Call the callback to trigger refresh in parent component
+        if (onContactSelected && response.data) {
+          // Pass the saved contact from backend response
+          const savedContact = Array.isArray(response.data) ? response.data[0] : response.data;
+          onContactSelected(savedContact as EmergencyContact);
+        }
+        setShowRelationshipPicker(false);
+        setSelectedContact(null);
+        onBack?.();
       } else {
         console.log('Response not successful');
-        Alert.alert('Error', response.message || 'Failed to add emergency contact. Please try again.');
+        showToast(response.message || 'Failed to add emergency contact. Please try again.', 'error');
         setShowRelationshipPicker(false);
         setSelectedContact(null);
       }
@@ -425,6 +419,9 @@ const ContactSelectionScreen: React.FC<ContactSelectionScreenProps> = ({
           </View>
         </View>
       </Modal>
+
+      {/* Toast Notification */}
+      <ToastComponent />
     </SafeAreaView>
   );
 };
