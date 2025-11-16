@@ -171,13 +171,22 @@ io.on('connection', (socket) => {
           isLive: !!location.isLive,
         };
       } else if (finalType === 'audio' || finalType === 'image') {
-        // Media messages (audio/image) expect a previously uploaded file and mediaUrl
-        if (!mediaUrl || typeof mediaUrl !== 'string') {
-          return;
+        // Media messages (audio/image) can have mediaUrl or text (for placeholder)
+        if (mediaUrl && typeof mediaUrl === 'string') {
+          content.mediaUrl = mediaUrl;
         }
-        content.mediaUrl = mediaUrl;
-        if (finalType === 'audio' && typeof duration === 'number') {
-          content.duration = duration;
+        if (finalType === 'audio') {
+          if (typeof duration === 'number') {
+            content.duration = duration;
+          }
+          // Allow text for audio placeholder messages
+          if (text && text.trim()) {
+            content.text = text.trim();
+          }
+        }
+        // For image, mediaUrl is required
+        if (finalType === 'image' && !mediaUrl) {
+          return;
         }
       } else {
         if (!text || !text.trim()) {
