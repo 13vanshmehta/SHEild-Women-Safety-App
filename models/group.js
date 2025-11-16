@@ -24,7 +24,8 @@ const groupSchema = new mongoose.Schema({
     },
     phoneNumber: {
       type: String,
-      required: true
+      required: false,
+      default: ''
     },
     name: {
       type: String,

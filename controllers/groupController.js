@@ -292,7 +292,11 @@ const joinGroup = async (req, res) => {
       });
     }
 
-    group.addMember(userId, user.phoneNumber || '', `${user.firstName} ${user.lastName}`, 'member');
+    // Get user details with fallbacks
+    const phoneNumber = user.phoneNumber || '';
+    const userName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'User';
+    
+    group.addMember(userId, phoneNumber, userName, 'member');
     await group.save();
 
     await group.populate('createdBy', 'firstName lastName email');
