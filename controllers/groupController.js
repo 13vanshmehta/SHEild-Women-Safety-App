@@ -939,7 +939,28 @@ const mediaStorage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || '';
+    let ext = path.extname(file.originalname);
+    
+    // If no extension, try to get it from mimetype
+    if (!ext && file.mimetype) {
+      const mimeToExt = {
+        'image/jpeg': '.jpg',
+        'image/jpg': '.jpg',
+        'image/png': '.png',
+        'image/gif': '.gif',
+        'image/webp': '.webp',
+        'audio/mpeg': '.mp3',
+        'audio/mp4': '.m4a',
+        'audio/aac': '.aac',
+      };
+      ext = mimeToExt[file.mimetype] || '.jpg';
+    }
+    
+    // Fallback to .jpg if still no extension
+    if (!ext) {
+      ext = '.jpg';
+    }
+    
     const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
     cb(null, `${unique}${ext}`);
   },

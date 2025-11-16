@@ -16,7 +16,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:3000" || "http://localhost:8081",
+    origin: true, // Allow all origins for development
     credentials: true
 }));
 app.use(passport.initialize());
