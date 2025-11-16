@@ -1,6 +1,11 @@
 // API Service for SHEild Women Safety App
-const BASE_URL = 'http://192.168.29.17:8000'; // Update this with your actual IP
+import Config from 'react-native-config';
+
+// Use environment variable or fallback to default
+const BASE_URL = Config.API_BASE_URL || 'http://192.168.29.17:8000';
 export const API_BASE_URL = BASE_URL;
+
+console.log('API Base URL:', BASE_URL);
 
 export interface ServerResponse {
   status: 'success' | 'error';

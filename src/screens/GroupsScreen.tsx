@@ -464,21 +464,7 @@ const GroupChatScreen: React.FC<{
     }
   };
 
-  // Audio: currently using a simple placeholder message; full recording/playback
-  // will be integrated with a compatible native module in the future.
 
-  const sendAudioPlaceholder = async () => {
-    try {
-      const socket = await connectSocket();
-      socket.emit('sendGroupMessage', {
-        groupId: group._id,
-        messageType: 'audio',
-        text: '🎤 Audio message',
-      });
-    } catch (error) {
-      console.error('Error sending audio placeholder:', error);
-    }
-  };
 
   const requestMediaPermissionsIfNeeded = async (): Promise<boolean> => {
     try {
@@ -1577,26 +1563,7 @@ const GroupChatScreen: React.FC<{
         }}
       >
         <View style={styles.messageInputInner}>
-          <TouchableOpacity
-            style={styles.messageInputIconButton}
-            onPress={async () => {
-              const status: PermissionStatus = await requestPermissionWithRationale('microphone', {
-                title: 'Microphone access',
-                message:
-                  'SHEild needs access to your microphone so you can record and send audio messages in group chats.',
-                examples: ['Send a quick voice update to your trust circle'],
-              });
-              if (status === 'granted') {
-                await sendAudioPlaceholder();
-              }
-            }}
-          >
-            <Icon
-              name="microphone"
-              size={20}
-              color={Colors.textLight}
-            />
-          </TouchableOpacity>
+
           <TouchableOpacity style={styles.messageInputIconButton} onPress={handlePickImage}>
             <Icon name="image" size={20} color={Colors.textLight} />
           </TouchableOpacity>
@@ -4137,18 +4104,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginRight: 8,
   },
-  recordingDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.error,
-    marginRight: 6,
-  },
-  recordingText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.error,
-  },
+
 
   imageViewerOverlay: {
     flex: 1,
@@ -4289,6 +4245,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 8,
   },
+
   // Date separator
   dateSeparator: {
     alignItems: 'center',
