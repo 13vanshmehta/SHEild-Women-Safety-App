@@ -251,6 +251,114 @@ const hapticOptions = {
   ignoreAndroidSystemSettings: false,
 };
 
+// Image Message Component - Separate component to properly use hooks
+const ImageMessageBubble: React.FC<{
+  mediaUrl: string;
+  onOpenViewer: (uri: string) => void;
+  onLongPress: () => void;
+}> = ({ mediaUrl, onOpenViewer, onLongPress }) => {
+  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [imageLoading, setImageLoading] = useState(true);
+
+  useEffect(() => {
+    const loadImage = async () => {
+      try {
+        setImageLoading(true);
+        // Resolve the media URL
+        let remote: string | null = null;
+        if (!mediaUrl) {
+          console.log('No mediaUrl provided');
+          setImageLoading(false);
+          return;
+        }
+        if (mediaUrl.startsWith('http://') || mediaUrl.startsWith('https://')) {
+          remote = mediaUrl;
+        } else {
+          remote = `${API_BASE_URL}${mediaUrl}`;
+        }
+        
+        console.log('Loading image - mediaUrl:', mediaUrl, 'resolved:', remote);
+        
+        if (!remote) {
+          console.warn('No remote URL for image');
+          setImageLoading(false);
+          return;
+        }
+
+        // Try to get cached version or download
+        const localPath = await getOrDownloadMedia(remote);
+        const finalUri = localPath.startsWith('file://')
+          ? localPath
+          : `file://${localPath}`;
+        
+        console.log('Image loaded successfully:', finalUri);
+        setImageUri(finalUri);
+      } catch (e) {
+        console.error('Failed to load image:', e);
+        // Fallback to direct URL if caching fails
+        let remote: string | null = null;
+        if (mediaUrl.startsWith('http://') || mediaUrl.startsWith('https://')) {
+          remote = mediaUrl;
+        } else {
+          remote = `${API_BASE_URL}${mediaUrl}`;
+        }
+        if (remote) {
+          console.log('Using direct URL as fallback:', remote);
+          setImageUri(remote);
+        }
+      } finally {
+        setImageLoading(false);
+      }
+    };
+
+    loadImage();
+  }, [mediaUrl]);
+
+  const handlePress = () => {
+    if (imageUri) {
+      onOpenViewer(imageUri);
+    }
+  };
+
+  if (imageLoading) {
+    return (
+      <View style={[styles.imageBubbleContainer, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="small" color={Colors.primary} />
+      </View>
+    );
+  }
+
+  if (!imageUri) {
+    return (
+      <View style={styles.imageBubbleContainer}>
+        <Text style={styles.messageText}>Unable to load image</Text>
+      </View>
+    );
+  }
+  
+  return (
+    <TouchableOpacity
+      activeOpacity={0.9}
+      delayLongPress={500}
+      onPress={handlePress}
+      onLongPress={onLongPress}
+      style={styles.imageBubbleContainer}
+    >
+      <Image
+        source={{ uri: imageUri }}
+        style={styles.imageBubble}
+        resizeMode="cover"
+        onError={(error) => {
+          console.error('Failed to render image:', error.nativeEvent.error);
+        }}
+        onLoad={() => {
+          console.log('Image rendered successfully');
+        }}
+      />
+    </TouchableOpacity>
+  );
+};
+
 // Group Chat Screen Component - Rewritten with proper layout
 const GroupChatScreen: React.FC<{ group: any; onBack: () => void; onOpenGroupDetails: () => void }> = ({ group, onBack, onOpenGroupDetails }) => {
   const [messages, setMessages] = useState<any[]>([]);
@@ -396,15 +504,29 @@ const GroupChatScreen: React.FC<{ group: any; onBack: () => void; onOpenGroupDet
       const formData = new FormData();
       const fileName = asset.fileName || `image-${Date.now()}.jpg`;
       const type = asset.type || 'image/jpeg';
-      // @ts-ignore
+      
+      // Normalize URI for Android - remove file:// prefix if present
+      let fileUri = asset.uri;
+      if (Platform.OS === 'android' && !fileUri.startsWith('file://')) {
+        fileUri = `file://${fileUri}`;
+      }
+      
+      console.log('Original URI:', asset.uri);
+      console.log('Normalized URI:', fileUri);
+      console.log('File name:', fileName);
+      console.log('File type:', type);
+      
+      // @ts-ignore - React Native FormData accepts this format
       formData.append('file', {
-        uri: asset.uri,
+        uri: fileUri,
         name: fileName,
-        type,
+        type: type,
       });
       formData.append('fileType', 'image');
 
       console.log('Uploading image to:', `/api/groups/${group._id}/media`);
+      console.log('API Base URL:', API_BASE_URL);
+      
       const uploadRes = await apiService.upload(`/api/groups/${group._id}/media`, formData);
       console.log('Upload response:', uploadRes);
       
@@ -424,9 +546,14 @@ const GroupChatScreen: React.FC<{ group: any; onBack: () => void; onOpenGroupDet
         messageType: 'image',
         mediaUrl,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error in uploadAndSendImage:', error);
-      Alert.alert('Error', 'Failed to send image.');
+      console.error('Error details:', {
+        message: error?.message,
+        stack: error?.stack,
+        response: error?.response,
+      });
+      Alert.alert('Error', `Failed to send image: ${error?.message || 'Unknown error'}`);
     }
   };
 
@@ -1338,63 +1465,21 @@ const GroupChatScreen: React.FC<{ group: any; onBack: () => void; onOpenGroupDet
                         );
                       })()
                     ) : message.messageType === 'image' && message.mediaUrl ? (
-                      (() => {
-                        const thumbUri = resolveMediaUrl(message.mediaUrl);
-                        console.log('Image message - mediaUrl:', message.mediaUrl, 'resolved:', thumbUri);
-                        if (!thumbUri) {
-                          console.warn('No thumb URI for image');
-                          return null;
-                        }
-
-                        const handleOpenViewer = async () => {
-                          try {
-                            setImageViewerLoading(true);
-                            const remote = resolveMediaUrl(message.mediaUrl);
-                            if (!remote) return;
-                            const localPath = await getOrDownloadMedia(remote);
-                            const finalUri = localPath.startsWith('file://')
-                              ? localPath
-                              : `file://${localPath}`;
-                            setImageViewerUri(finalUri);
-                            setImageViewerVisible(true);
-                          } catch (e) {
-                            console.error('Failed to open image viewer:', e);
-                          } finally {
-                            setImageViewerLoading(false);
+                      <ImageMessageBubble
+                        mediaUrl={message.mediaUrl}
+                        onOpenViewer={(uri) => {
+                          setImageViewerUri(uri);
+                          setImageViewerVisible(true);
+                        }}
+                        onLongPress={() => {
+                          ReactNativeHapticFeedback.trigger('impactMedium', hapticOptions);
+                          if (isSelectingMessages) {
+                            toggleMessageSelection(message._id);
+                          } else {
+                            openMessageActions(message);
                           }
-                        };
-
-                        console.log('Rendering image with URI:', thumbUri);
-                        
-                        return (
-                          <TouchableOpacity
-                            activeOpacity={0.9}
-                            delayLongPress={500}
-                            onPress={handleOpenViewer}
-                            onLongPress={() => {
-                              ReactNativeHapticFeedback.trigger('impactMedium', hapticOptions);
-                              if (isSelectingMessages) {
-                                toggleMessageSelection(message._id);
-                              } else {
-                                openMessageActions(message);
-                              }
-                            }}
-                            style={styles.imageBubbleContainer}
-                          >
-                            <Image
-                              source={{ uri: thumbUri }}
-                              style={styles.imageBubble}
-                              resizeMode="cover"
-                              onError={(error) => {
-                                console.error('Failed to load image:', error.nativeEvent.error);
-                              }}
-                              onLoad={() => {
-                                console.log('Image loaded successfully');
-                              }}
-                            />
-                          </TouchableOpacity>
-                        );
-                      })()
+                        }}
+                      />
                     ) : null}
                           </>
                         ) : (
