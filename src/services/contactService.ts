@@ -39,27 +39,33 @@ class ContactService {
           }
         );
         this.hasPermission = granted === PermissionsAndroid.RESULTS.GRANTED;
+        return this.hasPermission;
       } else {
-        // iOS permission handling
-        const permission = await Contacts.checkPermission();
-        if (permission === 'undefined') {
-          const requestPermission = await Contacts.requestPermission();
-          this.hasPermission = requestPermission === 'authorized';
-        } else {
-          this.hasPermission = permission === 'authorized';
+        // iOS - use react-native-contacts API
+        const permission = await Contacts.requestPermission();
+        this.hasPermission = permission === 'authorized';
+        
+        // If user previously denied, show settings alert
+        if (permission === 'denied') {
+          Alert.alert(
+            'Permission Denied',
+            'Contact permission is required. Please enable it in Settings.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Open Settings',
+                onPress: () => {
+                  const { Linking } = require('react-native');
+                  Linking.openSettings();
+                },
+              },
+            ]
+          );
         }
+        
+        return this.hasPermission;
       }
-
-      if (!this.hasPermission) {
-        Alert.alert(
-          'Permission Required',
-          'Please grant contact permission to add emergency contacts from your contact book.',
-          [{ text: 'OK' }]
-        );
-      }
-
-      return this.hasPermission;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error requesting contact permission:', error);
       return false;
     }
@@ -67,14 +73,8 @@ class ContactService {
 
   async getContacts(): Promise<Contact[]> {
     try {
-      if (!this.hasPermission) {
-        const hasPermission = await this.requestPermission();
-        if (!hasPermission) {
-          throw new Error('Contact permission not granted');
-        }
-      }
-
       const contacts = await Contacts.getAll();
+      
       return contacts.map(contact => ({
         recordID: contact.recordID,
         givenName: contact.givenName || '',
@@ -85,9 +85,9 @@ class ContactService {
         thumbnailPath: contact.thumbnailPath,
         hasThumbnail: contact.hasThumbnail || false,
       }));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error getting contacts:', error);
-      throw error;
+      throw new Error('Failed to load contacts: ' + (error?.message || 'Unknown error'));
     }
   }
 
@@ -155,12 +155,13 @@ class ContactService {
       if (Platform.OS === 'android') {
         const granted = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.READ_CONTACTS);
         this.hasPermission = granted;
+        return granted;
       } else {
         const permission = await Contacts.checkPermission();
         this.hasPermission = permission === 'authorized';
+        return this.hasPermission;
       }
-      return this.hasPermission;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error checking contact permission:', error);
       return false;
     }

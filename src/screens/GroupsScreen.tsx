@@ -891,11 +891,11 @@ const GroupChatScreen: React.FC<{
   };
 
   return (
-    <SafeAreaView style={styles.chatContainer}>
-      <StatusBar backgroundColor={Colors.primary} barStyle="light-content" />
-      
-      {/* Chat Header - Purple theme like reference */}
-      <View style={styles.chatHeader}>
+    <View style={styles.chatOuterWrapper}>
+      <StatusBar barStyle="light-content" backgroundColor={Colors.primary} />
+      <View style={styles.chatContainer}>
+        {/* Chat Header - Purple theme like reference */}
+        <View style={styles.chatHeader}>
         <TouchableOpacity
           onPress={() => {
             if (isSelectingMessages) {
@@ -1229,12 +1229,12 @@ const GroupChatScreen: React.FC<{
 
       {/* Messages and Input - Wrapped in KeyboardAvoidingView */}
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardAvoidingView}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-        {/* Messages - with bottom margin for input bar */}
-        <View style={{ flex: 1, marginBottom: inputHeight }}>
+        {/* Messages */}
+        <View style={styles.messagesWrapper}>
           {loading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color={Colors.primary} />
@@ -1555,13 +1555,7 @@ const GroupChatScreen: React.FC<{
       </Modal>
 
       {/* Message Input */}
-      <View 
-        style={styles.messageInputContainer}
-        onLayout={(event) => {
-          const { height } = event.nativeEvent.layout;
-          setInputHeight(height);
-        }}
-      >
+      <View style={styles.messageInputContainer}>
         <View style={styles.messageInputInner}>
 
           <TouchableOpacity style={styles.messageInputIconButton} onPress={handlePickImage}>
@@ -1591,7 +1585,209 @@ const GroupChatScreen: React.FC<{
         </View>
       </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
+    </View>
+  );
+};
+
+// Add Member Modal Component
+interface AddMemberModalProps {
+  visible: boolean;
+  onClose: () => void;
+  groupId: string;
+  emergencyContacts: EmergencyContact[];
+  existingMembers: any[];
+  onMemberAdded: () => void;
+  showToast: (message: string, type: 'success' | 'error') => void;
+  showAlert: (title: string, message: string, buttons?: any[], icon?: string, iconColor?: string) => void;
+}
+
+const AddMemberModal: React.FC<AddMemberModalProps> = ({
+  visible,
+  onClose,
+  groupId,
+  emergencyContacts,
+  existingMembers,
+  onMemberAdded,
+  showToast,
+  showAlert,
+}) => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
+  const [adding, setAdding] = useState(false);
+
+  // Filter out contacts who are already members
+  const availableContacts = emergencyContacts.filter(contact => 
+    !existingMembers.some(member => 
+      member.phoneNumber === contact.phoneNumber
+    )
+  );
+
+  // Search filter
+  const filteredContacts = availableContacts.filter(contact => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    const name = (contact.name || '').toLowerCase();
+    const phone = contact.phoneNumber || '';
+    return name.includes(query) || phone.includes(query);
+  });
+
+  const toggleContact = (contactId: string) => {
+    setSelectedContacts(prev => 
+      prev.includes(contactId) 
+        ? prev.filter(id => id !== contactId)
+        : [...prev, contactId]
+    );
+  };
+
+  const handleAddMembers = async () => {
+    if (selectedContacts.length === 0) {
+      showAlert('No Selection', 'Please select at least one contact to add', undefined, 'account-alert', '#F59E0B');
+      return;
+    }
+
+    try {
+      setAdding(true);
+      
+      // Get selected contacts data
+      const contactsToAdd = emergencyContacts.filter(c => c._id && selectedContacts.includes(c._id));
+      
+      // Add each contact to the group
+      const promises = contactsToAdd.map(contact => 
+        apiService.post(`/api/groups/${groupId}/members`, {
+          phoneNumber: contact.phoneNumber,
+          name: contact.name || 'Contact',
+        })
+      );
+
+      const results = await Promise.all(promises);
+      
+      // Check if all succeeded
+      const allSuccess = results.every(r => r?.success);
+      
+      if (allSuccess) {
+        showToast(`${selectedContacts.length} member(s) added successfully!`, 'success');
+        setSelectedContacts([]);
+        setSearchQuery('');
+        onMemberAdded();
+        onClose();
+      } else {
+        const failed = results.filter(r => !r?.success);
+        showAlert('Partial Success', `Some members could not be added. ${failed.length} failed.`, undefined, 'alert-circle', '#F59E0B');
+      }
+    } catch (error: any) {
+      console.error('Error adding members:', error);
+      showAlert('Error', error?.message || 'Failed to add members', undefined, 'alert-circle', '#EF4444');
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.addMemberModalContent}>
+          {/* Header */}
+          <View style={styles.addMemberModalHeader}>
+            <TouchableOpacity onPress={onClose}>
+              <Icon name="close" size={24} color={Colors.text} />
+            </TouchableOpacity>
+            <Text style={styles.addMemberModalTitle}>Add Members</Text>
+            <TouchableOpacity 
+              onPress={handleAddMembers}
+              disabled={adding || selectedContacts.length === 0}
+            >
+              <Text style={[
+                styles.addMemberModalDone,
+                (adding || selectedContacts.length === 0) && styles.addMemberModalDoneDisabled
+              ]}>
+                {adding ? 'Adding...' : 'Add'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Selected count */}
+          {selectedContacts.length > 0 && (
+            <View style={styles.addMemberSelectedBanner}>
+              <Text style={styles.addMemberSelectedText}>
+                {selectedContacts.length} selected
+              </Text>
+            </View>
+          )}
+
+          {/* Search */}
+          <View style={styles.addMemberSearchContainer}>
+            <Icon name="magnify" size={20} color={Colors.textLight} />
+            <TextInput
+              style={styles.addMemberSearchInput}
+              placeholder="Search emergency contacts..."
+              placeholderTextColor={Colors.textLight}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              editable={!adding}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Icon name="close-circle" size={20} color={Colors.textLight} />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Contacts list */}
+          <ScrollView style={styles.addMemberList}>
+            {availableContacts.length === 0 ? (
+              <View style={styles.addMemberEmptyContainer}>
+                <Icon name="account-off" size={48} color={Colors.textLight} />
+                <Text style={styles.addMemberEmptyText}>No available contacts</Text>
+                <Text style={styles.addMemberEmptySubtext}>
+                  All your emergency contacts are already members of this group
+                </Text>
+              </View>
+            ) : filteredContacts.length === 0 ? (
+              <View style={styles.addMemberEmptyContainer}>
+                <Icon name="account-search" size={48} color={Colors.textLight} />
+                <Text style={styles.addMemberEmptyText}>No contacts found</Text>
+                <Text style={styles.addMemberEmptySubtext}>
+                  Try searching with a different name or number
+                </Text>
+              </View>
+            ) : (
+              filteredContacts.map((contact) => {
+                const contactId = contact._id || contact.phoneNumber;
+                const isSelected = selectedContacts.includes(contactId);
+                const displayName = contact.name || 'Unknown';
+                const phoneNumber = contact.phoneNumber || '';
+
+                return (
+                  <TouchableOpacity
+                    key={contactId}
+                    style={[styles.addMemberContactItem, isSelected && styles.addMemberContactItemSelected]}
+                    onPress={() => toggleContact(contactId)}
+                    disabled={adding}
+                  >
+                    <View style={styles.addMemberContactAvatar}>
+                      <Text style={styles.addMemberContactAvatarText}>
+                        {displayName.charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={styles.addMemberContactInfo}>
+                      <Text style={styles.addMemberContactName}>{displayName}</Text>
+                      <Text style={styles.addMemberContactPhone}>{phoneNumber}</Text>
+                    </View>
+                    <View style={[
+                      styles.addMemberCheckbox,
+                      isSelected && styles.addMemberCheckboxSelected
+                    ]}>
+                      {isSelected && <Icon name="check" size={16} color="#FFFFFF" />}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
   );
 };
 
@@ -1600,11 +1796,23 @@ interface GroupDetailsModalProps {
   groupId: string;
   onClose: () => void;
   onShareJoinCode: (code: string, name: string) => void;
+  emergencyContacts: EmergencyContact[];
+  showToast: (message: string, type: 'success' | 'error') => void;
+  showAlert: (title: string, message: string, buttons?: any[], icon?: string, iconColor?: string) => void;
 }
 
-const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({ visible, groupId, onClose, onShareJoinCode }) => {
+const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({ 
+  visible, 
+  groupId, 
+  onClose, 
+  onShareJoinCode,
+  emergencyContacts,
+  showToast,
+  showAlert
+}) => {
   const [loading, setLoading] = useState(false);
   const [group, setGroup] = useState<any | null>(null);
+  const [showAddMember, setShowAddMember] = useState(false);
 
   useEffect(() => {
     const fetchDetails = async () => {
@@ -1702,9 +1910,18 @@ const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({ visible, groupId,
 
               {/* Members list */}
               <View style={styles.groupDetailsSection}>
-                <Text style={styles.groupDetailsSectionLabel}>
-                  Members ({Array.isArray(group.members) ? group.members.filter((m: any) => m.isActive !== false).length : 0})
-                </Text>
+                <View style={styles.groupDetailsSectionHeader}>
+                  <Text style={styles.groupDetailsSectionLabel}>
+                    Members ({Array.isArray(group.members) ? group.members.filter((m: any) => m.isActive !== false).length : 0})
+                  </Text>
+                  <TouchableOpacity 
+                    style={styles.addMemberButton}
+                    onPress={() => setShowAddMember(true)}
+                  >
+                    <Icon name="account-plus" size={20} color={Colors.primary} />
+                    <Text style={styles.addMemberButtonText}>Add</Text>
+                  </TouchableOpacity>
+                </View>
 
                 {Array.isArray(group.members) && group.members.length > 0 ? (
                   group.members
@@ -1737,6 +1954,33 @@ const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({ visible, groupId,
           )}
         </View>
       </View>
+
+      {/* Add Member Modal */}
+      {group && (
+        <AddMemberModal
+          visible={showAddMember}
+          onClose={() => setShowAddMember(false)}
+          groupId={groupId}
+          emergencyContacts={emergencyContacts}
+          existingMembers={group.members || []}
+          onMemberAdded={() => {
+            // Refresh group details
+            const fetchDetails = async () => {
+              try {
+                const response = await apiService.get(`/api/groups/${groupId}`);
+                if (response && response.success && response.data) {
+                  setGroup(response.data);
+                }
+              } catch (error) {
+                console.error('Error refreshing group:', error);
+              }
+            };
+            fetchDetails();
+          }}
+          showToast={showToast}
+          showAlert={showAlert}
+        />
+      )}
     </Modal>
   );
 };
@@ -2148,6 +2392,9 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
             groupId={groupDetailsId}
             onClose={() => setShowGroupDetails(false)}
             onShareJoinCode={shareGroupCode}
+            emergencyContacts={emergencyContacts}
+            showToast={showToastNotification}
+            showAlert={showAlert}
           />
         )}
         <AlertComponent />
@@ -2157,9 +2404,7 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
 
   // Otherwise render the main screen
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
-      
+    <View style={styles.screenWrapper}>
       {/* Header */}
       <View style={styles.header}>
         {selectionMode ? (
@@ -2634,6 +2879,9 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
           groupId={groupDetailsId}
           onClose={() => setShowGroupDetails(false)}
           onShareJoinCode={shareGroupCode}
+          emergencyContacts={emergencyContacts}
+          showToast={showToastNotification}
+          showAlert={showAlert}
         />
       )}
 
@@ -2733,11 +2981,15 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
           </View>
         </Modal>
       )}
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  screenWrapper: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
   container: {
     flex: 1,
     // Main Trust Circle screen background
@@ -3802,7 +4054,19 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     },
   // Chat Screen Styles - Reference design
+  chatOuterWrapper: {
+    flex: 1,
+    backgroundColor: Colors.primary,
+  },
   chatContainer: {
+    flex: 1,
+    backgroundColor: '#F5F5F5',
+  },
+  keyboardAvoidingView: {
+    flex: 1,
+    backgroundColor: '#F5F5F5',
+  },
+  messagesWrapper: {
     flex: 1,
     backgroundColor: '#F5F5F5',
   },
@@ -4193,10 +4457,6 @@ const styles = StyleSheet.create({
   },
 
   messageInputContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     paddingHorizontal: 12,
     paddingVertical: 10,
     backgroundColor: Colors.primary, // Purple/blue theme
@@ -4424,6 +4684,161 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  groupDetailsSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  addMemberButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: Colors.primaryLight || '#E0E7FF',
+    borderRadius: 16,
+  },
+  addMemberButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.primary,
+    marginLeft: 4,
+  },
+  // Add Member Modal Styles
+  addMemberModalContent: {
+    width: '100%',
+    height: '90%',
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    position: 'absolute',
+    bottom: 0,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  addMemberModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  addMemberModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  addMemberModalDone: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.primary,
+  },
+  addMemberModalDoneDisabled: {
+    color: Colors.textLight,
+  },
+  addMemberSelectedBanner: {
+    backgroundColor: Colors.primaryLight || '#E0E7FF',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  addMemberSelectedText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.primary,
+  },
+  addMemberSearchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    marginHorizontal: 16,
+    marginVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  addMemberSearchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: Colors.text,
+    marginLeft: 8,
+    paddingVertical: 0,
+  },
+  addMemberList: {
+    flex: 1,
+  },
+  addMemberEmptyContainer: {
+    paddingVertical: 60,
+    paddingHorizontal: 32,
+    alignItems: 'center',
+  },
+  addMemberEmptyText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.text,
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  addMemberEmptySubtext: {
+    fontSize: 14,
+    color: Colors.textLight,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  addMemberContactItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+  },
+  addMemberContactItemSelected: {
+    backgroundColor: '#F9FAFB',
+  },
+  addMemberContactAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  addMemberContactAvatarText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  addMemberContactInfo: {
+    flex: 1,
+  },
+  addMemberContactName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: 4,
+  },
+  addMemberContactPhone: {
+    fontSize: 14,
+    color: Colors.textLight,
+  },
+  addMemberCheckbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: Colors.textLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addMemberCheckboxSelected: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
 });
 

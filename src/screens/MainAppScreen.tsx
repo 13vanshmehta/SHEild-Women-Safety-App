@@ -56,17 +56,23 @@ const MainAppScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
-      <View style={styles.screenContainer}>
-        {renderScreen()}
-      </View>
-      {!isChatOpen && <BottomTabNavigator activeTab={activeTab} onTabChange={handleTabChange} />}
-    </SafeAreaView>
+    <View style={styles.outerContainer}>
+      <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+        <View style={styles.screenContainer}>
+          {renderScreen()}
+        </View>
+        {!isChatOpen && <BottomTabNavigator activeTab={activeTab} onTabChange={handleTabChange} />}
+      </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  outerContainer: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
   container: {
     flex: 1,
     backgroundColor: Colors.background,

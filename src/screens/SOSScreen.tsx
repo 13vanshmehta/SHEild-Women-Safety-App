@@ -175,7 +175,39 @@ const SOSScreen: React.FC = () => {
           getCurrentLocation();
         }
       } else {
-        getCurrentLocation();
+        // iOS: Request location permission
+        if (Geolocation) {
+          try {
+            const authStatus = await Geolocation.requestAuthorization('whenInUse');
+            console.log('iOS Location authorization status:', authStatus);
+            
+            if (authStatus === 'granted' || authStatus === 'whenInUse') {
+              getCurrentLocation();
+            } else {
+              console.warn('Location permission denied:', authStatus);
+              Alert.alert(
+                'Location Permission Required',
+                'Please enable location services in Settings to use SOS features.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { 
+                    text: 'Open Settings', 
+                    onPress: () => {
+                      if (Geolocation?.openSettings) {
+                        Geolocation.openSettings();
+                      }
+                    }
+                  }
+                ]
+              );
+            }
+          } catch (error) {
+            console.error('Error requesting iOS location permission:', error);
+            getCurrentLocation(); // Try anyway
+          }
+        } else {
+          getCurrentLocation();
+        }
       }
     } catch (error) {
       console.error('Error requesting location permission:', error);
@@ -185,6 +217,10 @@ const SOSScreen: React.FC = () => {
   const getCurrentLocation = () => {
     if (!Geolocation) {
       console.warn('Geolocation not available');
+      Alert.alert(
+        'Location Error',
+        'Unable to access location services. Please check if location services are enabled in your device settings.'
+      );
       // Set a default location for testing
       setLocation({
         latitude: 28.6139,
@@ -196,6 +232,7 @@ const SOSScreen: React.FC = () => {
 
     Geolocation.getCurrentPosition(
       (position: any) => {
+        console.log('Location obtained successfully:', position.coords);
         setLocation({
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
@@ -204,6 +241,25 @@ const SOSScreen: React.FC = () => {
       },
       (error: any) => {
         console.error('Error getting location:', error);
+        
+        let locationErrorMessage = 'Unable to get your current location.';
+        
+        switch (error.code) {
+          case 1: // PERMISSION_DENIED
+            locationErrorMessage = 'Location permission denied. Please enable location services in Settings.';
+            break;
+          case 2: // POSITION_UNAVAILABLE
+            locationErrorMessage = 'Location information is unavailable. Please check your GPS settings.';
+            break;
+          case 3: // TIMEOUT
+            locationErrorMessage = 'Location request timed out. Please try again.';
+            break;
+          default:
+            locationErrorMessage = error.message || 'Unable to get your current location. Please make sure location services are enabled.';
+        }
+        
+        Alert.alert('Location Error', locationErrorMessage);
+        
         // Set a default location if error
         setLocation({
           latitude: 28.6139,
@@ -211,7 +267,13 @@ const SOSScreen: React.FC = () => {
           accuracy: 0,
         });
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+      { 
+        enableHighAccuracy: true, 
+        timeout: 20000, 
+        maximumAge: 10000,
+        showLocationDialog: true, // This helps on Android
+        forceRequestLocation: true, // Force location request
+      }
     );
   };
 

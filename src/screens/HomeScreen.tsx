@@ -11,7 +11,6 @@ import {
   Linking,
   Image,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAuth } from '../contexts/AuthContext';
 import { Colors } from '../constants/colors';
@@ -45,9 +44,9 @@ const HomeScreen: React.FC = () => {
   const [showSafeSpotsScreen, setShowSafeSpotsScreen] = useState(false);
   const [showAllPoliceStations, setShowAllPoliceStations] = useState(false);
   
-  // Loading states - only true when actually fetching data
-  const [isLoadingPlaces, setIsLoadingPlaces] = useState(false);
-  const [isLoadingContacts, setIsLoadingContacts] = useState(false);
+  // Loading states - start true, will be set false quickly after data loads
+  const [isLoadingPlaces, setIsLoadingPlaces] = useState(true);
+  const [isLoadingContacts, setIsLoadingContacts] = useState(true);
   
   const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
   const [safeSpots, setSafeSpots] = useState<Place[]>([]);
@@ -151,9 +150,17 @@ const HomeScreen: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    // Set maximum skeleton display time - force hide after 2.5 seconds
+    const maxSkeletonTimeout = setTimeout(() => {
+      setIsLoadingPlaces(false);
+      setIsLoadingContacts(false);
+    }, 2500);
+
     initializeLocationAndPlaces();
     fetchRecentContacts();
     fetchEmergencyContacts();
+
+    return () => clearTimeout(maxSkeletonTimeout);
   }, [initializeLocationAndPlaces, fetchRecentContacts, fetchEmergencyContacts]);
 
 
@@ -377,7 +384,7 @@ const HomeScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -657,7 +664,7 @@ const HomeScreen: React.FC = () => {
           )}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

@@ -55,10 +55,35 @@ class LocationService {
 
         return this.hasPermission;
       } else {
-        // iOS permission handling - react-native-geolocation-service handles this automatically
-        // Request authorization when getting location
-        this.hasPermission = true;
-        return true;
+        // iOS permission handling - use Geolocation.requestAuthorization
+        try {
+          const authStatus = await Geolocation.requestAuthorization('whenInUse');
+          console.log('iOS Location authorization status:', authStatus);
+          
+          // Check if permission was granted
+          // Possible values: 'granted', 'denied', 'disabled', 'restricted'
+          this.hasPermission = authStatus === 'granted';
+          
+          if (!this.hasPermission) {
+            Alert.alert(
+              'Permission Required',
+              'Location permission is required to find safe spots near you. Please enable it in Settings.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Open Settings',
+                  onPress: () => Linking.openSettings(),
+                },
+              ]
+            );
+          }
+          
+          return this.hasPermission;
+        } catch (error) {
+          console.error('Error requesting iOS location permission:', error);
+          this.hasPermission = false;
+          return false;
+        }
       }
     } catch (error) {
       console.error('Error requesting location permission:', error);

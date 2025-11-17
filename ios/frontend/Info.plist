@@ -33,32 +33,22 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>SHEild needs access to your location to find safe spots and police stations near you for your safety.</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>SHEild needs access to your location to find safe spots and police stations near you for your safety.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>SHEild needs access to your camera to take photos and send them in group chats.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>SHEild needs access to your photo library to select and send images in group chats.</string>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>SHEild needs access to save photos to your library.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>SHEild needs access to your contacts to add emergency contacts for your safety.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>SHEild needs access to your location to find safe spots and police stations near you for your safety.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>SHEild needs access to your location to find safe spots and police stations near you for your safety.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>SHEild needs access to your microphone to record and send audio messages in group chats.</string>
-	<key>UILaunchStoryboardName</key>
-	<string>LaunchScreen</string>
-	<key>UIRequiredDeviceCapabilities</key>
-	<array>
-		<string>arm64</string>
-	</array>
-	<key>UISupportedInterfaceOrientations</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
-	</array>
-	<key>UIViewControllerBasedStatusBarAppearance</key>
-	<false/>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>SHEild needs access to save photos to your library.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>SHEild needs access to your photo library to select and send images in group chats.</string>
+	<key>RCTNewArchEnabled</key>
+	<true/>
 	<key>UIAppFonts</key>
 	<array>
 		<string>AntDesign.ttf</string>
@@ -80,6 +70,31 @@
 		<string>Octicons.ttf</string>
 		<string>SimpleLineIcons.ttf</string>
 		<string>Zocial.ttf</string>
+	</array>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>arm64</string>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<false/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.15129086803-i47hg26do0gtjus0f64cn1os3lo8qc36</string>
+			</array>
+		</dict>
 	</array>
 </dict>
 </plist>
