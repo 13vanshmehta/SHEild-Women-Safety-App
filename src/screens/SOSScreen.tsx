@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,44 +6,463 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Modal,
+  Animated,
+  Platform,
+  PermissionsAndroid,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors } from '../constants';
+import { apiService } from '../services/apiService';
+
+// Lazy imports for native modules (will be null if not properly linked)
+let NetInfo: any = null;
+let DeviceInfo: any = null;
+let Geolocation: any = null;
+
+try {
+  NetInfo = require('@react-native-community/netinfo').default;
+} catch (e) {
+  console.warn('NetInfo not available:', e);
+}
+
+try {
+  DeviceInfo = require('react-native-device-info').default;
+} catch (e) {
+  console.warn('DeviceInfo not available:', e);
+}
+
+try {
+  Geolocation = require('react-native-geolocation-service').default;
+} catch (e) {
+  console.warn('Geolocation not available:', e);
+}
 
 const SOSScreen: React.FC = () => {
   const [isActivating, setIsActivating] = useState(false);
+  const [showCountdown, setShowCountdown] = useState(false);
+  const [countdown, setCountdown] = useState(5);
+  const [deviceInfo, setDeviceInfo] = useState<any>(null);
+  const [location, setLocation] = useState<any>(null);
+  const [emergencyContactCount, setEmergencyContactCount] = useState(0);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [notificationCount, setNotificationCount] = useState(0);
+  
+  const countdownTimerRef = useRef<any>(null);
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
-  const handleSOS = () => {
-    Alert.alert(
-      'EMERGENCY SOS',
-      'Are you sure you want to activate SOS? Emergency services and your trusted contacts will be notified immediately.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Activate SOS',
-          style: 'destructive',
-          onPress: async () => {
-            setIsActivating(true);
-            // Simulate API call
-            setTimeout(() => {
-              setIsActivating(false);
-              Alert.alert('SOS Activated', 'Help is on the way!');
-            }, 2000);
-          },
-        },
-      ]
+  useEffect(() => {
+    checkEmergencyContacts();
+    collectDeviceInfo();
+    requestLocationPermission();
+  }, []);
+
+  useEffect(() => {
+    if (showCountdown && countdown > 0) {
+      countdownTimerRef.current = setTimeout(() => {
+        setCountdown(countdown - 1);
+      }, 1000);
+    } else if (showCountdown && countdown === 0) {
+      triggerSOSAlert();
+    }
+
+    return () => {
+      if (countdownTimerRef.current) {
+        clearTimeout(countdownTimerRef.current);
+      }
+    };
+  }, [showCountdown, countdown]);
+
+  const checkEmergencyContacts = async () => {
+    try {
+      const response = await apiService.get('/api/emergency-contacts');
+      if (response.success && response.data && response.data.contacts) {
+        // API returns data.contacts array
+        const activeContacts = response.data.contacts.filter((c: any) => c.isActive);
+        setEmergencyContactCount(activeContacts.length);
+      } else {
+        console.log('No emergency contacts found');
+        setEmergencyContactCount(0);
+      }
+    } catch (error) {
+      console.error('Error checking emergency contacts:', error);
+      setEmergencyContactCount(0);
+    }
+  };
+
+  const collectDeviceInfo = async () => {
+    try {
+      let batteryLevel = 0;
+      let deviceModel = 'Unknown';
+      let osVersion = 'Unknown';
+      let networkStatus = 'unknown';
+
+      if (DeviceInfo) {
+        try {
+          batteryLevel = await DeviceInfo.getBatteryLevel();
+          deviceModel = DeviceInfo.getModel();
+          osVersion = DeviceInfo.getSystemVersion();
+        } catch (e) {
+          console.warn('DeviceInfo error:', e);
+        }
+      }
+
+      if (NetInfo) {
+        try {
+          const netInfo = await NetInfo.fetch();
+          if (!netInfo.isConnected) {
+            networkStatus = 'offline';
+          } else {
+            // Determine network strength based on connection details
+            const details = netInfo.details as any;
+            if (netInfo.type === 'wifi' && details?.strength) {
+              // WiFi strength (0-100)
+              const strength = details.strength;
+              if (strength >= 70) networkStatus = 'strong';
+              else if (strength >= 40) networkStatus = 'moderate';
+              else networkStatus = 'weak';
+            } else if (netInfo.type === 'cellular' && details?.cellularGeneration) {
+              // Cellular generation (2g, 3g, 4g, 5g)
+              const gen = details.cellularGeneration;
+              if (gen === '5g' || gen === '4g') networkStatus = 'strong';
+              else if (gen === '3g') networkStatus = 'moderate';
+              else networkStatus = 'weak';
+            } else {
+              // Default to moderate if we can't determine
+              networkStatus = 'moderate';
+            }
+          }
+        } catch (e) {
+          console.warn('NetInfo error:', e);
+        }
+      }
+
+      setDeviceInfo({
+        batteryLevel: Math.round(batteryLevel * 100),
+        networkStatus,
+        deviceModel,
+        osVersion,
+      });
+    } catch (error) {
+      console.error('Error collecting device info:', error);
+      // Set default values if collection fails
+      setDeviceInfo({
+        batteryLevel: 0,
+        networkStatus: 'unknown',
+        deviceModel: Platform.OS === 'android' ? 'Android Device' : 'iOS Device',
+        osVersion: Platform.Version.toString(),
+      });
+    }
+  };
+
+  const requestLocationPermission = async () => {
+    try {
+      if (Platform.OS === 'android') {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          {
+            title: 'Location Permission',
+            message: 'SHEild needs access to your location for SOS alerts',
+            buttonNeutral: 'Ask Me Later',
+            buttonNegative: 'Cancel',
+            buttonPositive: 'OK',
+          }
+        );
+        if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+          getCurrentLocation();
+        }
+      } else {
+        getCurrentLocation();
+      }
+    } catch (error) {
+      console.error('Error requesting location permission:', error);
+    }
+  };
+
+  const getCurrentLocation = () => {
+    if (!Geolocation) {
+      console.warn('Geolocation not available');
+      // Set a default location for testing
+      setLocation({
+        latitude: 28.6139,
+        longitude: 77.2090,
+        accuracy: 0,
+      });
+      return;
+    }
+
+    Geolocation.getCurrentPosition(
+      (position: any) => {
+        setLocation({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+        });
+      },
+      (error: any) => {
+        console.error('Error getting location:', error);
+        // Set a default location if error
+        setLocation({
+          latitude: 28.6139,
+          longitude: 77.2090,
+          accuracy: 0,
+        });
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
     );
+  };
+
+  const handleSOSPress = () => {
+    // Check if user has at least 2 emergency contacts
+    if (emergencyContactCount < 2) {
+      Alert.alert(
+        'Emergency Contacts Required',
+        `You need to add at least 2 emergency contacts before using SOS. You currently have ${emergencyContactCount} contact(s).`,
+        [
+          { text: 'OK', style: 'default' },
+          {
+            text: 'Add Contacts',
+            onPress: () => {
+              // Navigate to emergency contacts screen
+              // navigation.navigate('EmergencyContacts');
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    // Check if location is available
+    if (!location) {
+      Alert.alert(
+        'Location Required',
+        'Please enable location services to use SOS feature.',
+        [{ text: 'OK' }]
+      );
+      getCurrentLocation();
+      return;
+    }
+
+    // Start countdown
+    setShowCountdown(true);
+    setCountdown(5);
+    startPulseAnimation();
+  };
+
+  const startPulseAnimation = () => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(scaleAnim, {
+          toValue: 1.1,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  };
+
+  const cancelSOS = () => {
+    if (countdownTimerRef.current) {
+      clearTimeout(countdownTimerRef.current);
+    }
+    setShowCountdown(false);
+    setCountdown(5);
+    scaleAnim.setValue(1);
+  };
+
+  const triggerSOSAlert = async () => {
+    setShowCountdown(false);
+    setIsActivating(true);
+    scaleAnim.setValue(1);
+
+    try {
+      // Get fresh location
+      getCurrentLocation();
+      await collectDeviceInfo();
+
+      console.log('📤 Sending SOS alert...', {
+        location,
+        deviceInfo,
+      });
+
+      const response = await apiService.post('/api/sos/trigger', {
+        location: location || { latitude: 0, longitude: 0, address: 'Location unavailable' },
+        deviceInfo,
+        triggerMode: 'manual_button',
+      });
+
+      console.log('📥 SOS response:', response);
+
+      if (response.success) {
+        // Show custom success modal instead of default alert
+        setShowSuccessModal(true);
+        setNotificationCount(response.notificationsSent || 0);
+
+        // Start monitoring location for offline/online updates
+        if (response.alertId) {
+          startLocationMonitoring(response.alertId);
+        }
+      } else {
+        // Show custom error modal
+        setErrorMessage(response.message || 'Failed to send SOS alert');
+        setShowErrorModal(true);
+      }
+    } catch (error: any) {
+      console.error('Error triggering SOS:', error);
+      // Show custom error modal
+      setErrorMessage(error.message || 'Failed to send SOS alert. Please try again.');
+      setShowErrorModal(true);
+    } finally {
+      setIsActivating(false);
+    }
+  };
+
+  const startLocationMonitoring = (alertId: string) => {
+    if (!NetInfo || !Geolocation) {
+      console.warn('Location monitoring not available - native modules not linked');
+      return;
+    }
+
+    try {
+      let lastNetworkStatus: boolean | null = null;
+      let offlineStartTime: number | null = null;
+      const OFFLINE_THRESHOLD = 60000; // 1 minute offline before notifying
+
+      // Monitor network status changes
+      const unsubscribe = NetInfo.addEventListener((state: any) => {
+        const isConnected = state.isConnected;
+        
+        // Only update if status actually changed
+        if (lastNetworkStatus !== null && lastNetworkStatus !== isConnected) {
+          if (!isConnected) {
+            // Device went offline
+            offlineStartTime = Date.now();
+            console.log('📴 Device went offline');
+            
+            // Get last known location and send offline notification
+            Geolocation.getCurrentPosition(
+              (position: any) => {
+                updateLocationStatus(alertId, true, {
+                  latitude: position.coords.latitude,
+                  longitude: position.coords.longitude,
+                  accuracy: position.coords.accuracy,
+                });
+              },
+              (error: any) => {
+                console.error('Error getting offline location:', error);
+                // Use last known location if available
+                if (location) {
+                  updateLocationStatus(alertId, true, location);
+                }
+              },
+              { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 }
+            );
+          } else if (offlineStartTime) {
+            // Device came back online
+            const offlineDuration = Date.now() - offlineStartTime;
+            
+            // Only notify if device was offline for more than threshold
+            if (offlineDuration >= OFFLINE_THRESHOLD) {
+              console.log(`📶 Device back online (was offline for ${Math.round(offlineDuration / 1000)}s)`);
+              
+              // Get current location and send online notification
+              Geolocation.getCurrentPosition(
+                (position: any) => {
+                  updateLocationStatus(alertId, false, {
+                    latitude: position.coords.latitude,
+                    longitude: position.coords.longitude,
+                    accuracy: position.coords.accuracy,
+                  });
+                },
+                (error: any) => console.error('Error getting online location:', error),
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 10000 }
+              );
+            } else {
+              console.log(`📶 Device back online (brief disconnect, no notification)`);
+            }
+            
+            offlineStartTime = null;
+          }
+        }
+        
+        lastNetworkStatus = isConnected;
+      });
+
+      // Update location silently every 2 minutes (no notifications)
+      // This is just for tracking, not for sending alerts
+      const locationInterval = setInterval(() => {
+        if (lastNetworkStatus === true) {
+          // Only update if online, and don't send notifications
+          Geolocation.getCurrentPosition(
+            (position: any) => {
+              // Just update local state, don't send to backend
+              setLocation({
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+                accuracy: position.coords.accuracy,
+              });
+            },
+            (error: any) => console.error('Location update error:', error),
+            { enableHighAccuracy: false, timeout: 10000, maximumAge: 30000 }
+          );
+        }
+      }, 120000); // Every 2 minutes
+
+      // Clean up after 1 hour
+      setTimeout(() => {
+        unsubscribe();
+        clearInterval(locationInterval);
+        console.log('🛑 Location monitoring stopped');
+      }, 3600000);
+      
+      console.log('✅ Location monitoring started');
+    } catch (error) {
+      console.error('Error starting location monitoring:', error);
+    }
+  };
+
+  const updateLocationStatus = async (
+    alertId: string,
+    isOffline: boolean,
+    newLocation?: any
+  ) => {
+    try {
+      await apiService.post('/api/sos/update-location', {
+        alertId,
+        location: newLocation || location,
+        isOffline,
+      });
+    } catch (error) {
+      console.error('Error updating location:', error);
+    }
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Emergency SOS</Text>
+          <Text style={styles.headerSubtitle}>
+            {emergencyContactCount >= 2
+              ? `${emergencyContactCount} emergency contacts ready`
+              : `Add ${2 - emergencyContactCount} more contact(s)`}
+          </Text>
+        </View>
+
         <View style={styles.sosButtonContainer}>
           <TouchableOpacity
             style={styles.sosButton}
-            onPress={handleSOS}
+            onPress={handleSOSPress}
             disabled={isActivating}
+            activeOpacity={0.8}
           >
             {isActivating ? (
               <ActivityIndicator size="large" color="#FFFFFF" />
@@ -56,23 +475,138 @@ const SOSScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.instruction}>Press and hold to activate SOS</Text>
+        <Text style={styles.instruction}>Tap to activate SOS</Text>
         <Text style={styles.description}>
-          Emergency services and your trusted contacts will be notified immediately.
+          Emergency services and your trusted contacts will be notified with your
+          location and device information.
         </Text>
 
-        <View style={styles.quickActions}>
-          <TouchableOpacity style={styles.quickActionButton}>
-            <Icon name="shield-home" size={32} color={Colors.primary} />
-            <Text style={styles.quickActionText}>Find Safe Zone</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.quickActionButton}>
-            <Icon name="account-group" size={32} color={Colors.primary} />
-            <Text style={styles.quickActionText}>Trust Circle</Text>
-          </TouchableOpacity>
+        <View style={styles.infoContainer}>
+          <View style={styles.infoRow}>
+            <Icon name="battery" size={24} color={Colors.primary} />
+            <Text style={styles.infoText}>
+              Battery: {deviceInfo?.batteryLevel || 0}%
+            </Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Icon name="signal" size={24} color={Colors.primary} />
+            <Text style={styles.infoText}>
+              Network: {deviceInfo?.networkStatus || 'Unknown'}
+            </Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Icon name="map-marker" size={24} color={Colors.primary} />
+            <Text style={styles.infoText}>
+              Location: {location ? 'Available' : 'Unavailable'}
+            </Text>
+          </View>
         </View>
       </View>
+
+      {/* Countdown Modal */}
+      <Modal
+        visible={showCountdown}
+        transparent
+        animationType="fade"
+        onRequestClose={cancelSOS}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Animated.View
+              style={[
+                styles.countdownCircle,
+                { transform: [{ scale: scaleAnim }] },
+              ]}
+            >
+              <Text style={styles.countdownText}>{countdown}</Text>
+            </Animated.View>
+
+            <Text style={styles.modalTitle}>Sending SOS Alert</Text>
+            <Text style={styles.modalDescription}>
+              Emergency alert will be sent in {countdown} seconds
+            </Text>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={cancelSOS}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.continueButton]}
+                onPress={() => {
+                  setCountdown(0);
+                }}
+              >
+                <Text style={styles.continueButtonText}>Send Now</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Success Modal */}
+      <Modal
+        visible={showSuccessModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSuccessModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.successIcon}>
+              <Icon name="check-circle" size={80} color="#4CAF50" />
+            </View>
+
+            <Text style={styles.modalTitle}>SOS Alert Sent!</Text>
+            <Text style={styles.modalDescription}>
+              Emergency alert has been sent to {notificationCount} recipient(s).
+              {'\n\n'}
+              Your emergency contacts and trust circle groups have been notified.
+              {'\n\n'}
+              Help is on the way!
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.modalButton, styles.successButton]}
+              onPress={() => setShowSuccessModal(false)}
+            >
+              <Text style={styles.continueButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Error Modal */}
+      <Modal
+        visible={showErrorModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowErrorModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.errorIcon}>
+              <Icon name="alert-circle" size={80} color={Colors.error} />
+            </View>
+
+            <Text style={styles.modalTitle}>Alert Failed</Text>
+            <Text style={styles.modalDescription}>
+              {errorMessage}
+              {'\n\n'}
+              Please try again or contact emergency services directly.
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.modalButton, styles.continueButton]}
+              onPress={() => setShowErrorModal(false)}
+            >
+              <Text style={styles.continueButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -87,6 +621,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: Colors.text,
+    marginBottom: 8,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: Colors.textSecondary,
   },
   sosButtonContainer: {
     marginBottom: 40,
@@ -123,28 +671,100 @@ const styles = StyleSheet.create({
     marginBottom: 40,
     paddingHorizontal: 40,
   },
-  quickActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
+  infoContainer: {
     width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 15,
+    padding: 20,
     marginTop: 20,
   },
-  quickActionButton: {
+  infoRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.background,
-    padding: 20,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: Colors.secondary,
-    width: '45%',
+    marginBottom: 15,
   },
-  quickActionText: {
-    fontSize: 14,
+  infoText: {
+    fontSize: 16,
+    color: Colors.text,
+    marginLeft: 15,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: Colors.background,
+    borderRadius: 20,
+    padding: 30,
+    alignItems: 'center',
+    width: '85%',
+  },
+  countdownCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: Colors.error,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  countdownText: {
+    fontSize: 48,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: Colors.text,
+    marginBottom: 10,
+  },
+  modalDescription: {
+    fontSize: 16,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 30,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginHorizontal: 5,
+  },
+  cancelButton: {
+    backgroundColor: Colors.secondary || '#E0E0E0',
+  },
+  continueButton: {
+    backgroundColor: Colors.error,
+  },
+  cancelButtonText: {
+    fontSize: 16,
     fontWeight: '600',
     color: Colors.text,
-    marginTop: 10,
+  },
+  continueButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  successIcon: {
+    marginBottom: 20,
+  },
+  errorIcon: {
+    marginBottom: 20,
+  },
+  successButton: {
+    backgroundColor: '#4CAF50',
+    width: '100%',
   },
 });
 
 export default SOSScreen;
-
