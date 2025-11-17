@@ -26,11 +26,13 @@ const authRoutes = require('./routers/auth');
 const googleAuthRoutes = require('./routers/googleAuth');
 const emergencyContactRoutes = require('./routers/emergencyContacts');
 const groupRoutes = require('./routers/groups');
+const sosRoutes = require('./routers/sos');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/auth', googleAuthRoutes);
 app.use('/api/emergency-contacts', emergencyContactRoutes);
 app.use('/api/groups', groupRoutes);
+app.use('/api/sos', sosRoutes);
 
 const http = require("http");
 const { Server } = require("socket.io");
@@ -70,6 +72,7 @@ const io = new Server(server, {
 
 // Make socket.io instance available in controllers
 app.set('io', io);
+global.io = io;
 
 // Socket.io authentication middleware
 io.use(async (socket, next) => {
