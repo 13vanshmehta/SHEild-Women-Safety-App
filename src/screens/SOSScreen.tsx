@@ -10,11 +10,16 @@ import {
   Animated,
   Platform,
   PermissionsAndroid,
+  ScrollView,
+  TextInput,
+  AppState,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors } from '../constants';
 import { apiService } from '../services/apiService';
+import voiceSafetyService from '../services/voiceSafetyService';
+import voiceStateService from '../services/voiceStateService';
 
 // Lazy imports for native modules (will be null if not properly linked)
 let NetInfo: any = null;
@@ -50,15 +55,96 @@ const SOSScreen: React.FC = () => {
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [notificationCount, setNotificationCount] = useState(0);
+  const [isVoiceListening, setIsVoiceListening] = useState(false);
+  const [keywords, setKeywords] = useState<string[]>(['help']);
+  const [keywordInput, setKeywordInput] = useState('');
   
   const countdownTimerRef = useRef<any>(null);
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const voicePulseAnim = useRef(new Animated.Value(1)).current;
+  const appState = useRef(AppState.currentState);
 
   useEffect(() => {
     checkEmergencyContacts();
     collectDeviceInfo();
     requestLocationPermission();
+    
+    // Load saved voice state and restore if it was enabled
+    loadVoiceState();
+    
+    // Handle app state changes (background/foreground)
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    
+    // Cleanup voice service on unmount
+    return () => {
+      subscription.remove();
+      if (isVoiceListening) {
+        // Save state before unmounting
+        voiceStateService.saveState({
+          isEnabled: true,
+          keywords: keywords,
+        });
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleAppStateChange = (nextAppState: any) => {
+    console.log('📱 App State Changed:', appState.current, '->', nextAppState);
+    
+    if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+      // App came to foreground
+      console.log('📱 App came to FOREGROUND');
+      if (isVoiceListening) {
+        console.log('🎤 Voice listening was active, ensuring it continues...');
+        // Voice service should continue, just log for monitoring
+      }
+    } else if (nextAppState.match(/inactive|background/)) {
+      // App went to background
+      console.log('📱 App went to BACKGROUND');
+      if (isVoiceListening) {
+        console.log('🎤 Voice listening active - will continue in background with audio mode');
+        // Keep voice listening active in background
+      }
+    }
+    
+    appState.current = nextAppState;
+  };
+
+  // Restart voice listening when keywords change
+  useEffect(() => {
+    if (isVoiceListening && keywords.length > 0) {
+      // Stop and restart with new keywords
+      const restartListening = async () => {
+        console.log('🔄 Restarting voice listening with new keywords:', keywords);
+        await voiceSafetyService.stopListening();
+        
+        const started = await voiceSafetyService.startListening({
+          keywords: keywords,
+          locale: 'en-US',
+          onKeywordDetected: (keyword, fullText) => {
+            console.log('🚨 EMERGENCY KEYWORD DETECTED:', keyword);
+            console.log('🚨 Full text:', fullText);
+            triggerSOSAlert();
+          },
+          onError: (error) => {
+            console.error('Voice recognition error:', error);
+            setIsVoiceListening(false);
+            Alert.alert(
+              'Voice Recognition Error',
+              'Failed to start voice recognition. Please check microphone permissions in Settings.'
+            );
+          },
+        });
+        
+        if (!started) {
+          setIsVoiceListening(false);
+        }
+      };
+      restartListening();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [keywords]);
 
   useEffect(() => {
     if (showCountdown && countdown > 0) {
@@ -507,18 +593,218 @@ const SOSScreen: React.FC = () => {
     }
   };
 
+  const addKeyword = () => {
+    const trimmed = keywordInput.trim();
+    if (trimmed && !keywords.includes(trimmed.toLowerCase())) {
+      setKeywords([...keywords, trimmed.toLowerCase()]);
+      setKeywordInput('');
+    } else if (keywords.includes(trimmed.toLowerCase())) {
+      Alert.alert('Duplicate', 'This keyword already exists.');
+    }
+  };
+
+  const removeKeyword = (keyword: string) => {
+    setKeywords(keywords.filter(k => k !== keyword));
+  };
+
+  const loadVoiceState = async () => {
+    try {
+      const savedState = await voiceStateService.loadState();
+      if (savedState && savedState.isEnabled && savedState.keywords.length > 0) {
+        console.log('📂 Restoring voice listening from saved state');
+        setKeywords(savedState.keywords);
+        // Auto-start voice listening with saved keywords
+        setTimeout(() => {
+          startVoiceListeningWithKeywords(savedState.keywords);
+        }, 1000); // Delay to ensure all components are mounted
+      }
+    } catch (error) {
+      console.error('Error loading voice state:', error);
+    }
+  };
+
+  const startVoiceListeningWithKeywords = async (keywordsToUse: string[]) => {
+    try {
+      if (keywordsToUse.length === 0) {
+        Alert.alert('No Keywords', 'Please add at least one keyword to listen for.');
+        return;
+      }
+
+      const started = await voiceSafetyService.startListening({
+        keywords: keywordsToUse,
+        locale: 'en-US',
+        onKeywordDetected: (keyword, fullText) => {
+          console.log('🚨 EMERGENCY KEYWORD DETECTED:', keyword);
+          console.log('🚨 Full text:', fullText);
+          triggerSOSAlert();
+        },
+        onError: (error) => {
+          console.error('Voice recognition error:', error);
+          setIsVoiceListening(false);
+          voiceStateService.clearState();
+          Alert.alert(
+            'Voice Recognition Error',
+            'Failed to start voice recognition. Please check microphone permissions in Settings.'
+          );
+        },
+      });
+
+      if (started) {
+        setIsVoiceListening(true);
+        startVoicePulseAnimation();
+        // Save state
+        voiceStateService.saveState({
+          isEnabled: true,
+          keywords: keywordsToUse,
+        });
+      }
+    } catch (error) {
+      console.error('Error starting voice listening:', error);
+      Alert.alert('Error', 'Failed to start voice recognition');
+    }
+  };
+
+  const startVoiceListening = async () => {
+    await startVoiceListeningWithKeywords(keywords);
+  };
+
+  const stopVoiceListening = async () => {
+    try {
+      await voiceSafetyService.stopListening();
+      setIsVoiceListening(false);
+      voicePulseAnim.setValue(1);
+      // Clear saved state when user manually stops
+      await voiceStateService.clearState();
+      console.log('🛑 Voice listening stopped and state cleared');
+    } catch (error) {
+      console.error('Error stopping voice listening:', error);
+    }
+  };
+
+  const startVoicePulseAnimation = () => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(voicePulseAnim, {
+          toValue: 1.15,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(voicePulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Emergency SOS</Text>
-          <Text style={styles.headerSubtitle}>
-            {emergencyContactCount >= 2
-              ? `${emergencyContactCount} emergency contacts ready`
-              : `Add ${2 - emergencyContactCount} more contact(s)`}
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        bounces={true}
+      >
+        <View style={styles.content}>
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>Emergency SOS</Text>
+            <Text style={styles.headerSubtitle}>
+              {emergencyContactCount >= 2
+                ? `${emergencyContactCount} emergency contacts ready`
+                : `Add ${2 - emergencyContactCount} more contact(s)`}
+            </Text>
+          </View>
+
+        {/* Voice Safety Mode Section */}
+        <View style={styles.voiceSafetySection}>
+          <View style={styles.voiceSafetyHeader}>
+            <Icon name="microphone" size={24} color={Colors.primary} />
+            <Text style={styles.voiceSafetyTitle}>Voice Safety Mode</Text>
+          </View>
+          
+          <Text style={styles.voiceSafetyDescription}>
+            Add keywords that will trigger SOS when spoken
           </Text>
+
+          {/* Keywords Chips Display */}
+          <View style={styles.keywordsChipsContainer}>
+            {keywords.map((keyword, index) => (
+              <View key={index} style={styles.keywordChip}>
+                <Text style={styles.keywordChipText}>{keyword}</Text>
+                <TouchableOpacity 
+                  onPress={() => removeKeyword(keyword)}
+                  disabled={isVoiceListening}
+                  style={styles.keywordRemoveButton}
+                >
+                  <Icon name="close" size={16} color="#666" />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+
+          {/* Add Keyword Input */}
+          <View style={styles.keywordInputContainer}>
+            <TextInput
+              style={styles.keywordInput}
+              value={keywordInput}
+              onChangeText={setKeywordInput}
+              placeholder="Type a keyword..."
+              placeholderTextColor={Colors.textSecondary}
+              editable={!isVoiceListening}
+              onSubmitEditing={addKeyword}
+              returnKeyType="done"
+            />
+            <TouchableOpacity 
+              onPress={addKeyword}
+              disabled={!keywordInput.trim() || isVoiceListening}
+              style={[
+                styles.addKeywordButton,
+                (!keywordInput.trim() || isVoiceListening) && styles.addKeywordButtonDisabled
+              ]}
+            >
+              <Icon 
+                name="send" 
+                size={20} 
+                color={!keywordInput.trim() || isVoiceListening ? '#CCC' : Colors.primary} 
+              />
+            </TouchableOpacity>
+          </View>
+
+          {isVoiceListening && (
+            <Text style={styles.activeKeywordsText}>
+              🎤 Listening for: {keywords.join(', ')}
+            </Text>
+          )}
+
+          <Animated.View style={{ transform: [{ scale: voicePulseAnim }] }}>
+            <TouchableOpacity
+              style={[
+                styles.voiceButton,
+                isVoiceListening && styles.voiceButtonActive
+              ]}
+              onPress={isVoiceListening ? stopVoiceListening : startVoiceListening}
+              activeOpacity={0.8}
+            >
+              <Icon 
+                name={isVoiceListening ? 'microphone' : 'microphone-off'}
+                size={32}
+                color="#FFFFFF"
+              />
+              <Text style={styles.voiceButtonText}>
+                {isVoiceListening ? 'Stop Listening' : 'Start Listening'}
+              </Text>
+            </TouchableOpacity>
+          </Animated.View>
+
+          {isVoiceListening && (
+            <View style={styles.listeningIndicator}>
+              <View style={styles.listeningDot} />
+              <Text style={styles.listeningText}>Actively listening for emergency keywords</Text>
+            </View>
+          )}
         </View>
 
+        {/* SOS Button - Reduced Size */}
         <View style={styles.sosButtonContainer}>
           <TouchableOpacity
             style={styles.sosButton}
@@ -530,14 +816,14 @@ const SOSScreen: React.FC = () => {
               <ActivityIndicator size="large" color="#FFFFFF" />
             ) : (
               <>
-                <Icon name="alarm-light" size={100} color="#FFFFFF" />
+                <Icon name="alarm-light" size={60} color="#FFFFFF" />
                 <Text style={styles.sosText}>SOS</Text>
               </>
             )}
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.instruction}>Tap to activate SOS</Text>
+        <Text style={styles.instruction}>Tap for instant SOS alert</Text>
         <Text style={styles.description}>
           Emergency services and your trusted contacts will be notified with your
           location and device information.
@@ -563,7 +849,8 @@ const SOSScreen: React.FC = () => {
             </Text>
           </View>
         </View>
-      </View>
+        </View>
+      </ScrollView>
 
       {/* Countdown Modal */}
       <Modal
@@ -678,6 +965,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 20,
+  },
   content: {
     flex: 1,
     justifyContent: 'center',
@@ -698,27 +989,177 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textSecondary,
   },
+  voiceDescriptionContainer: {
+    width: '100%',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    marginBottom: 16,
+  },
+  voiceDescriptionText: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+  voiceSafetySection: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    marginBottom: 32,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  voiceSafetyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  voiceSafetyTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: Colors.text,
+    marginLeft: 10,
+  },
+  voiceSafetyDescription: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    marginTop: 12,
+    marginBottom: 20,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+  keywordsChipsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 16,
+    gap: 8,
+  },
+  keywordChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8EAF6',
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: '#C5CAE9',
+  },
+  keywordChipText: {
+    fontSize: 14,
+    color: '#3F51B5',
+    fontWeight: '600',
+    marginRight: 8,
+  },
+  keywordRemoveButton: {
+    padding: 2,
+  },
+  keywordInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  keywordInput: {
+    flex: 1,
+    fontSize: 16,
+    color: Colors.text,
+    paddingVertical: 0,
+  },
+  addKeywordButton: {
+    padding: 8,
+    marginLeft: 8,
+  },
+  addKeywordButtonDisabled: {
+    opacity: 0.5,
+  },
+  activeKeywordsText: {
+    fontSize: 14,
+    color: '#2E7D32',
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#E8F5E9',
+    borderRadius: 8,
+  },
+  voiceButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.textSecondary,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+  voiceButtonActive: {
+    backgroundColor: '#4CAF50',
+  },
+  voiceButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
+    marginLeft: 12,
+  },
+  listeningIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#E8F5E9',
+    borderRadius: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: '#4CAF50',
+  },
+  listeningDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#4CAF50',
+    marginRight: 10,
+  },
+  listeningText: {
+    fontSize: 14,
+    color: '#2E7D32',
+    fontWeight: '500',
+    flex: 1,
+  },
   sosButtonContainer: {
-    marginBottom: 40,
+    marginBottom: 24,
   },
   sosButton: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
     backgroundColor: Colors.error,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: Colors.error,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-    elevation: 15,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 12,
   },
   sosText: {
     color: '#FFFFFF',
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: 'bold',
-    marginTop: 10,
+    marginTop: 8,
   },
   instruction: {
     fontSize: 18,

@@ -43,6 +43,8 @@
 	<string>SHEild needs access to your location to find safe spots and police stations near you for your safety.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>SHEild needs access to your microphone to record and send audio messages in group chats.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>SHEild needs speech recognition to detect emergency voice commands like 'help' and 'emergency' when you activate voice safety mode.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>SHEild needs access to save photos to your library.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
@@ -85,6 +87,11 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+		<string>processing</string>
+	</array>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
