@@ -75,16 +75,11 @@ const SOSScreen: React.FC = () => {
     // Handle app state changes (background/foreground)
     const subscription = AppState.addEventListener('change', handleAppStateChange);
     
-    // Cleanup voice service on unmount
+    // Cleanup - DON'T stop voice service on unmount to keep it running across tabs
     return () => {
       subscription.remove();
-      if (isVoiceListening) {
-        // Save state before unmounting
-        voiceStateService.saveState({
-          isEnabled: true,
-          keywords: keywords,
-        });
-      }
+      // Voice service continues running even when component unmounts
+      // Only stop when user explicitly clicks "Stop Listening"
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -111,9 +106,14 @@ const SOSScreen: React.FC = () => {
     appState.current = nextAppState;
   };
 
-  // Restart voice listening when keywords change
+  // Restart voice listening when keywords change (only if actually changed by user)
+  const prevKeywordsRef = useRef<string[]>(keywords);
+  
   useEffect(() => {
-    if (isVoiceListening && keywords.length > 0) {
+    // Check if keywords actually changed (not just component remount)
+    const keywordsChanged = JSON.stringify(prevKeywordsRef.current) !== JSON.stringify(keywords);
+    
+    if (isVoiceListening && keywords.length > 0 && keywordsChanged) {
       // Stop and restart with new keywords
       const restartListening = async () => {
         console.log('🔄 Restarting voice listening with new keywords:', keywords);
@@ -143,8 +143,11 @@ const SOSScreen: React.FC = () => {
       };
       restartListening();
     }
+    
+    // Update previous keywords reference
+    prevKeywordsRef.current = keywords;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [keywords]);
+  }, [keywords, isVoiceListening]);
 
   useEffect(() => {
     if (showCountdown && countdown > 0) {
@@ -609,14 +612,29 @@ const SOSScreen: React.FC = () => {
 
   const loadVoiceState = async () => {
     try {
-      const savedState = await voiceStateService.loadState();
-      if (savedState && savedState.isEnabled && savedState.keywords.length > 0) {
-        console.log('📂 Restoring voice listening from saved state');
-        setKeywords(savedState.keywords);
-        // Auto-start voice listening with saved keywords
-        setTimeout(() => {
-          startVoiceListeningWithKeywords(savedState.keywords);
-        }, 1000); // Delay to ensure all components are mounted
+      // Check if voice service is already listening
+      const isCurrentlyListening = voiceSafetyService.getIsListening();
+      
+      if (isCurrentlyListening) {
+        // Voice is already running, just sync UI state
+        const savedState = await voiceStateService.loadState();
+        if (savedState && savedState.keywords.length > 0) {
+          console.log('📂 Voice already listening, syncing UI state');
+          setKeywords(savedState.keywords);
+          setIsVoiceListening(true);
+          startVoicePulseAnimation();
+        }
+      } else {
+        // Voice not running, check if it should auto-start
+        const savedState = await voiceStateService.loadState();
+        if (savedState && savedState.isEnabled && savedState.keywords.length > 0) {
+          console.log('📂 Restoring voice listening from saved state');
+          setKeywords(savedState.keywords);
+          // Auto-start voice listening with saved keywords
+          setTimeout(() => {
+            startVoiceListeningWithKeywords(savedState.keywords);
+          }, 1000); // Delay to ensure all components are mounted
+        }
       }
     } catch (error) {
       console.error('Error loading voice state:', error);
