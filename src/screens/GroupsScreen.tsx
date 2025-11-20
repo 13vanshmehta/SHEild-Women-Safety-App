@@ -426,14 +426,19 @@ const GroupChatScreen: React.FC<{
   const loadMessages = useCallback(async () => {
     try {
       setLoading(true);
+      console.log('📥 Loading messages for group:', group._id);
       const response = await apiService.get(`/api/groups/${group._id}/messages`);
+      console.log('📥 Messages response:', JSON.stringify(response, null, 2));
       if (response && response.success && response.data && Array.isArray(response.data.messages)) {
+        console.log('📥 Setting', response.data.messages.length, 'messages to state');
+        console.log('📥 First 3 messages:', response.data.messages.slice(0, 3));
         setMessages(response.data.messages);
       } else {
+        console.log('📥 No messages in response, setting empty array');
         setMessages([]);
       }
     } catch (error) {
-      console.error('Error loading messages:', error);
+      console.error('❌ Error loading messages:', error);
       setMessages([]);
     } finally {
       setLoading(false);
@@ -448,6 +453,7 @@ const GroupChatScreen: React.FC<{
 
     try {
       const socket = await connectSocket();
+      console.log('📤 Sending message:', { groupId: group._id, text, messageType: 'text' });
       socket.emit('sendGroupMessage', { groupId: group._id, text, messageType: 'text' });
     } catch (error) {
       console.error('Error sending message:', error);
@@ -708,12 +714,22 @@ const GroupChatScreen: React.FC<{
         socketInstance.emit('joinGroup', { groupId: group._id });
 
         const handleIncoming = (message: any) => {
-          if (!message || message.groupId !== group._id) return;
+          console.log('📨 Received groupMessage:', message);
+          if (!message || message.groupId !== group._id) {
+            console.log('📨 Ignoring message - wrong group or null');
+            return;
+          }
+          console.log('📨 Adding incoming message to state');
           setMessages((prev) => [...prev, message]);
         };
 
         const handleSent = (message: any) => {
-          if (!message || message.groupId !== group._id) return;
+          console.log('📤 Received messageSent:', message);
+          if (!message || message.groupId !== group._id) {
+            console.log('📤 Ignoring message - wrong group or null');
+            return;
+          }
+          console.log('📤 Adding sent message to state');
           setMessages((prev) => [...prev, message]);
         };
 
@@ -1394,10 +1410,7 @@ const GroupChatScreen: React.FC<{
                           }
                         }}
                       >
-                        {(message.messageType === 'location' || message.messageType === 'image') ? (
-                          // Render media without wrapper View
-                          <>
-                    {message.messageType === 'location' && message.location ? (
+                        {message.messageType === 'location' && message.location ? (
                       (() => {
                         try {
                           const lat = message.location?.latitude;
@@ -1576,28 +1589,25 @@ const GroupChatScreen: React.FC<{
                           }
                         }}
                       />
-                    ) : null}
-                          </>
-                        ) : (
-                          // Render text messages with styled View
-                          <View
-                            style={[
-                              styles.messageBubble,
-                              message.isOwn ? styles.ownMessageBubble : styles.otherMessageBubble,
-                              isSelected && styles.selectedMessageBubble,
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.messageText,
-                                message.isOwn ? styles.ownMessageText : styles.otherMessageText,
-                              ]}
-                            >
-                              {message.text}
-                            </Text>
-                          </View>
-                        )}
-                      </RNTouchableOpacity>
+                    ) : (
+                      <View
+                        style={[
+                          styles.messageBubble,
+                          message.isOwn ? styles.ownMessageBubble : styles.otherMessageBubble,
+                          isSelected && styles.selectedMessageBubble,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.messageText,
+                            message.isOwn ? styles.ownMessageText : styles.otherMessageText,
+                          ]}
+                        >
+                          {message.text}
+                        </Text>
+                      </View>
+                    )}
+                  </RNTouchableOpacity>
                     </View>
                   </View>
                 );
