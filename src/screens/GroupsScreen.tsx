@@ -280,13 +280,23 @@ const ImageMessageBubble: React.FC<{
     const loadImage = async () => {
       try {
         setImageLoading(true);
-        // Resolve the media URL
-        let remote: string | null = null;
+        
         if (!mediaUrl) {
           console.log('No mediaUrl provided');
           setImageLoading(false);
           return;
         }
+        
+        // Check if it's a base64 data URI (blob format)
+        if (mediaUrl.startsWith('data:image/')) {
+          console.log('Using base64 blob data directly');
+          setImageUri(mediaUrl);
+          setImageLoading(false);
+          return;
+        }
+        
+        // Handle HTTP URLs
+        let remote: string | null = null;
         if (mediaUrl.startsWith('http://') || mediaUrl.startsWith('https://')) {
           remote = mediaUrl;
         } else {
@@ -468,14 +478,18 @@ const GroupChatScreen: React.FC<{
 
   const requestMediaPermissionsIfNeeded = async (): Promise<boolean> => {
     try {
-      const cameraStatus = await requestPermissionWithRationale('camera', {
-        title: 'Camera access',
-        message: 'SHEild needs camera access to take and send photos.',
-        examples: ['Share photos with your trust circle'],
-      });
-      
-      if (cameraStatus !== 'granted') {
-        return false;
+      // On iOS, react-native-image-picker handles permissions automatically
+      // Only need to request permissions on Android
+      if (Platform.OS === 'android') {
+        const cameraStatus = await requestPermissionWithRationale('camera', {
+          title: 'Camera access',
+          message: 'SHEild needs camera access to take and send photos.',
+          examples: ['Share photos with your trust circle'],
+        });
+        
+        if (cameraStatus !== 'granted') {
+          return false;
+        }
       }
       
       return true;
@@ -503,25 +517,45 @@ const GroupChatScreen: React.FC<{
 
   const uploadAndSendImage = async (asset: any) => {
     if (!asset.uri) {
-      console.log('No asset URI');
+      console.log('❌ No asset URI provided');
       return;
     }
 
     try {
+      console.log('📦 Preparing image upload:', {
+        uri: asset.uri,
+        fileName: asset.fileName,
+        type: asset.type,
+        fileSize: asset.fileSize,
+      });
+      
       const formData = new FormData();
-      const fileName = asset.fileName || `image-${Date.now()}.jpg`;
+      const fileName = asset.fileName || `photo-${Date.now()}.jpg`;
       const type = asset.type || 'image/jpeg';
       
-      // Normalize URI for Android - remove file:// prefix if present
+      // Normalize URI for both platforms
       let fileUri = asset.uri;
-      if (Platform.OS === 'android' && !fileUri.startsWith('file://')) {
-        fileUri = `file://${fileUri}`;
+      
+      // iOS: Handle both file:// and assets-library:// URIs
+      if (Platform.OS === 'ios') {
+        // iOS camera photos usually start with file://
+        if (!fileUri.startsWith('file://') && !fileUri.startsWith('assets-library://')) {
+          fileUri = `file://${fileUri}`;
+        }
+      } else {
+        // Android: Ensure file:// prefix
+        if (!fileUri.startsWith('file://') && !fileUri.startsWith('content://')) {
+          fileUri = `file://${fileUri}`;
+        }
       }
       
-      console.log('Original URI:', asset.uri);
-      console.log('Normalized URI:', fileUri);
-      console.log('File name:', fileName);
-      console.log('File type:', type);
+      console.log('📤 Upload details:', {
+        originalUri: asset.uri,
+        normalizedUri: fileUri,
+        fileName: fileName,
+        fileType: type,
+        platform: Platform.OS,
+      });
       
       // @ts-ignore - React Native FormData accepts this format
       formData.append('file', {
@@ -531,30 +565,40 @@ const GroupChatScreen: React.FC<{
       });
       formData.append('fileType', 'image');
 
-      console.log('Uploading image to:', `/api/groups/${group._id}/media`);
-      console.log('API Base URL:', API_BASE_URL);
+      console.log('📡 Uploading to:', `/api/groups/${group._id}/media`);
       
       const uploadRes = await apiService.upload(`/api/groups/${group._id}/media`, formData);
-      console.log('Upload response:', uploadRes);
+      console.log('✅ Upload response:', uploadRes);
       
-      const mediaUrlRaw = uploadRes?.data?.mediaUrl;
-      const mediaUrl = resolveMediaUrl(mediaUrlRaw);
-      console.log('Resolved media URL:', mediaUrl);
+      // For images, use blob data; for audio, use URL
+      const mediaUrl = uploadRes?.data?.mediaUrl;
+      const mediaData = uploadRes?.data?.mediaData;
       
-      if (!mediaUrl) {
-        showAlert('Error', 'Failed to upload image.', undefined, 'alert-circle', '#EF4444');
+      console.log('📦 Media response:', { 
+        hasUrl: !!mediaUrl, 
+        hasData: !!mediaData,
+        dataLength: mediaData?.length 
+      });
+      
+      // Prefer blob data for images, fall back to URL
+      const finalMediaUrl = mediaData || mediaUrl;
+      
+      if (!finalMediaUrl) {
+        showAlert('Error', 'Failed to upload image - no data received.', undefined, 'alert-circle', '#EF4444');
         return;
       }
 
       const socket = await connectSocket();
-      console.log('Sending image message via socket');
+      console.log('📨 Sending image message via socket...');
       socket.emit('sendGroupMessage', {
         groupId: group._id,
         messageType: 'image',
-        mediaUrl,
+        mediaUrl: finalMediaUrl,
+        mediaData: mediaData, // Send blob data separately
       });
+      console.log('✅ Image message sent successfully');
     } catch (error: any) {
-      console.error('Error in uploadAndSendImage:', error);
+      console.error('❌ Error in uploadAndSendImage:', error);
       console.error('Error details:', {
         message: error?.message,
         stack: error?.stack,
@@ -588,24 +632,67 @@ const GroupChatScreen: React.FC<{
 
   const handleTakePhoto = async () => {
     try {
-      const hasPerm = await requestMediaPermissionsIfNeeded();
-      if (!hasPerm) {
-        showAlert('Permission Required', 'Please allow camera and media access to send images.', undefined, 'camera', '#F59E0B');
-        return;
+      console.log('📷 Camera button pressed - platform:', Platform.OS);
+      
+      // On Android, request permissions first
+      // On iOS, react-native-image-picker handles permissions automatically
+      if (Platform.OS === 'android') {
+        const hasPerm = await requestMediaPermissionsIfNeeded();
+        if (!hasPerm) {
+          console.log('❌ Camera permission denied');
+          showAlert('Permission Required', 'Please allow camera access to take photos.', undefined, 'camera', '#F59E0B');
+          return;
+        }
       }
 
+      console.log('✅ Launching camera...');
       const result = await launchCamera({
         mediaType: 'photo',
         quality: 0.8,
-        saveToPhotos: true,
+        saveToPhotos: false,
+        cameraType: 'back',
+        includeBase64: false,
       });
-      if (result.didCancel || !result.assets || result.assets.length === 0) {
+      
+      console.log('📷 Camera result:', {
+        didCancel: result.didCancel,
+        errorCode: result.errorCode,
+        errorMessage: result.errorMessage,
+        assetsCount: result.assets?.length || 0,
+      });
+      
+      if (result.didCancel) {
+        console.log('📷 User cancelled camera');
         return;
       }
+      
+      if (result.errorCode) {
+        console.error('📷 Camera error:', result.errorCode, result.errorMessage);
+        
+        // Handle specific error codes
+        if (result.errorCode === 'camera_unavailable') {
+          showAlert('Camera Unavailable', 'Your device camera is not available.', undefined, 'alert-circle', '#EF4444');
+        } else if (result.errorCode === 'permission') {
+          showAlert('Permission Denied', 'Camera permission is required to take photos. Please enable it in Settings.', [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => Linking.openSettings() }
+          ], 'camera', '#F59E0B');
+        } else {
+          showAlert('Camera Error', result.errorMessage || 'Failed to open camera', undefined, 'alert-circle', '#EF4444');
+        }
+        return;
+      }
+      
+      if (!result.assets || result.assets.length === 0) {
+        console.log('📷 No image captured');
+        return;
+      }
+      
+      console.log('📤 Uploading captured image...');
       await uploadAndSendImage(result.assets[0]);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error capturing/sending image:', error);
-      showAlert('Error', 'Failed to send captured image.', undefined, 'alert-circle', '#EF4444');
+      showAlert('Error', `Failed to capture image: ${error?.message || 'Unknown error'}`, undefined, 'alert-circle', '#EF4444');
     }
   };
 

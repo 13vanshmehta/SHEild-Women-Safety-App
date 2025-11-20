@@ -1,5 +1,5 @@
 import Voice from '@react-native-voice/voice';
-import { Alert, AppState, AppStateStatus } from 'react-native';
+import { Alert, AppState, AppStateStatus, Platform } from 'react-native';
 
 export interface VoiceSafetyConfig {
   keywords: string[];
@@ -67,10 +67,34 @@ class VoiceSafetyService {
   /**
    * Initialize Voice event listeners
    */
-  private initializeVoice() {
-    if (this.isInitialized) return;
+  private async initializeVoice(): Promise<boolean> {
+    if (this.isInitialized) return true;
     
     try {
+      console.log('🎤 VoiceService: Starting initialization...');
+      
+      // Check if Voice module is available (properly linked)
+      if (!Voice || typeof Voice.start !== 'function') {
+        console.error('🎤 Voice module is not available - library may not be properly linked');
+        return false;
+      }
+      
+      console.log('🎤 Voice module loaded successfully');
+      
+      // On Android, we need to ensure Voice module is ready
+      if (Platform.OS === 'android') {
+        console.log('🎤 Android: Cleaning up any existing instance...');
+        // Try to destroy any existing instance first and wait a bit
+        try {
+          await Voice.destroy();
+          // Give Android time to clean up
+          await new Promise<void>(resolve => setTimeout(resolve, 200));
+        } catch {
+          // Ignore destroy errors on first init
+          console.log('🎤 No existing instance to destroy');
+        }
+      }
+      
       // Set up Voice event listeners
       Voice.onSpeechStart = this.onSpeechStart.bind(this);
       Voice.onSpeechEnd = this.onSpeechEnd.bind(this);
@@ -80,8 +104,10 @@ class VoiceSafetyService {
       
       this.isInitialized = true;
       console.log('🎤 VoiceService: Initialized successfully');
+      return true;
     } catch (error) {
       console.error('Failed to initialize Voice:', error);
+      return false;
     }
   }
 
@@ -92,30 +118,104 @@ class VoiceSafetyService {
   async startListening(config: VoiceSafetyConfig): Promise<boolean> {
     try {
       // Initialize Voice if not already done
-      this.initializeVoice();
+      const initialized = await this.initializeVoice();
+      if (!initialized) {
+        const errorTitle = Platform.OS === 'android' ? 'Voice Recognition Setup Required' : 'Voice Recognition Not Available';
+        const errorMessage = Platform.OS === 'android'
+          ? 'To use voice recognition on Android, you need:\n\n' +
+            '📱 Google App (Voice Search)\n' +
+            '   • Open Play Store\n' +
+            '   • Search "Google" (by Google LLC)\n' +
+            '   • Install or Update\n\n' +
+            'After installing:\n' +
+            '   • Enable Google app in Settings\n' +
+            '   • Restart SHEild app\n\n' +
+            'The Google app provides voice recognition services for Android.'
+          : 'Failed to initialize voice recognition. Please restart the app.';
+        
+        Alert.alert(errorTitle, errorMessage);
+        return false;
+      }
       
       // Check if speech recognition is available
-      const available = await Voice.isAvailable();
-      if (!available) {
-        Alert.alert(
-          'Not Available',
-          'Speech recognition is not available on this device.'
-        );
-        return false;
+      console.log('🎤 Checking speech recognition availability...');
+      
+      try {
+        const availabilityResult = await Voice.isAvailable();
+        console.log('🎤 Voice.isAvailable() returned:', availabilityResult, 'Type:', typeof availabilityResult);
+        
+        // Handle both null/undefined and boolean responses
+        const available = availabilityResult === true || availabilityResult === 1;
+        
+        if (!available && Platform.OS !== 'android') {
+          Alert.alert(
+            'Not Available',
+            'Speech recognition is not available on this device.'
+          );
+          return false;
+        }
+        
+        // On Android, even if isAvailable returns false/null, we'll try to start anyway
+        // because the actual availability is determined when we call start()
+        console.log('🎤 Proceeding with voice recognition setup...');
+      } catch (availError) {
+        console.log('🎤 Voice.isAvailable() threw error:', availError);
+        // Continue anyway - we'll let start() determine if it works
       }
 
       this.config = config;
       this.detectedKeywords.clear();
       
       // Start continuous recognition with background support
-      await Voice.start(config.locale || 'en-US');
+      try {
+        const locale = config.locale || 'en-US';
+        console.log('🎤 Calling Voice.start() with locale:', locale);
+        
+        await Voice.start(locale);
+        console.log('🎤 ✅ Voice.start() completed successfully!');
+      } catch (startError: any) {
+        console.error('🎤 ❌ Voice.start() failed:');
+        console.error('🎤 Error message:', startError?.message);
+        console.error('🎤 Error code:', startError?.code);
+        console.error('🎤 Full error:', JSON.stringify(startError, null, 2));
+        
+        // Re-throw with the original error for better debugging
+        throw startError;
+      }
+      
       this.isListening = true;
       
       console.log('🎤 Voice Safety Mode: Started listening for keywords:', config.keywords);
       console.log('🎤 Background mode enabled - will continue when app is in background');
       return true;
-    } catch (error) {
-      console.error('Error starting voice recognition:', error);
+    } catch (error: any) {
+      console.error('🎤 ❌ Failed to start voice recognition:', error);
+      
+      // Show user-friendly error message
+      const errorMsg = error?.message || String(error);
+      const errorCode = error?.code || '';
+      
+      let title = 'Voice Recognition Error';
+      let message = `Failed to start voice recognition.\n\nError: ${errorMsg}`;
+      
+      if (errorCode) {
+        message += `\nCode: ${errorCode}`;
+      }
+      
+      // Check for specific error patterns
+      if (errorMsg.includes('permission') || errorCode.includes('PERMISSION')) {
+        title = 'Microphone Permission Required';
+        message = 'Please grant microphone permission in Settings to use voice recognition.';
+      } else if (errorMsg.includes('network') || errorMsg.includes('CONNECTION')) {
+        title = 'Network Error';
+        message = 'Voice recognition requires an internet connection. Please check your network and try again.';
+      } else if (errorMsg.includes('not available') || errorMsg.includes('not supported')) {
+        title = 'Not Supported';
+        message = 'Speech recognition is not available on this device.';
+      }
+      
+      Alert.alert(title, message);
+      
       this.config?.onError?.(error);
       return false;
     }

@@ -648,6 +648,46 @@ const SOSScreen: React.FC = () => {
         return;
       }
 
+      // Request microphone permission on Android
+      if (Platform.OS === 'android') {
+        try {
+          const granted = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+            {
+              title: 'Microphone Permission',
+              message: 'SHEild needs access to your microphone for voice safety mode.',
+              buttonNeutral: 'Ask Me Later',
+              buttonNegative: 'Cancel',
+              buttonPositive: 'OK',
+            }
+          );
+
+          if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+            Alert.alert(
+              'Permission Denied',
+              'Microphone permission is required for voice safety mode. Please enable it in Settings.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Open Settings', onPress: () => {
+                  // Try to open app settings
+                  if (Platform.OS === 'android') {
+                    const { Linking } = require('react-native');
+                    Linking.openSettings();
+                  }
+                }},
+              ]
+            );
+            return;
+          }
+          
+          console.log('🎤 Microphone permission granted');
+        } catch (err) {
+          console.error('Error requesting microphone permission:', err);
+          Alert.alert('Error', 'Failed to request microphone permission');
+          return;
+        }
+      }
+
       const started = await voiceSafetyService.startListening({
         keywords: keywordsToUse,
         locale: 'en-US',

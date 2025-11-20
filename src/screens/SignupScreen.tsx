@@ -39,9 +39,17 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignupSuccess, onNavigate
 
   // Google Sign-In configuration
   useEffect(() => {
+    console.log('Configuring Google Sign-In with:', {
+      webClientId: Config.GOOGLE_WEB_CLIENT_ID,
+      iosClientId: Config.GOOGLE_IOS_CLIENT_ID,
+      platform: Platform.OS,
+    });
+    
     GoogleSignin.configure({
-      webClientId: Config.GOOGLE_WEB_CLIENT_ID || '15129086803-rm701c4bgi9lbmpuar4ofgu54e2ps3r6.apps.googleusercontent.com',
-      iosClientId: Config.GOOGLE_IOS_CLIENT_ID || '15129086803-i47hg26do0gtjus0f64cn1os3lo8qc36.apps.googleusercontent.com',
+      // For Android, we must use the Web Client ID (server client ID) 
+      // This is required for ID token generation that will be verified on the backend
+      webClientId: Config.GOOGLE_WEB_CLIENT_ID || '387247252263-fggkf3drod1j2fn9ms7sa9gruep1cpg0.apps.googleusercontent.com',
+      iosClientId: Config.GOOGLE_IOS_CLIENT_ID || '387247252263-lvekppuc0mp48t8flckb4obphsra96h2.apps.googleusercontent.com',
       offlineAccess: true,
       forceCodeForRefreshToken: true,
     });
