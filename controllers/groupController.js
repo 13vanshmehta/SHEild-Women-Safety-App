@@ -401,16 +401,45 @@ const addMember = async (req, res) => {
       });
     }
 
-    // Check if member is already in group
-    if (group.isMember(memberId)) {
+    let userIdToAdd = memberId;
+
+    // If no memberId provided, try to find user by phone number
+    if (!userIdToAdd && phoneNumber) {
+      const existingUser = await User.findOne({ phoneNumber });
+      if (existingUser) {
+        userIdToAdd = existingUser._id;
+      }
+    }
+
+    // Check if member is already in group by userId or phone number
+    const existingMember = group.members.find(m => 
+      (userIdToAdd && m.user && m.user.toString() === userIdToAdd.toString()) ||
+      (phoneNumber && m.phoneNumber === phoneNumber)
+    );
+
+    if (existingMember && existingMember.isActive) {
       return res.status(400).json({
         success: false,
         message: 'User is already a member of this group'
       });
     }
 
-    // Add member
-    group.addMember(memberId, phoneNumber, name, 'member');
+    // Reactivate if member exists but inactive
+    if (existingMember && !existingMember.isActive) {
+      existingMember.isActive = true;
+      existingMember.joinedAt = new Date();
+      await group.save();
+      await group.populate('members.user', 'firstName lastName email');
+      
+      return res.json({
+        success: true,
+        message: 'Member re-added successfully',
+        data: group
+      });
+    }
+
+    // Add member (with or without userId)
+    group.addMember(userIdToAdd, phoneNumber, name, 'member');
     await group.save();
 
     await group.populate('members.user', 'firstName lastName email');
@@ -713,6 +742,8 @@ const getGroupMessages = async (req, res) => {
     const { userId } = req.user;
     const { page = 1, limit = 50 } = req.query;
 
+    console.log('📥 getGroupMessages - groupId:', groupId, 'userId:', userId);
+
     const group = await Group.findOne({
       _id: groupId,
       'members.user': userId,
@@ -721,6 +752,7 @@ const getGroupMessages = async (req, res) => {
     });
 
     if (!group) {
+      console.log('📥 Group not found or user not a member');
       return res.status(404).json({
         success: false,
         message: 'Group not found or you are not a member'
@@ -728,15 +760,27 @@ const getGroupMessages = async (req, res) => {
     }
 
     const query = { groupId, isDeleted: false };
+    console.log('📥 Query:', JSON.stringify(query));
     const numericLimit = parseInt(limit) || 50;
     const numericPage = parseInt(page) || 1;
 
     const total = await GroupMessage.countDocuments(query);
+    console.log('📥 Total messages in DB:', total);
 
     const messages = await GroupMessage.find(query)
-      .sort({ createdAt: 1 }) // Oldest first
+      .sort({ createdAt: -1 }) // Newest first
       .limit(numericLimit)
       .skip((numericPage - 1) * numericLimit);
+
+    console.log('📥 Found', messages.length, 'messages (sorted newest first, then reversed for display)');
+    if (messages.length > 0) {
+      console.log('📥 First message:', {
+        _id: messages[0]._id,
+        text: messages[0].content?.text,
+        type: messages[0].messageType,
+        senderId: messages[0].senderId
+      });
+    }
 
     // Mark all fetched messages as read for this user
     try {
@@ -758,7 +802,8 @@ const getGroupMessages = async (req, res) => {
       console.error('Error marking group messages as read:', markErr);
     }
 
-    const formattedMessages = messages.map((msg) => ({
+    // Reverse so oldest messages are first in the array (for chat display)
+    const formattedMessages = messages.reverse().map((msg) => ({
       _id: msg._id,
       groupId: msg.groupId,
       text: (msg.content && msg.content.text) || '',
@@ -1008,17 +1053,37 @@ const uploadGroupMedia = [
         });
       }
 
-      const relativePath = `/uploads/group-media/${req.file.filename}`;
+      // For images, convert to base64 and store as blob
+      let mediaUrl = null;
+      let mediaData = null;
 
-      // Build an absolute URL so that mobile clients can load the media directly
-      const baseUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
-      const mediaUrl = `${baseUrl}${relativePath}`;
+      if (fileType === 'image') {
+        // Read the uploaded file and convert to base64
+        const filePath = req.file.path;
+        const fileBuffer = fs.readFileSync(filePath);
+        const base64Data = fileBuffer.toString('base64');
+        const mimeType = req.file.mimetype || 'image/jpeg';
+        
+        // Create data URI
+        mediaData = `data:${mimeType};base64,${base64Data}`;
+        
+        // Delete the temporary file since we're storing as blob
+        fs.unlinkSync(filePath);
+        
+        console.log(`Image converted to base64 blob (${Math.round(base64Data.length / 1024)}KB)`);
+      } else {
+        // For audio files, keep file-based storage
+        const relativePath = `/uploads/group-media/${req.file.filename}`;
+        const baseUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
+        mediaUrl = `${baseUrl}${relativePath}`;
+      }
 
       res.status(201).json({
         success: true,
         message: 'Media uploaded successfully',
         data: {
           mediaUrl,
+          mediaData,
           fileType,
         },
       });
