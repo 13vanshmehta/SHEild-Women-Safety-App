@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "15129086803",
-    "project_id": "sheild-097",
-    "storage_bucket": "sheild-097.firebasestorage.app"
+    "project_number": "387247252263",
+    "project_id": "sheild-app-bca08",
+    "storage_bucket": "sheild-app-bca08.appspot.com"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:15129086803:android:ccd4bcfdbd7215537a2fa6",
+        "mobilesdk_app_id": "1:387247252263:android:e6f6adbnoh2tmf79mb2bq36nd480au0e",
         "android_client_info": {
           "package_name": "com.sheild"
         }
@@ -28,7 +28,7 @@
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyABVUpFRSC9VAcgn29cZZIeKw963n2IuAg"
+          "current_key": "AIzaSyDQgiVjfNDl8FFUwTn6rnQiNlKRHG93J_8"
         }
       ],
       "services": {

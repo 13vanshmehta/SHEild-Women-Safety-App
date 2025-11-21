@@ -16,6 +16,8 @@ import MapView, { Marker, UrlTile } from 'react-native-maps';
 import { Colors } from '../constants';
 import Geolocation from 'react-native-geolocation-service';
 import locationService from '../services/locationService';
+import userLocationService from '../services/userLocationService';
+import { useAuth } from '../contexts/AuthContext';
 
 // Using OpenStreetMap tiles - completely free and open source
 // No API key required, perfect for family tracking!
@@ -26,11 +28,25 @@ interface Coordinates {
   longitude: number;
 }
 
+interface UserLocation {
+  userId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  profilePicture: string | null;
+  latitude: number;
+  longitude: number;
+  lastUpdated: string;
+  isOnline: boolean;
+}
+
 // --- COMPONENT DEFINITIONS (Outside main component) ---
 const MapViewComponent: React.FC<{ 
   coordinates: Coordinates | null;
   mapRef: React.RefObject<MapView | null>;
-}> = ({ coordinates, mapRef }) => {
+  otherUsers: UserLocation[];
+  currentUserId: string;
+}> = ({ coordinates, mapRef, otherUsers, currentUserId }) => {
   if (!coordinates) return null;
   const { latitude, longitude } = coordinates;
 
@@ -44,8 +60,8 @@ const MapViewComponent: React.FC<{
       initialRegion={{
         latitude,
         longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
+        latitudeDelta: 0.05,
+        longitudeDelta: 0.05,
       }}
       showsUserLocation={true}
       showsMyLocationButton={false}
@@ -68,7 +84,7 @@ const MapViewComponent: React.FC<{
         tileSize={256}
       />
       
-      {/* User Location Marker */}
+      {/* Current User Location Marker */}
       <Marker
         coordinate={{ latitude, longitude }}
         title="Your Location"
@@ -78,6 +94,23 @@ const MapViewComponent: React.FC<{
           <Icon name="account-circle" size={40} color={Colors.primary} />
         </View>
       </Marker>
+
+      {/* Other Users Location Markers */}
+      {otherUsers.map((user) => (
+        <Marker
+          key={user.userId}
+          coordinate={{ latitude: user.latitude, longitude: user.longitude }}
+          title={`${user.firstName} ${user.lastName}`}
+          description={user.isOnline ? 'Online' : 'Last seen: ' + new Date(user.lastUpdated).toLocaleString()}
+        >
+          <View style={styles.otherUserMarker}>
+            <View style={[styles.otherUserMarkerInner, !user.isOnline && styles.offlineMarker]}>
+              <Icon name="account" size={24} color="#fff" />
+            </View>
+            {user.isOnline && <View style={styles.onlineIndicator} />}
+          </View>
+        </Marker>
+      ))}
     </MapView>
   );
 };
@@ -98,11 +131,14 @@ const ErrorView: React.FC<{ error: string }> = ({ error }) => (
 );
 
 const TrackMeScreen: React.FC = () => {
+  const { user } = useAuth();
   const [coordinates, setCoordinates] = useState<Coordinates | null>(null);
   const [address, setAddress] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [otherUsers, setOtherUsers] = useState<UserLocation[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState<boolean>(false);
   const mapRef = React.useRef<MapView>(null);
 
   const fetchAddress = useCallback(async (lat: number, lon: number) => {
@@ -120,6 +156,25 @@ const TrackMeScreen: React.FC = () => {
       setError('Could not retrieve address information.');
     }
   }, []);
+
+  const fetchOtherUsersLocations = useCallback(async () => {
+    try {
+      setLoadingUsers(true);
+      const locations = await userLocationService.getVisibleLocations();
+      
+      // Filter out current user
+      const filteredLocations = locations.filter(
+        (loc) => loc.userId !== user?.id
+      );
+      
+      setOtherUsers(filteredLocations);
+      console.log(`📍 Loaded ${filteredLocations.length} other user locations`);
+    } catch (err) {
+      console.error('Error fetching other users locations:', err);
+    } finally {
+      setLoadingUsers(false);
+    }
+  }, [user?.id]);
 
   const getCurrentLocation = useCallback(async () => {
     try {
@@ -191,9 +246,12 @@ const TrackMeScreen: React.FC = () => {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await getCurrentLocation();
+    await Promise.all([
+      getCurrentLocation(),
+      fetchOtherUsersLocations()
+    ]);
     setRefreshing(false);
-  }, [getCurrentLocation]);
+  }, [getCurrentLocation, fetchOtherUsersLocations]);
 
   const recenterMap = useCallback(() => {
     if (coordinates && mapRef.current) {
@@ -208,7 +266,15 @@ const TrackMeScreen: React.FC = () => {
 
   useEffect(() => {
     getCurrentLocation();
-  }, [getCurrentLocation]);
+    fetchOtherUsersLocations();
+    
+    // Refresh other users' locations every 30 seconds
+    const interval = setInterval(() => {
+      fetchOtherUsersLocations();
+    }, 30000);
+    
+    return () => clearInterval(interval);
+  }, [getCurrentLocation, fetchOtherUsersLocations]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -236,7 +302,12 @@ const TrackMeScreen: React.FC = () => {
           {error && !loading && <ErrorView error={error} />}
           {!loading && !error && coordinates && (
             <>
-              <MapViewComponent coordinates={coordinates} mapRef={mapRef} />
+              <MapViewComponent 
+                coordinates={coordinates} 
+                mapRef={mapRef}
+                otherUsers={otherUsers}
+                currentUserId={user?.id || ''}
+              />
               <TouchableOpacity
                 style={styles.recenterButton}
                 onPress={recenterMap}
@@ -531,6 +602,35 @@ const styles = StyleSheet.create({
   customMarker: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  otherUserMarker: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  otherUserMarkerInner: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#8B5CF6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  offlineMarker: {
+    backgroundColor: '#9CA3AF',
+    opacity: 0.7,
+  },
+  onlineIndicator: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#10B981',
+    borderWidth: 2,
+    borderColor: '#fff',
   },
 });
 

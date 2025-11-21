@@ -154,7 +154,7 @@ const HomeScreen: React.FC = () => {
     const maxSkeletonTimeout = setTimeout(() => {
       setIsLoadingPlaces(false);
       setIsLoadingContacts(false);
-    }, 2500);
+    }, 5500);
 
     initializeLocationAndPlaces();
     fetchRecentContacts();

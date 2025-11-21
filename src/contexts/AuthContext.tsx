@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG } from '../constants/api';
 import { authService } from '../services/authService';
+import userLocationService from '../services/userLocationService';
 
 interface User {
   id: string;
@@ -60,6 +61,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           if (data.success) {
             setToken(storedToken);
             setUser(data.data.user);
+            
+            // Start location tracking for existing session
+            console.log('🌍 Resuming location tracking for existing session...');
+            setTimeout(() => {
+              userLocationService.startLocationTracking(30000);
+            }, 2000);
           } else {
             // Token is invalid, clear storage
             await AsyncStorage.multiRemove(['auth_token', 'user_data']);
@@ -96,6 +103,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       ]);
       setToken(newToken);
       setUser(newUser);
+      
+      // Start location tracking after successful login
+      console.log('🌍 Starting location tracking after login...');
+      setTimeout(() => {
+        userLocationService.startLocationTracking(30000); // Update every 30 seconds
+      }, 2000); // Delay to ensure app is fully loaded
     } catch (error) {
       console.error('Login storage error:', error);
       throw error;
@@ -105,6 +118,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Logout function
   const logout = async () => {
     try {
+      // Stop location tracking
+      console.log('🛑 Stopping location tracking before logout...');
+      userLocationService.stopLocationTracking();
+      
       // Call backend to logout (expire JWT token)
       if (token) {
         await authService.logout(token);

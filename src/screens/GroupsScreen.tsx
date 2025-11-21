@@ -1910,6 +1910,7 @@ const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [group, setGroup] = useState<any | null>(null);
   const [showAddMember, setShowAddMember] = useState(false);
+  const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchDetails = async () => {
@@ -1944,6 +1945,47 @@ const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
       Clipboard.setString(group.joinCode);
       onShareJoinCode(group.joinCode, group.name); // Use the toast instead
     }
+  };
+
+  const handleRemoveMember = async (memberId: string, memberName: string) => {
+    showAlert(
+      'Remove Member',
+      `Are you sure you want to remove ${memberName} from this group?`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Remove',
+          onPress: async () => {
+            try {
+              setRemovingMemberId(memberId);
+              const response = await apiService.delete(`/api/groups/${groupId}/members/${memberId}`);
+              
+              if (response && response.success) {
+                showToast('Member removed successfully', 'success');
+                
+                // Refresh group details
+                const detailsResponse = await apiService.get(`/api/groups/${groupId}`);
+                if (detailsResponse && detailsResponse.success && detailsResponse.data) {
+                  setGroup(detailsResponse.data);
+                }
+              } else {
+                showToast(response?.message || 'Failed to remove member', 'error');
+              }
+            } catch (error: any) {
+              console.error('Error removing member:', error);
+              showToast(error?.message || 'Failed to remove member', 'error');
+            } finally {
+              setRemovingMemberId(null);
+            }
+          },
+        },
+      ],
+      'alert-circle',
+      '#EF4444'
+    );
   };
 
   const renderMemberRole = (member: any) => {
@@ -2023,7 +2065,9 @@ const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
                 {Array.isArray(group.members) && group.members.length > 0 ? (
                   group.members
                     .filter((m: any) => m.isActive !== false)
-                    .map((member: any) => (
+                    .map((member: any) => {
+                      const isRemoving = removingMemberId === member.user;
+                      return (
                       <View key={member._id || member.phoneNumber} style={styles.groupDetailsMemberRow}>
                         <View style={styles.groupDetailsMemberAvatar}>
                           <Text style={styles.groupDetailsMemberAvatarText}>
@@ -2037,8 +2081,22 @@ const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
                             {member.role ? ` • ${renderMemberRole(member)}` : ''}
                           </Text>
                         </View>
+                        {member.user && (
+                          <TouchableOpacity
+                            style={styles.removeMemberButton}
+                            onPress={() => handleRemoveMember(member.user, member.name)}
+                            disabled={isRemoving}
+                          >
+                            {isRemoving ? (
+                              <ActivityIndicator size="small" color="#EF4444" />
+                            ) : (
+                              <Icon name="close-circle" size={24} color="#EF4444" />
+                            )}
+                          </TouchableOpacity>
+                        )}
                       </View>
-                    ))
+                      );
+                    })
                 ) : (
                   <Text style={styles.groupDetailsEmptyText}>No active members found.</Text>
                 )}
@@ -4770,6 +4828,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.textSecondary,
     marginTop: 2,
+  },
+  removeMemberButton: {
+    padding: 8,
+    marginLeft: 8,
   },
   groupDetailsEmptyText: {
     fontSize: 14,

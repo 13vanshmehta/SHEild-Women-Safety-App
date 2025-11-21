@@ -5,15 +5,15 @@
 	<key>API_KEY</key>
 	<string>AIzaSyDQgiVjfNDl8FFUwTn6rnQiNlKRHG93J_8</string>
 	<key>GCM_SENDER_ID</key>
-	<string>15129086803</string>
+	<string>387247252263</string>
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
 	<string>com.sheild</string>
 	<key>PROJECT_ID</key>
-	<string>sheild-097</string>
+	<string>sheild-app-bca08</string>
 	<key>STORAGE_BUCKET</key>
-	<string>sheild-097.firebasestorage.app</string>
+	<string>sheild-app-bca08.appspot.com</string>
 	<key>IS_ADS_ENABLED</key>
 	<false></false>
 	<key>IS_ANALYTICS_ENABLED</key>
@@ -25,10 +25,10 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:15129086803:ios:095e5a74920032ba7a2fa6</string>
+	<string>1:387247252263:ios:e6f6adbnoh2tmf79mb2bq36nd480au0e</string>
 	<key>CLIENT_ID</key>
-	<string>15129086803-i47hg26do0gtjus0f64cn1os3lo8qc36.apps.googleusercontent.com</string>
+	<string>387247252263-lvekppuc0mp48t8flckb4obphsra96h2.apps.googleusercontent.com</string>
 	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.15129086803-i47hg26do0gtjus0f64cn1os3lo8qc36</string>
+	<string>com.googleusercontent.apps.387247252263-lvekppuc0mp48t8flckb4obphsra96h2</string>
 </dict>
 </plist>
