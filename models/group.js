@@ -143,9 +143,10 @@ groupSchema.virtual('adminCount').get(function() {
 
 // Method to add member
 groupSchema.methods.addMember = function(userId, phoneNumber, name, role = 'member') {
-  // Check if user is already a member
+  // Check if user is already a member (by userId if provided, or by phone number)
   const existingMember = this.members.find(member => 
-    member.user && member.user.toString() === userId.toString()
+    (userId && member.user && member.user.toString() === userId.toString()) ||
+    (phoneNumber && member.phoneNumber === phoneNumber)
   );
   
   if (existingMember) {
@@ -157,7 +158,7 @@ groupSchema.methods.addMember = function(userId, phoneNumber, name, role = 'memb
   }
   
   const newMember = {
-    user: userId,
+    user: userId || null, // Allow null if user doesn't exist yet
     phoneNumber,
     name,
     role,

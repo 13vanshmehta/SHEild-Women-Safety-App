@@ -28,6 +28,9 @@ const groupMessageSchema = new mongoose.Schema({
     mediaUrl: {
       type: String
     },
+    mediaData: {
+      type: String // Base64 encoded image data for blob storage
+    },
     fileName: {
       type: String
     },

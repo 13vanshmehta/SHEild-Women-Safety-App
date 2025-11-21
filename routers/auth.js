@@ -363,6 +363,9 @@ router.put('/profile', authenticateToken, [
 
         updateData.updatedAt = new Date();
 
+        console.log('Updating user profile with data:', updateData);
+        console.log('User ID:', req.user.userId);
+
         const user = await User.findByIdAndUpdate(
             req.user.userId,
             updateData,
@@ -375,6 +378,8 @@ router.put('/profile', authenticateToken, [
                 message: 'User not found'
             });
         }
+
+        console.log('User updated successfully:', user);
 
         res.json({
             success: true,

@@ -69,6 +69,7 @@ const addMemberValidation = [
     .isMongoId()
     .withMessage('Invalid group ID'),
   body('memberId')
+    .optional()
     .isMongoId()
     .withMessage('Invalid member ID'),
   body('phoneNumber')

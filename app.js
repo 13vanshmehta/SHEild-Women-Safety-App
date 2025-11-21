@@ -27,12 +27,14 @@ const googleAuthRoutes = require('./routers/googleAuth');
 const emergencyContactRoutes = require('./routers/emergencyContacts');
 const groupRoutes = require('./routers/groups');
 const sosRoutes = require('./routers/sos');
+const locationRoutes = require('./routers/location');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/auth', googleAuthRoutes);
 app.use('/api/emergency-contacts', emergencyContactRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/sos', sosRoutes);
+app.use('/api/location', locationRoutes);
 
 const http = require("http");
 const { Server } = require("socket.io");
@@ -207,7 +209,16 @@ io.on('connection', (socket) => {
         content,
       });
 
+      console.log('💾 Saving message:', {
+        _id: messageDoc._id,
+        groupId: messageDoc.groupId,
+        text: messageDoc.content?.text,
+        messageType: messageDoc.messageType,
+        senderId: messageDoc.senderId
+      });
+
       await messageDoc.save();
+      console.log('✅ Message saved successfully');
 
       group.lastActivity = new Date();
       await group.save();

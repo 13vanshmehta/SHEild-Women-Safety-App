@@ -162,9 +162,16 @@ router.post('/google/mobile', async (req, res) => {
         const { OAuth2Client } = require('google-auth-library');
         const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
+        // Accept Web, iOS, and Android Client IDs as valid audiences
+        const validAudiences = [
+            process.env.GOOGLE_CLIENT_ID, // Web Client ID
+            process.env.GOOGLE_IOS_CLIENT_ID, // iOS Client ID
+            process.env.GOOGLE_ANDROID_CLIENT_ID, // Android Client ID
+        ].filter(Boolean); // Remove undefined values
+
         const ticket = await client.verifyIdToken({
             idToken: accessToken,
-            audience: process.env.GOOGLE_CLIENT_ID,
+            audience: validAudiences,
         });
 
         const payload = ticket.getPayload();
@@ -276,9 +283,16 @@ router.post('/google/register', async (req, res) => {
         const { OAuth2Client } = require('google-auth-library');
         const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
+        // Accept Web, iOS, and Android Client IDs as valid audiences
+        const validAudiences = [
+            process.env.GOOGLE_CLIENT_ID, // Web Client ID
+            process.env.GOOGLE_IOS_CLIENT_ID, // iOS Client ID
+            process.env.GOOGLE_ANDROID_CLIENT_ID, // Android Client ID
+        ].filter(Boolean); // Remove undefined values
+
         const ticket = await client.verifyIdToken({
             idToken: accessToken,
-            audience: process.env.GOOGLE_CLIENT_ID,
+            audience: validAudiences,
         });
 
         const payload = ticket.getPayload();
