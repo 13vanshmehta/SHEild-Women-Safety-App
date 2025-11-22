@@ -22,6 +22,7 @@ import {
   KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
@@ -40,6 +41,124 @@ import { getGeoapifyMapUrl } from '../services/geoapifyMapService';
 import { GEOAPIFY_API_KEY } from '../constants/api';
 import { useCustomAlert } from '../components/CustomAlert';
 import { useToast } from '../components/Toast';
+
+// Component to render text with clickable links
+const LinkableText: React.FC<{
+  text: string;
+  style: any;
+  isOwnMessage: boolean;
+}> = ({ text, style, isOwnMessage }) => {
+  // Improved URL regex pattern that handles more cases
+  // Matches http(s) URLs and common patterns
+  const urlPattern = /(https?:\/\/[^\s]+)/gi;
+  
+  const parts = [];
+  let lastIndex = 0;
+  let match;
+  
+  // Find all URLs in the text
+  const regex = new RegExp(urlPattern);
+  while ((match = regex.exec(text)) !== null) {
+    let url = match[0];
+    
+    // Remove trailing punctuation that's not part of the URL
+    // Common punctuation at end of sentences: . , ! ? ) ] }
+    const trailingPunctuationPattern = /[.,!?)\]}>]+$/;
+    const trailingMatch = url.match(trailingPunctuationPattern);
+    let trailingPunctuation = '';
+    
+    if (trailingMatch) {
+      // Check if the punctuation is actually part of the URL
+      // Keep ) if there's a matching ( in the URL
+      const openParens = (url.match(/\(/g) || []).length;
+      const closeParens = (url.match(/\)/g) || []).length;
+      
+      if (closeParens > openParens) {
+        // Remove extra closing parens
+        const extraParens = closeParens - openParens;
+        let tempUrl = url;
+        for (let i = 0; i < extraParens; i++) {
+          const lastParenIndex = tempUrl.lastIndexOf(')');
+          if (lastParenIndex !== -1) {
+            trailingPunctuation = tempUrl.substring(lastParenIndex) + trailingPunctuation;
+            tempUrl = tempUrl.substring(0, lastParenIndex);
+          }
+        }
+        url = tempUrl;
+      }
+      
+      // Remove other trailing punctuation
+      const otherPunctuation = url.match(/[.,!?>\]]+$/);
+      if (otherPunctuation) {
+        trailingPunctuation = otherPunctuation[0] + trailingPunctuation;
+        url = url.substring(0, url.length - otherPunctuation[0].length);
+      }
+    }
+    
+    // Add text before the URL
+    if (match.index > lastIndex) {
+      parts.push({
+        type: 'text',
+        content: text.substring(lastIndex, match.index),
+      });
+    }
+    
+    // Add the URL
+    parts.push({
+      type: 'link',
+      content: url,
+    });
+    
+    // Add trailing punctuation as text
+    if (trailingPunctuation) {
+      parts.push({
+        type: 'text',
+        content: trailingPunctuation,
+      });
+    }
+    
+    lastIndex = match.index + match[0].length;
+  }
+  
+  // Add remaining text
+  if (lastIndex < text.length) {
+    parts.push({
+      type: 'text',
+      content: text.substring(lastIndex),
+    });
+  }
+  
+  // If no links found, return plain text
+  if (parts.length === 0) {
+    return <Text style={style}>{text}</Text>;
+  }
+  
+  return (
+    <Text style={style}>
+      {parts.map((part, index) => {
+        if (part.type === 'link') {
+          return (
+            <Text
+              key={index}
+              style={{
+                color: isOwnMessage ? '#BFDBFE' : Colors.primary,
+                textDecorationLine: 'underline',
+              }}
+              onPress={() => {
+                Linking.openURL(part.content).catch((err) => {
+                  console.error('Failed to open URL:', err);
+                });
+              }}
+            >
+              {part.content}
+            </Text>
+          );
+        }
+        return <Text key={index}>{part.content}</Text>;
+      })}
+    </Text>
+  );
+};
 
 // Create Group Modal Component
 const CreateGroupModal: React.FC<{ 
@@ -267,120 +386,290 @@ const hapticOptions = {
   ignoreAndroidSystemSettings: false,
 };
 
-// Image Message Component - Separate component to properly use hooks
+// Image Message Component with lazy loading - only downloads when user clicks
 const ImageMessageBubble: React.FC<{
-  mediaUrl: string;
+  message: any;
+  groupId: string;
   onOpenViewer: (uri: string) => void;
   onLongPress: () => void;
-}> = ({ mediaUrl, onOpenViewer, onLongPress }) => {
+}> = ({ message, groupId, onOpenViewer, onLongPress }) => {
   const [imageUri, setImageUri] = useState<string | null>(null);
-  const [imageLoading, setImageLoading] = useState(true);
+  const [imageLoading, setImageLoading] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  const [isDownloaded, setIsDownloaded] = useState(false);
+  const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
 
+  // Check if image is already available (base64 in message or cached)
   useEffect(() => {
-    const loadImage = async () => {
-      try {
-        setImageLoading(true);
-        
-        if (!mediaUrl) {
-          console.log('No mediaUrl provided');
-          setImageLoading(false);
-          return;
-        }
-        
-        // Check if it's a base64 data URI (blob format)
-        if (mediaUrl.startsWith('data:image/')) {
-          console.log('Using base64 blob data directly');
-          setImageUri(mediaUrl);
-          setImageLoading(false);
-          return;
-        }
-        
-        // Handle HTTP URLs
-        let remote: string | null = null;
-        if (mediaUrl.startsWith('http://') || mediaUrl.startsWith('https://')) {
-          remote = mediaUrl;
-        } else {
-          remote = `${API_BASE_URL}${mediaUrl}`;
-        }
-        
-        console.log('Loading image - mediaUrl:', mediaUrl, 'resolved:', remote);
-        
-        if (!remote) {
-          console.warn('No remote URL for image');
-          setImageLoading(false);
-          return;
-        }
+    const checkAvailability = async () => {
+      // If mediaData exists (base64), image is already available
+      if (message.mediaData && message.mediaData.startsWith('data:image/')) {
+        setImageUri(message.mediaData);
+        setIsDownloaded(true);
+        return;
+      }
 
-        // Try to get cached version or download
-        const localPath = await getOrDownloadMedia(remote);
-        const finalUri = localPath.startsWith('file://')
-          ? localPath
-          : `file://${localPath}`;
-        
-        console.log('Image loaded successfully:', finalUri);
-        setImageUri(finalUri);
+      // Check if we have it cached locally
+      const cacheKey = `image_${message._id}`;
+      try {
+        const cached = await AsyncStorage.getItem(cacheKey);
+        if (cached && cached.startsWith('data:image/')) {
+          setImageUri(cached);
+          setIsDownloaded(true);
+          return;
+        }
       } catch (e) {
-        console.error('Failed to load image:', e);
-        // Fallback to direct URL if caching fails
-        let remote: string | null = null;
-        if (mediaUrl.startsWith('http://') || mediaUrl.startsWith('https://')) {
-          remote = mediaUrl;
-        } else {
-          remote = `${API_BASE_URL}${mediaUrl}`;
-        }
-        if (remote) {
-          console.log('Using direct URL as fallback:', remote);
-          setImageUri(remote);
-        }
-      } finally {
-        setImageLoading(false);
+        console.warn('Failed to check cache:', e);
+      }
+
+      // If no mediaData and no cache, this is an old message - show as unavailable
+      if (!message.hasMediaData && !message.mediaData) {
+        setImageError(true);
       }
     };
 
-    loadImage();
-  }, [mediaUrl]);
+    checkAvailability();
+  }, [message._id, message.mediaData, message.hasMediaData]);
 
-  const handlePress = () => {
-    if (imageUri) {
-      onOpenViewer(imageUri);
+  const downloadImage = async () => {
+    if (isDownloaded || imageLoading) return;
+
+    try {
+      setImageLoading(true);
+      setImageError(false);
+
+      // Try to get from server
+      const response = await apiService.get(`/api/groups/${groupId}/messages/${message._id}/media`);
+      
+      if (response && response.success && response.data && response.data.mediaData) {
+        const mediaData = response.data.mediaData;
+        
+        // Cache it locally
+        const cacheKey = `image_${message._id}`;
+        try {
+          await AsyncStorage.setItem(cacheKey, mediaData);
+        } catch (e) {
+          console.warn('Failed to cache image:', e);
+        }
+
+        setImageUri(mediaData);
+        setIsDownloaded(true);
+      } else {
+        setImageError(true);
+      }
+    } catch (e) {
+      console.error('Failed to download image:', e);
+      setImageError(true);
+    } finally {
+      setImageLoading(false);
     }
   };
 
+  const handlePress = () => {
+    if (isDownloaded && imageUri) {
+      onOpenViewer(imageUri);
+    } else {
+      downloadImage();
+    }
+  };
+
+  const handleImageError = (error: any) => {
+    console.log('📷 Image render error:', error?.nativeEvent?.error);
+    setImageError(true);
+  };
+
+  // Get image dimensions and calculate display size
+  const getImageDimensions = (uri: string) => {
+    Image.getSize(
+      uri,
+      (width, height) => {
+        // Calculate display dimensions
+        // Max width: 80% of screen width (leave room for chat bubble padding)
+        // Max height: 400px (reasonable for chat)
+        const maxWidth = SCREEN_WIDTH * 0.7;
+        const maxHeight = 400;
+        
+        let displayWidth = width;
+        let displayHeight = height;
+        
+        // Scale down if too wide
+        if (width > maxWidth) {
+          const ratio = maxWidth / width;
+          displayWidth = maxWidth;
+          displayHeight = height * ratio;
+        }
+        
+        // Scale down if too tall
+        if (displayHeight > maxHeight) {
+          const ratio = maxHeight / displayHeight;
+          displayWidth = displayWidth * ratio;
+          displayHeight = maxHeight;
+        }
+        
+        // Minimum size for very small images
+        const minSize = 100;
+        if (displayWidth < minSize && displayHeight < minSize) {
+          const scale = minSize / Math.max(displayWidth, displayHeight);
+          displayWidth *= scale;
+          displayHeight *= scale;
+        }
+        
+        setImageDimensions({ width: Math.round(displayWidth), height: Math.round(displayHeight) });
+      },
+      (error) => {
+        console.warn('Failed to get image dimensions:', error);
+        // Fallback to default size
+        setImageDimensions({ width: 250, height: 250 });
+      }
+    );
+  };
+
+  // Get dimensions when image URI changes
+  useEffect(() => {
+    if (imageUri && isDownloaded) {
+      getImageDimensions(imageUri);
+    }
+  }, [imageUri, isDownloaded]);
+
+  // Show download prompt if not downloaded (only if hasMediaData is true)
+  if (!isDownloaded && !imageLoading && !imageError) {
+    // Only show download button if the message has media data available
+    if (message.hasMediaData) {
+      return (
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={downloadImage}
+          onLongPress={onLongPress}
+          style={[styles.imageBubbleContainer, { 
+            justifyContent: 'center', 
+            alignItems: 'center',
+            backgroundColor: 'rgba(0,0,0,0.05)',
+            minHeight: 150,
+          }]}
+        >
+          <Icon name="download" size={40} color={Colors.primary} />
+          <Text style={[styles.messageText, { 
+            color: Colors.primary, 
+            marginTop: 8,
+            fontSize: 14,
+            fontWeight: '600',
+          }]}>
+            Tap to download image
+          </Text>
+          <Text style={[styles.messageText, { 
+            color: Colors.textLight, 
+            marginTop: 4,
+            fontSize: 11,
+          }]}>
+            Save data by downloading only when needed
+          </Text>
+        </TouchableOpacity>
+      );
+    }
+    // If no media data available, fall through to error state
+  }
+
+  // Show loading state
   if (imageLoading) {
     return (
       <View style={[styles.imageBubbleContainer, { justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="small" color={Colors.primary} />
+        <Text style={[styles.messageText, { 
+          color: Colors.textLight, 
+          marginTop: 8,
+          fontSize: 12,
+        }]}>
+          Downloading...
+        </Text>
       </View>
     );
   }
 
-  if (!imageUri) {
+  // Show error state
+  if (imageError || (!imageUri && !imageLoading)) {
     return (
-      <View style={styles.imageBubbleContainer}>
-        <Text style={styles.messageText}>Unable to load image</Text>
-      </View>
+      <TouchableOpacity
+        activeOpacity={0.7}
+        onLongPress={onLongPress}
+        style={[styles.imageBubbleContainer, { 
+          justifyContent: 'center', 
+          alignItems: 'center',
+          backgroundColor: 'rgba(0,0,0,0.05)',
+          minHeight: 150,
+        }]}
+      >
+        <Icon name="image-off" size={40} color={Colors.textLight} />
+        <Text style={[styles.messageText, { 
+          color: Colors.textLight, 
+          marginTop: 8,
+          fontSize: 12,
+          textAlign: 'center',
+        }]}>
+          {message.hasMediaData ? 'Failed to load image' : 'Image no longer available'}
+        </Text>
+        <Text style={[styles.messageText, { 
+          color: Colors.textLight, 
+          marginTop: 4,
+          fontSize: 10,
+          textAlign: 'center',
+        }]}>
+          {message.hasMediaData ? 'Tap to retry' : 'Old message before storage update'}
+        </Text>
+        {message.hasMediaData && (
+          <TouchableOpacity onPress={downloadImage} style={{ marginTop: 8 }}>
+            <Icon name="refresh" size={24} color={Colors.primary} />
+          </TouchableOpacity>
+        )}
+      </TouchableOpacity>
     );
   }
   
+  // Show downloaded image with dynamic dimensions
+  const imageStyle = imageDimensions
+    ? {
+        width: imageDimensions.width,
+        height: imageDimensions.height,
+        borderRadius: 12,
+      }
+    : styles.imageBubble; // Fallback to default style while loading dimensions
+
   return (
     <TouchableOpacity
       activeOpacity={0.9}
       delayLongPress={500}
       onPress={handlePress}
       onLongPress={onLongPress}
-      style={styles.imageBubbleContainer}
+      style={[styles.imageBubbleContainer, imageDimensions && {
+        width: imageDimensions.width,
+        height: imageDimensions.height,
+      }]}
     >
-      <Image
-        source={{ uri: imageUri }}
-        style={styles.imageBubble}
-        resizeMode="cover"
-        onError={(error) => {
-          console.error('Failed to render image:', error.nativeEvent.error);
-        }}
-        onLoad={() => {
-          console.log('Image rendered successfully');
-        }}
-      />
+      {!imageDimensions ? (
+        // Show loading while getting dimensions
+        <View style={{ justifyContent: 'center', alignItems: 'center', minHeight: 150, minWidth: 150 }}>
+          <ActivityIndicator size="small" color={Colors.primary} />
+        </View>
+      ) : (
+        <>
+          <Image
+            source={{ uri: imageUri || undefined }}
+            style={imageStyle}
+            resizeMode="cover"
+            onError={handleImageError}
+          />
+          {/* Downloaded indicator */}
+          <View style={{
+            position: 'absolute',
+            top: 8,
+            right: 8,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            borderRadius: 12,
+            padding: 4,
+          }}>
+            <Icon name="check-circle" size={16} color="#4ade80" />
+          </View>
+        </>
+      )}
     </TouchableOpacity>
   );
 };
@@ -535,13 +824,21 @@ const GroupChatScreen: React.FC<{
         fileSize: asset.fileSize,
       });
       
+      // Compress large images before upload
+      let fileUri = asset.uri;
+      let fileSize = asset.fileSize || 0;
+      
+      // If image is larger than 500KB, we'll use quality 0.7 for compression
+      const maxSize = 500 * 1024; // 500KB
+      const quality = fileSize > maxSize ? 0.7 : 0.8;
+      
+      console.log(`📦 Image size: ${Math.round(fileSize / 1024)}KB, using quality: ${quality}`);
+      
       const formData = new FormData();
       const fileName = asset.fileName || `photo-${Date.now()}.jpg`;
       const type = asset.type || 'image/jpeg';
       
       // Normalize URI for both platforms
-      let fileUri = asset.uri;
-      
       // iOS: Handle both file:// and assets-library:// URIs
       if (Platform.OS === 'ios') {
         // iOS camera photos usually start with file://
@@ -561,6 +858,7 @@ const GroupChatScreen: React.FC<{
         fileName: fileName,
         fileType: type,
         platform: Platform.OS,
+        quality: quality,
       });
       
       // @ts-ignore - React Native FormData accepts this format
@@ -573,7 +871,13 @@ const GroupChatScreen: React.FC<{
 
       console.log('📡 Uploading to:', `/api/groups/${group._id}/media`);
       
-      const uploadRes = await apiService.upload(`/api/groups/${group._id}/media`, formData);
+      // Add timeout handling
+      const uploadPromise = apiService.upload(`/api/groups/${group._id}/media`, formData);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Upload timeout - please try again')), 30000)
+      );
+      
+      const uploadRes = await Promise.race([uploadPromise, timeoutPromise]) as any;
       console.log('✅ Upload response:', uploadRes);
       
       // For images, use blob data; for audio, use URL
@@ -610,7 +914,18 @@ const GroupChatScreen: React.FC<{
         stack: error?.stack,
         response: error?.response,
       });
-      showAlert('Error', `Failed to send image: ${error?.message || 'Unknown error'}`, undefined, 'alert-circle', '#EF4444');
+      
+      // Provide more helpful error messages
+      let errorMessage = 'Failed to send image';
+      if (error?.message?.includes('timeout')) {
+        errorMessage = 'Upload timed out. Please check your connection and try again.';
+      } else if (error?.message?.includes('Network request failed')) {
+        errorMessage = 'Network error. Please check your internet connection.';
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
+      showAlert('Error', errorMessage, undefined, 'alert-circle', '#EF4444');
     }
   };
 
@@ -624,7 +939,9 @@ const GroupChatScreen: React.FC<{
 
       const result = await launchImageLibrary({
         mediaType: 'photo',
-        quality: 0.8,
+        quality: 0.7, // Reduced quality to decrease file size
+        maxWidth: 1920, // Limit max dimensions
+        maxHeight: 1920,
       });
       if (result.didCancel || !result.assets || result.assets.length === 0) {
         return;
@@ -654,7 +971,9 @@ const GroupChatScreen: React.FC<{
       console.log('✅ Launching camera...');
       const result = await launchCamera({
         mediaType: 'photo',
-        quality: 0.8,
+        quality: 0.7, // Reduced quality to decrease file size
+        maxWidth: 1920, // Limit max dimensions
+        maxHeight: 1920,
         saveToPhotos: false,
         cameraType: 'back',
         includeBase64: false,
@@ -1573,9 +1892,10 @@ const GroupChatScreen: React.FC<{
                           </View>
                         );
                       })()
-                    ) : message.messageType === 'image' && message.mediaUrl ? (
+                    ) : message.messageType === 'image' ? (
                       <ImageMessageBubble
-                        mediaUrl={message.mediaUrl}
+                        message={message}
+                        groupId={group._id}
                         onOpenViewer={(uri) => {
                           setImageViewerUri(uri);
                           setImageViewerVisible(true);
@@ -1597,14 +1917,14 @@ const GroupChatScreen: React.FC<{
                           isSelected && styles.selectedMessageBubble,
                         ]}
                       >
-                        <Text
+                        <LinkableText
+                          text={message.text}
                           style={[
                             styles.messageText,
                             message.isOwn ? styles.ownMessageText : styles.otherMessageText,
                           ]}
-                        >
-                          {message.text}
-                        </Text>
+                          isOwnMessage={message.isOwn}
+                        />
                       </View>
                     )}
                   </RNTouchableOpacity>
@@ -4466,10 +4786,12 @@ const styles = StyleSheet.create({
   imageBubbleContainer: {
     borderRadius: 12,
     overflow: 'hidden',
+    // Width and height will be set dynamically based on image dimensions
   },
   imageBubble: {
-    width: 260,
-    height: 180,
+    // Default fallback dimensions (used while calculating actual size)
+    width: 250,
+    height: 250,
     borderRadius: 12,
     backgroundColor: '#E5E7EB',
   },

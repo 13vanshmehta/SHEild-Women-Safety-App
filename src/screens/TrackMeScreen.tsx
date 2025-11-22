@@ -19,8 +19,9 @@ import locationService from '../services/locationService';
 import userLocationService from '../services/userLocationService';
 import { useAuth } from '../contexts/AuthContext';
 
-// Using OpenStreetMap tiles - completely free and open source
+// Using CartoDB Voyager tiles - mobile-friendly, free, and open source
 // No API key required, perfect for family tracking!
+// CartoDB is more permissive than OpenStreetMap's main tile server for mobile apps
 
 // --- TYPE DEFINITIONS ---
 interface Coordinates {
@@ -50,8 +51,9 @@ const MapViewComponent: React.FC<{
   if (!coordinates) return null;
   const { latitude, longitude } = coordinates;
 
-  // OpenStreetMap tile server (free, no API key needed)
-  const osmUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+  // Using CartoDB tile server - mobile-friendly and doesn't require User-Agent
+  // Alternative to OpenStreetMap's main server which blocks mobile apps
+  const tileUrl = 'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png';
 
   return (
     <MapView
@@ -74,9 +76,9 @@ const MapViewComponent: React.FC<{
       scrollEnabled={true}
       zoomEnabled={true}
     >
-      {/* OpenStreetMap Tile Layer - Free and open source */}
+      {/* CartoDB Voyager Tile Layer - Mobile-friendly, free, no API key needed */}
       <UrlTile
-        urlTemplate={osmUrl}
+        urlTemplate={tileUrl}
         maximumZ={19}
         minimumZ={1}
         flipY={false}
@@ -144,16 +146,25 @@ const TrackMeScreen: React.FC = () => {
   const fetchAddress = useCallback(async (lat: number, lon: number) => {
     try {
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`,
+        {
+          headers: {
+            'User-Agent': 'SHEild-App/1.0',
+          },
+        }
       );
       if (!response.ok) {
-        throw new Error('Failed to fetch address');
+        throw new Error(`Failed to fetch address: ${response.status} ${response.statusText}`);
       }
       const data = await response.json();
       setAddress(data.display_name || 'Address not found.');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching address:', err);
+      const errorMessage = err?.message || 'Unknown error';
+      console.error('Address fetch error details:', errorMessage);
       setError('Could not retrieve address information.');
+      // Set a fallback address instead of leaving it empty
+      setAddress(`Location: ${lat.toFixed(6)}, ${lon.toFixed(6)}`);
     }
   }, []);
 

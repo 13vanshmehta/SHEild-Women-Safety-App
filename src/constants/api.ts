@@ -2,7 +2,8 @@ import Config from 'react-native-config';
 
 // API Configuration
 export const API_CONFIG = {
-  BASE_URL: 'http://192.168.0.104:8000', // Update this with your actual IP
+  // BASE_URL: 'http://192.168.0.104:8000', // Update this with your actual IP
+  BASE_URL: 'http://192.168.29.17:8000',
   TIMEOUT: 5000, // 5 seconds
   ENDPOINTS: {
     HEALTH_CHECK: '/onbaording',
