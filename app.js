@@ -12,8 +12,8 @@ const connection = require("./utilities/connection");
 connection();
 
 // Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' })); // Increase limit for base64 images
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(cors({
     origin: true, // Allow all origins for development
@@ -161,7 +161,7 @@ io.on('connection', (socket) => {
         return socket.emit('groupError', { groupId, message: 'Group not found or access denied' });
       }
 
-      let { text, messageType, mediaUrl, location, duration } = payload;
+      let { text, messageType, mediaUrl, mediaData, location, duration } = payload;
       let finalType = messageType || 'text';
       const content = {};
 
@@ -176,9 +176,13 @@ io.on('connection', (socket) => {
           isLive: !!location.isLive,
         };
       } else if (finalType === 'audio' || finalType === 'image') {
-        // Media messages (audio/image) can have mediaUrl or text (for placeholder)
+        // Media messages (audio/image) can have mediaUrl, mediaData (base64), or text
         if (mediaUrl && typeof mediaUrl === 'string') {
           content.mediaUrl = mediaUrl;
+        }
+        // Store base64 image data in DB for persistence across devices
+        if (mediaData && typeof mediaData === 'string') {
+          content.mediaData = mediaData;
         }
         if (finalType === 'audio') {
           if (typeof duration === 'number') {
@@ -189,8 +193,8 @@ io.on('connection', (socket) => {
             content.text = text.trim();
           }
         }
-        // For image, mediaUrl is required
-        if (finalType === 'image' && !mediaUrl) {
+        // For image, either mediaUrl or mediaData is required
+        if (finalType === 'image' && !mediaUrl && !mediaData) {
           return;
         }
       } else {
@@ -229,6 +233,7 @@ io.on('connection', (socket) => {
         text: messageDoc.content.text || '',
         messageType: messageDoc.messageType,
         mediaUrl: messageDoc.content.mediaUrl,
+        mediaData: messageDoc.content.mediaData, // Include base64 data for images
         location: messageDoc.content.location,
         duration: messageDoc.content.duration,
         sender: {

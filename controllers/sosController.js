@@ -329,7 +329,7 @@ Location: ${googleMapsLink}`;
           senderName: userName,
           messageType: 'text',
           content: {
-            text: `🚨 EMERGENCY SOS ALERT 🚨\n\n${whatsappMessage}`
+            text: whatsappMessage // Already contains the heading, no need to duplicate
           }
         });
 

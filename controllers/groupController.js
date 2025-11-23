@@ -809,6 +809,10 @@ const getGroupMessages = async (req, res) => {
       text: (msg.content && msg.content.text) || '',
       messageType: msg.messageType,
       mediaUrl: msg.content && msg.content.mediaUrl,
+      // Include mediaData (base64) - stored in DB for persistence across devices
+      // Frontend will handle lazy loading to save bandwidth
+      mediaData: msg.content && msg.content.mediaData,
+      hasMediaData: !!(msg.content && msg.content.mediaData), // Flag to show download icon
       location: msg.content && msg.content.location,
       duration: msg.content && msg.content.duration,
       sender: {
@@ -835,6 +839,67 @@ const getGroupMessages = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch group messages'
+    });
+  }
+};
+
+// Get media data for a specific message (on-demand download)
+const getMessageMedia = async (req, res) => {
+  try {
+    const { groupId, messageId } = req.params;
+    const { userId } = req.user;
+
+    // Verify user is a member of the group
+    const group = await Group.findOne({
+      _id: groupId,
+      'members.user': userId,
+      'members.isActive': true,
+      isActive: true
+    });
+
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        message: 'Group not found or you are not a member'
+      });
+    }
+
+    // Get the message with media data
+    const message = await GroupMessage.findOne({
+      _id: messageId,
+      groupId: groupId,
+      isDeleted: false
+    });
+
+    if (!message) {
+      return res.status(404).json({
+        success: false,
+        message: 'Message not found'
+      });
+    }
+
+    if (!message.content || !message.content.mediaData) {
+      console.log(`No media data for message ${messageId} - likely an old message before blob storage`);
+      return res.status(404).json({
+        success: false,
+        message: 'No media data available for this message',
+        isOldMessage: true // Flag to indicate this is an old message
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        messageId: message._id,
+        mediaData: message.content.mediaData,
+        messageType: message.messageType
+      }
+    });
+  } catch (error) {
+    console.error('Get message media error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch media data'
     });
   }
 };
@@ -1015,7 +1080,12 @@ const mediaStorage = multer.diskStorage({
   },
 });
 
-const mediaUpload = multer({ storage: mediaStorage });
+const mediaUpload = multer({ 
+  storage: mediaStorage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+  }
+});
 
 const uploadGroupMedia = [
   mediaUpload.single('file'),
@@ -1109,6 +1179,7 @@ module.exports = {
   leaveGroup,
   deleteGroup,
   getGroupMessages,
+  getMessageMedia,
   pinGroup,
   favoriteGroup,
   editGroupMessage,

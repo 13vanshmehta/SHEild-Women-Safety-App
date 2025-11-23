@@ -144,6 +144,19 @@ router.get('/:groupId/messages',
   groupController.getGroupMessages
 );
 
+// GET /api/groups/:groupId/messages/:messageId/media - Get media data for a message (on-demand)
+router.get('/:groupId/messages/:messageId/media',
+  [
+    param('groupId')
+      .isMongoId()
+      .withMessage('Invalid group ID'),
+    param('messageId')
+      .isMongoId()
+      .withMessage('Invalid message ID'),
+  ],
+  groupController.getMessageMedia
+);
+
 // PUT /api/groups/:groupId/messages/:messageId - Edit a message (text only)
 router.put('/:groupId/messages/:messageId',
   [
