@@ -98,46 +98,47 @@ const ContactSelectionScreen: React.FC<ContactSelectionScreenProps> = ({
   }, [checkInitialPermission]);
 
   useEffect(() => {
-    console.log('Search effect triggered - searchQuery:', searchQuery, 'contacts count:', contacts.length);
-    
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim();
-      console.log('Filtering with query:', query);
-      
-      const filtered = contacts.filter(contact => {
-        // Search in display name
-        const displayName = (contact.displayName || '').toLowerCase();
-        if (displayName.includes(query)) return true;
-        
-        // Search in given name
-        const givenName = (contact.givenName || '').toLowerCase();
-        if (givenName.includes(query)) return true;
-        
-        // Search in family name
-        const familyName = (contact.familyName || '').toLowerCase();
-        if (familyName.includes(query)) return true;
-        
-        // Search in phone numbers
-        const phoneMatch = contact.phoneNumbers.some(phone => 
-          phone.number.replace(/\D/g, '').includes(query.replace(/\D/g, ''))
-        );
-        if (phoneMatch) return true;
-        
-        // Search in email addresses
-        const emailMatch = contact.emailAddresses.some(email =>
-          email.email.toLowerCase().includes(query)
-        );
-        if (emailMatch) return true;
-        
-        return false;
-      });
-      
-      console.log('Filtered results count:', filtered.length);
-      setFilteredContacts(filtered);
-    } else {
-      console.log('No search query, showing all contacts');
+    if (!searchQuery.trim()) {
+      // No search query - show all contacts
       setFilteredContacts(contacts);
+      return;
     }
+    
+    // Filter contacts based on search query
+    const query = searchQuery.toLowerCase().trim();
+    const filtered = contacts.filter(contact => {
+      // Search in display name
+      const displayName = (contact.displayName || '').toLowerCase();
+      if (displayName.includes(query)) return true;
+      
+      // Search in given name
+      const givenName = (contact.givenName || '').toLowerCase();
+      if (givenName.includes(query)) return true;
+      
+      // Search in family name
+      const familyName = (contact.familyName || '').toLowerCase();
+      if (familyName.includes(query)) return true;
+      
+      // Search in phone numbers (remove non-digits for comparison)
+      const queryDigits = query.replace(/\D/g, '');
+      if (queryDigits.length > 0) {
+        const phoneMatch = contact.phoneNumbers.some(phone => {
+          const phoneDigits = phone.number.replace(/\D/g, '');
+          return phoneDigits.includes(queryDigits);
+        });
+        if (phoneMatch) return true;
+      }
+      
+      // Search in email addresses
+      const emailMatch = contact.emailAddresses.some(email =>
+        email.email.toLowerCase().includes(query)
+      );
+      if (emailMatch) return true;
+      
+      return false;
+    });
+    
+    setFilteredContacts(filtered);
   }, [searchQuery, contacts]);
 
   const handleContactSelect = (contact: Contact) => {
@@ -375,10 +376,7 @@ const ContactSelectionScreen: React.FC<ContactSelectionScreenProps> = ({
           placeholder="Search contacts..."
           placeholderTextColor={Colors.textLight}
           value={searchQuery}
-          onChangeText={(text) => {
-            console.log('Search query changed to:', text);
-            setSearchQuery(text);
-          }}
+          onChangeText={setSearchQuery}
           autoCapitalize="none"
           autoCorrect={false}
           returnKeyType="search"
