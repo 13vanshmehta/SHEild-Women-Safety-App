@@ -14,8 +14,8 @@ exports.triggerSOS = async (req, res) => {
       triggerMode = 'manual_button'
     } = req.body;
 
-    // Validate required fields
-    if (!location || !location.latitude || !location.longitude) {
+    // Validate required fields - handle 0 properly
+    if (!location || location.latitude === undefined || location.longitude === undefined || location.latitude === null || location.longitude === null) {
       return res.status(400).json({
         success: false,
         message: 'Location is required to trigger SOS'
@@ -77,25 +77,30 @@ exports.triggerSOS = async (req, res) => {
 
       // Reload the alert to get updated notification count
       const updatedAlert = await SOSAlert.findById(sosAlert._id);
+      const emergencyContactsSent = updatedAlert.notificationsSent.filter(n => n.recipientType === 'emergency_contact').length;
+      const groupsSent = updatedAlert.notificationsSent.filter(n => n.recipientType === 'group').length;
       const totalNotifications = updatedAlert.notificationsSent.length;
 
-      console.log(`✅ SOS Alert completed. Total notifications sent: ${totalNotifications}`);
+      console.log(`✅ SOS Alert completed. Contacts: ${emergencyContactsSent}, Groups: ${groupsSent}, Total: ${totalNotifications}`);
 
       return res.status(200).json({
         success: true,
         message: 'SOS Alert triggered successfully',
         alertId: sosAlert._id,
-        notificationsSent: totalNotifications
+        notificationsSent: totalNotifications,
+        emergencyContactsSent,
+        groupsSent
       });
     } catch (notificationError) {
       console.error('❌ Error sending notifications:', notificationError);
 
-      // Even if notifications fail, the alert was created
       return res.status(200).json({
         success: true,
         message: 'SOS Alert triggered but some notifications may have failed',
         alertId: sosAlert._id,
         notificationsSent: 0,
+        emergencyContactsSent: 0,
+        groupsSent: 0,
         warning: 'Some notifications failed to send'
       });
     }
