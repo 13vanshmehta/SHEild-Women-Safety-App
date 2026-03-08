@@ -8,6 +8,8 @@ import SOSScreen from './SOSScreen';
 import GroupsScreen from './GroupsScreen';
 import ProfileScreen from './ProfileScreen';
 import { Colors } from '../constants/colors';
+import { useToast } from '../components/Toast';
+import { useAuth } from '../contexts/AuthContext';
 
 const { width } = Dimensions.get('window');
 
@@ -17,6 +19,18 @@ const MainAppScreen: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('Home');
   const [isChatOpen, setIsChatOpen] = useState(false);
   const slideAnim = React.useRef(new Animated.Value(0)).current;
+  const { user } = useAuth();
+  const { showToast, ToastComponent } = useToast();
+
+  React.useEffect(() => {
+    // Show welcome toast on mount (after login/splash)
+    if (user) {
+      const name = user.firstName || 'User';
+      setTimeout(() => {
+        showToast(`Welcome to SHEild, ${name}! ✨`, 'success');
+      }, 500);
+    }
+  }, []);
 
   const handleChatStateChange = (isOpen: boolean) => {
     setIsChatOpen(isOpen);
@@ -29,7 +43,7 @@ const MainAppScreen: React.FC = () => {
       duration: 300,
       useNativeDriver: true,
     }).start();
-    
+
     setActiveTab(newTab);
   };
 
@@ -64,6 +78,7 @@ const MainAppScreen: React.FC = () => {
         </View>
         {!isChatOpen && <BottomTabNavigator activeTab={activeTab} onTabChange={handleTabChange} />}
       </SafeAreaView>
+      <ToastComponent />
     </View>
   );
 };

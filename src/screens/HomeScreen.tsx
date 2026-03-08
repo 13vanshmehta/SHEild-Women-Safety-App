@@ -37,17 +37,34 @@ interface RecentContact {
   initials: string;
 }
 
+// Memory cache to prevent redundant API calls when tab switching
+const HOME_CACHE = {
+  places: {
+    safeSpots: [] as Place[],
+    policeStations: [] as Place[],
+    location: null as Location | null,
+    lastFetched: 0,
+  },
+  contacts: {
+    recent: [] as RecentContact[],
+    emergency: [] as EmergencyContact[],
+    lastFetched: 0,
+  }
+};
+
+const CACHE_TTL = 2 * 60 * 1000; // 2 minutes in milliseconds
+
 const HomeScreen: React.FC = () => {
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [showSafeSpotsScreen, setShowSafeSpotsScreen] = useState(false);
   const [showAllPoliceStations, setShowAllPoliceStations] = useState(false);
-  
+
   // Loading states - start true, will be set false quickly after data loads
   const [isLoadingPlaces, setIsLoadingPlaces] = useState(true);
   const [isLoadingContacts, setIsLoadingContacts] = useState(true);
-  
+
   const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
   const [safeSpots, setSafeSpots] = useState<Place[]>([]);
   const [policeStations, setPoliceStations] = useState<Place[]>([]);
@@ -79,7 +96,7 @@ const HomeScreen: React.FC = () => {
     try {
       setIsLoadingContacts(true);
 
-      const stored = await recentContactService.getRecentContacts(8);
+      const stored = await recentContactService.getRecentContacts(5);
       const mapped: RecentContact[] = stored.map((entry) => {
         const name = entry.name || entry.phoneNumber;
         return {
@@ -92,6 +109,10 @@ const HomeScreen: React.FC = () => {
       });
 
       setRecentContacts(mapped);
+
+      // Update Cache
+      HOME_CACHE.contacts.recent = mapped;
+      HOME_CACHE.contacts.lastFetched = Date.now();
     } catch (error) {
       console.error('Error loading recent contacts:', error);
     } finally {
@@ -113,6 +134,14 @@ const HomeScreen: React.FC = () => {
       }
 
       setEmergencyContacts(contacts);
+
+      // Update Cache
+      HOME_CACHE.contacts.emergency = contacts;
+      if (!HOME_CACHE.contacts.recent.length) {
+        // If we don't have recent yet, we'll update timestamp when recent arrives
+      } else {
+        HOME_CACHE.contacts.lastFetched = Date.now();
+      }
     } catch (error) {
       console.error('Error fetching emergency contacts:', error);
     }
@@ -133,11 +162,11 @@ const HomeScreen: React.FC = () => {
       const location = await locationService.getCurrentLocation();
       if (location) {
         setCurrentLocation(location);
-        
+
         // Initialize Geoapify Places API
         if (GEOAPIFY_API_KEY) {
           placesService.setApiKey(GEOAPIFY_API_KEY);
-          
+
           // Fetch safe spots and police stations
           await fetchPlaces(location);
         } else {
@@ -150,15 +179,42 @@ const HomeScreen: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    // Set maximum skeleton display time - force hide after 2.5 seconds
+    // Check if we need to show skeletons or if we have cached data
+    const now = Date.now();
+    const hasPlacesCache = HOME_CACHE.places.lastFetched > 0 && (now - HOME_CACHE.places.lastFetched < CACHE_TTL);
+    const hasContactsCache = HOME_CACHE.contacts.lastFetched > 0 && (now - HOME_CACHE.contacts.lastFetched < CACHE_TTL);
+
+    setIsLoadingPlaces(!hasPlacesCache);
+    setIsLoadingContacts(!hasContactsCache);
+
+    // Initial data hydration from cache if available
+    if (hasPlacesCache) {
+      setSafeSpots(HOME_CACHE.places.safeSpots);
+      setPoliceStations(HOME_CACHE.places.policeStations);
+      setCurrentLocation(HOME_CACHE.places.location);
+      setLocationPermissionGranted(true);
+    }
+
+    if (hasContactsCache) {
+      setRecentContacts(HOME_CACHE.contacts.recent);
+      setEmergencyContacts(HOME_CACHE.contacts.emergency);
+    }
+
+    // Set maximum skeleton display time - force hide as fallback
     const maxSkeletonTimeout = setTimeout(() => {
       setIsLoadingPlaces(false);
       setIsLoadingContacts(false);
     }, 5500);
 
-    initializeLocationAndPlaces();
-    fetchRecentContacts();
-    fetchEmergencyContacts();
+    // Only fetch if cache is stale or missing
+    if (!hasPlacesCache) {
+      initializeLocationAndPlaces();
+    }
+
+    if (!hasContactsCache) {
+      fetchRecentContacts();
+      fetchEmergencyContacts();
+    }
 
     return () => clearTimeout(maxSkeletonTimeout);
   }, [initializeLocationAndPlaces, fetchRecentContacts, fetchEmergencyContacts]);
@@ -167,7 +223,7 @@ const HomeScreen: React.FC = () => {
   const fetchPlaces = async (location: Location) => {
     try {
       setIsLoadingPlaces(true);
-      
+
       // Fetch safe spots and police stations in parallel
       const [safeSpotsResponse, policeStationsResponse] = await Promise.all([
         placesService.getSafeSpotsNearMe(location, 2000),
@@ -181,6 +237,12 @@ const HomeScreen: React.FC = () => {
       if (policeStationsResponse.success && policeStationsResponse.data) {
         setPoliceStations(policeStationsResponse.data);
       }
+
+      // Update Cache
+      HOME_CACHE.places.safeSpots = safeSpotsResponse.data || [];
+      HOME_CACHE.places.policeStations = policeStationsResponse.data || [];
+      HOME_CACHE.places.location = location;
+      HOME_CACHE.places.lastFetched = Date.now();
     } catch (error) {
       console.error('Error fetching places:', error);
     } finally {
@@ -190,13 +252,13 @@ const HomeScreen: React.FC = () => {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    
+
     // Refresh all data in parallel
     await Promise.all([
       currentLocation ? fetchPlaces(currentLocation) : initializeLocationAndPlaces(),
       fetchRecentContacts(),
     ]);
-    
+
     setRefreshing(false);
   }, [currentLocation, fetchRecentContacts, initializeLocationAndPlaces]);
 
@@ -421,8 +483,8 @@ const HomeScreen: React.FC = () => {
         <View style={styles.section}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoriesScroll}>
             {safetyCategories.map((category) => (
-              <TouchableOpacity 
-                key={category.id} 
+              <TouchableOpacity
+                key={category.id}
                 style={styles.categoryCard}
                 onPress={() => handleCategoryPress(category.id)}
               >
@@ -436,146 +498,146 @@ const HomeScreen: React.FC = () => {
         </View>
 
         {/* Police Stations (top 2) */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <View style={styles.sectionTitleContainer}>
-                  <Icon name="police-badge" size={20} color={Colors.primary} style={styles.sectionIcon} />
-                  <Text style={styles.sectionTitle}>Police Stations</Text>
-                </View>
-                {locationPermissionGranted ? (
-                  <TouchableOpacity onPress={openAllPoliceStations}>
-                    <Text style={styles.viewAllText}>View All</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity onPress={initializeLocationAndPlaces}>
-                    <Text style={styles.enableLocationText}>Enable Location</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-              {isLoadingPlaces ? (
-                <SkeletonList items={3} />
-              ) : policeStations.length > 0 ? (
-                <View style={styles.placesContainer}>
-                  {policeStations
-                    .slice(0, showAllPoliceStations ? policeStations.length : 2)
-                    .map((station) => (
-                    <TouchableOpacity
-                      key={station.place_id}
-                      style={styles.placeCard}
-                      onPress={() => handlePlacePress(station)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={[styles.placeIcon, { backgroundColor: Colors.primary + '20' }]}>
-                        <Icon name="police-badge" size={24} color={Colors.primary} />
-                      </View>
-                      <View style={styles.placeInfo}>
-                        <Text style={styles.placeName} numberOfLines={1}>{station.name}</Text>
-                        <Text style={styles.placeAddress} numberOfLines={1}>
-                          {station.vicinity || station.formatted_address || 'Address not available'}
-                        </Text>
-                        <View style={styles.placeMeta}>
-                          <Text style={styles.placeDistance}>{station.formattedDistance || 'Distance unknown'}</Text>
-                          {station.opening_hours?.open_now !== undefined && (
-                            <Text style={[styles.placeStatus, station.opening_hours.open_now && styles.placeStatusOpen]}>
-                              {station.opening_hours.open_now ? 'Open Now' : 'Closed'}
-                            </Text>
-                          )}
-                        </View>
-                      </View>
-                      <View style={styles.placeActions}>
-                        {station.formatted_phone_number || station.international_phone_number ? (
-                          <TouchableOpacity
-                            style={styles.callButton}
-                            onPress={(e) => handlePoliceStationCall(station, e)}
-                          >
-                            <Icon name="phone" size={18} color="#FFFFFF" />
-                          </TouchableOpacity>
-                        ) : null}
-                        <Icon name="chevron-right" size={20} color={Colors.textLight} />
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              ) : locationPermissionGranted ? (
-                <View style={styles.emptyState}>
-                  <Icon name="map-marker-off" size={48} color={Colors.textLight} />
-                  <Text style={styles.emptyStateText}>No police stations found nearby</Text>
-                </View>
-              ) : (
-                <View style={styles.emptyState}>
-                  <Icon name="map-marker-question" size={48} color={Colors.textLight} />
-                  <Text style={styles.emptyStateText}>Enable location to find police stations</Text>
-                  <TouchableOpacity style={styles.enableButton} onPress={initializeLocationAndPlaces}>
-                    <Text style={styles.enableButtonText}>Enable Location</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionTitleContainer}>
+              <Icon name="police-badge" size={20} color={Colors.primary} style={styles.sectionIcon} />
+              <Text style={styles.sectionTitle}>Police Stations</Text>
             </View>
-
-            {/* Safe Spots (top 5) */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <View style={styles.sectionTitleContainer}>
-                  <Icon name="shield-check" size={20} color={Colors.success} style={styles.sectionIcon} />
-                  <Text style={styles.sectionTitle}>Safe Spots</Text>
-                </View>
-                <TouchableOpacity onPress={openAllSafeSpots}>
-                  <Text style={styles.viewAllText}>View All</Text>
-                </TouchableOpacity>
-              </View>
-              {isLoadingPlaces ? (
-                <SkeletonList items={3} />
-              ) : safeSpots.length > 0 ? (
-                <View style={styles.placesContainer}>
-                  {safeSpots.slice(0, 5).map((spot) => (
-                    <TouchableOpacity
-                      key={spot.place_id}
-                      style={styles.placeCard}
-                      onPress={() => handlePlacePress(spot)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={[styles.placeIcon, { backgroundColor: getPlaceColor(spot) + '20' }]}>
-                        <Icon name={getPlaceIcon(spot)} size={24} color={getPlaceColor(spot)} />
+            {locationPermissionGranted ? (
+              <TouchableOpacity onPress={openAllPoliceStations}>
+                <Text style={styles.viewAllText}>View All</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity onPress={initializeLocationAndPlaces}>
+                <Text style={styles.enableLocationText}>Enable Location</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          {isLoadingPlaces ? (
+            <SkeletonList items={3} />
+          ) : policeStations.length > 0 ? (
+            <View style={styles.placesContainer}>
+              {policeStations
+                .slice(0, showAllPoliceStations ? policeStations.length : 2)
+                .map((station) => (
+                  <TouchableOpacity
+                    key={station.place_id}
+                    style={styles.placeCard}
+                    onPress={() => handlePlacePress(station)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.placeIcon, { backgroundColor: Colors.primary + '20' }]}>
+                      <Icon name="police-badge" size={24} color={Colors.primary} />
+                    </View>
+                    <View style={styles.placeInfo}>
+                      <Text style={styles.placeName} numberOfLines={1}>{station.name}</Text>
+                      <Text style={styles.placeAddress} numberOfLines={1}>
+                        {station.vicinity || station.formatted_address || 'Address not available'}
+                      </Text>
+                      <View style={styles.placeMeta}>
+                        <Text style={styles.placeDistance}>{station.formattedDistance || 'Distance unknown'}</Text>
+                        {station.opening_hours?.open_now !== undefined && (
+                          <Text style={[styles.placeStatus, station.opening_hours.open_now && styles.placeStatusOpen]}>
+                            {station.opening_hours.open_now ? 'Open Now' : 'Closed'}
+                          </Text>
+                        )}
                       </View>
-                      <View style={styles.placeInfo}>
-                        <Text style={styles.placeName} numberOfLines={1}>{spot.name}</Text>
-                        <Text style={styles.placeAddress} numberOfLines={1}>
-                          {spot.vicinity || spot.formatted_address || 'Address not available'}
-                        </Text>
-                        <View style={styles.placeMeta}>
-                          <Text style={styles.placeDistance}>{spot.formattedDistance || 'Distance unknown'}</Text>
-                          {spot.opening_hours?.open_now !== undefined && (
-                            <Text style={[styles.placeStatus, spot.opening_hours.open_now && styles.placeStatusOpen]}>
-                              {spot.opening_hours.open_now ? 'Open Now' : 'Closed'}
-                            </Text>
-                          )}
-                          {spot.rating && (
-                            <View style={styles.ratingContainer}>
-                              <Icon name="star" size={12} color={Colors.warning} />
-                              <Text style={styles.ratingText}>{spot.rating.toFixed(1)}</Text>
-                            </View>
-                          )}
-                        </View>
-                      </View>
+                    </View>
+                    <View style={styles.placeActions}>
+                      {station.formatted_phone_number || station.international_phone_number ? (
+                        <TouchableOpacity
+                          style={styles.callButton}
+                          onPress={(e) => handlePoliceStationCall(station, e)}
+                        >
+                          <Icon name="phone" size={18} color="#FFFFFF" />
+                        </TouchableOpacity>
+                      ) : null}
                       <Icon name="chevron-right" size={20} color={Colors.textLight} />
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              ) : locationPermissionGranted ? (
-                <View style={styles.emptyState}>
-                  <Icon name="map-marker-off" size={48} color={Colors.textLight} />
-                  <Text style={styles.emptyStateText}>No safe spots found nearby</Text>
-                </View>
-              ) : (
-                <View style={styles.emptyState}>
-                  <Icon name="map-marker-question" size={48} color={Colors.textLight} />
-                  <Text style={styles.emptyStateText}>Enable location to find safe spots</Text>
-                  <TouchableOpacity style={styles.enableButton} onPress={initializeLocationAndPlaces}>
-                    <Text style={styles.enableButtonText}>Enable Location</Text>
+                    </View>
                   </TouchableOpacity>
-                </View>
-              )}
+                ))}
             </View>
+          ) : locationPermissionGranted ? (
+            <View style={styles.emptyState}>
+              <Icon name="map-marker-off" size={48} color={Colors.textLight} />
+              <Text style={styles.emptyStateText}>No police stations found nearby</Text>
+            </View>
+          ) : (
+            <View style={styles.emptyState}>
+              <Icon name="map-marker-question" size={48} color={Colors.textLight} />
+              <Text style={styles.emptyStateText}>Enable location to find police stations</Text>
+              <TouchableOpacity style={styles.enableButton} onPress={initializeLocationAndPlaces}>
+                <Text style={styles.enableButtonText}>Enable Location</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
+        {/* Safe Spots (top 5) */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionTitleContainer}>
+              <Icon name="shield-check" size={20} color={Colors.success} style={styles.sectionIcon} />
+              <Text style={styles.sectionTitle}>Safe Spots</Text>
+            </View>
+            <TouchableOpacity onPress={openAllSafeSpots}>
+              <Text style={styles.viewAllText}>View All</Text>
+            </TouchableOpacity>
+          </View>
+          {isLoadingPlaces ? (
+            <SkeletonList items={3} />
+          ) : safeSpots.length > 0 ? (
+            <View style={styles.placesContainer}>
+              {safeSpots.slice(0, 5).map((spot) => (
+                <TouchableOpacity
+                  key={spot.place_id}
+                  style={styles.placeCard}
+                  onPress={() => handlePlacePress(spot)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.placeIcon, { backgroundColor: getPlaceColor(spot) + '20' }]}>
+                    <Icon name={getPlaceIcon(spot)} size={24} color={getPlaceColor(spot)} />
+                  </View>
+                  <View style={styles.placeInfo}>
+                    <Text style={styles.placeName} numberOfLines={1}>{spot.name}</Text>
+                    <Text style={styles.placeAddress} numberOfLines={1}>
+                      {spot.vicinity || spot.formatted_address || 'Address not available'}
+                    </Text>
+                    <View style={styles.placeMeta}>
+                      <Text style={styles.placeDistance}>{spot.formattedDistance || 'Distance unknown'}</Text>
+                      {spot.opening_hours?.open_now !== undefined && (
+                        <Text style={[styles.placeStatus, spot.opening_hours.open_now && styles.placeStatusOpen]}>
+                          {spot.opening_hours.open_now ? 'Open Now' : 'Closed'}
+                        </Text>
+                      )}
+                      {spot.rating && (
+                        <View style={styles.ratingContainer}>
+                          <Icon name="star" size={12} color={Colors.warning} />
+                          <Text style={styles.ratingText}>{spot.rating.toFixed(1)}</Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                  <Icon name="chevron-right" size={20} color={Colors.textLight} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : locationPermissionGranted ? (
+            <View style={styles.emptyState}>
+              <Icon name="map-marker-off" size={48} color={Colors.textLight} />
+              <Text style={styles.emptyStateText}>No safe spots found nearby</Text>
+            </View>
+          ) : (
+            <View style={styles.emptyState}>
+              <Icon name="map-marker-question" size={48} color={Colors.textLight} />
+              <Text style={styles.emptyStateText}>Enable location to find safe spots</Text>
+              <TouchableOpacity style={styles.enableButton} onPress={initializeLocationAndPlaces}>
+                <Text style={styles.enableButtonText}>Enable Location</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
 
         {/* Recent Contacts */}
         <View style={styles.section}>
@@ -626,7 +688,7 @@ const HomeScreen: React.FC = () => {
                       </View>
                     </View>
                     <View style={styles.contactActions}>
-                      <TouchableOpacity 
+                      <TouchableOpacity
                         style={styles.contactCallButton}
                         onPress={() => handleContactCall(contact)}
                       >
@@ -645,7 +707,7 @@ const HomeScreen: React.FC = () => {
                         </TouchableOpacity>
                       )}
 
-                      <TouchableOpacity 
+                      <TouchableOpacity
                         style={styles.textButton}
                         onPress={() => handleContactText(contact)}
                       >

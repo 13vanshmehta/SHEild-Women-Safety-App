@@ -53,14 +53,48 @@ class VoiceSafetyService {
     if (!this.isListening || !this.config) return;
 
     try {
-      // Check if voice is still available
+      // Diagnostic Heartbeat
       const isRecognizing = await Voice.isRecognizing();
+      console.log('🎤 Voice Heartbeat - Recognized Status:', isRecognizing);
+
       if (!isRecognizing) {
         console.log('🎤 VoiceService: Voice stopped, restarting...');
-        await Voice.start(this.config.locale || 'en-US', { RECOGNIZER_ENGINE: 'GOOGLE' });
+        await this.startVoiceEngine();
       }
     } catch (error) {
       console.error('🎤 VoiceService: Error ensuring listening:', error);
+    }
+  }
+
+  /**
+   * Internal helper to start Voice engine with smart strategy
+   */
+  private async startVoiceEngine() {
+    if (!this.config) return;
+    const locale = this.config.locale || 'en-US';
+
+    try {
+      // Strategy 1: System Default (Safest for modern devices like S24 Ultra)
+      console.log('🎤 Attempting Voice.start with SYSTEM DEFAULT engine...');
+      await Voice.start(locale, {
+        EXTRA_PARTIAL_RESULTS: true,
+        REQUEST_PERMISSIONS_AUTO: true
+      });
+      console.log('🎤 ✅ System Default engine initialization requested');
+    } catch (defaultError) {
+      console.warn('🎤 System default failed, trying forced GOOGLE strategy...', defaultError);
+      try {
+        // Strategy 2: Forced Google engine path (legacy/specific devices)
+        await Voice.start(locale, {
+          RECOGNIZER_ENGINE: 'GOOGLE',
+          EXTRA_PARTIAL_RESULTS: true,
+          REQUEST_PERMISSIONS_AUTO: true
+        });
+        console.log('🎤 ✅ Forced Google engine initialization requested');
+      } catch (googleError) {
+        console.error('🎤 ❌ All voice engine strategies failed:', googleError);
+        throw googleError;
+      }
     }
   }
 
@@ -101,6 +135,13 @@ class VoiceSafetyService {
       Voice.onSpeechResults = this.onSpeechResults.bind(this);
       Voice.onSpeechPartialResults = this.onSpeechPartialResults.bind(this);
       Voice.onSpeechError = this.onSpeechError.bind(this);
+      Voice.onSpeechRecognized = (_e: any) => {
+        console.log('🎤 Speech recognition confirmed by engine');
+      };
+      Voice.onSpeechVolumeChanged = (e: any) => {
+        // Just log if it's very high/low to see if mic is working
+        if (e.value > 10) console.log('🎤 Mic volume peak:', e.value);
+      };
 
       this.isInitialized = true;
       console.log('🎤 VoiceService: Initialized successfully');
@@ -168,11 +209,8 @@ class VoiceSafetyService {
 
       // Start continuous recognition with background support
       try {
-        const locale = config.locale || 'en-US';
-        console.log('🎤 Calling Voice.start() with locale:', locale);
-
-        await Voice.start(locale, { RECOGNIZER_ENGINE: 'GOOGLE' });
-        console.log('🎤 ✅ Voice.start() completed successfully!');
+        await this.startVoiceEngine();
+        console.log('🎤 ✅ Voice engine started successfully!');
       } catch (startError: any) {
         console.error('🎤 ❌ Voice.start() failed:');
         console.error('🎤 Error message:', startError?.message);
@@ -281,11 +319,19 @@ class VoiceSafetyService {
 
     // Auto-restart if still in listening mode
     if (this.isListening && this.config) {
-      setTimeout(() => {
+      setTimeout(async () => {
         if (this.isListening && this.config) {
-          Voice.start(this.config.locale || 'en-US', { RECOGNIZER_ENGINE: 'GOOGLE' }).catch(console.error);
+          try {
+            // Check if already recognizing to avoid concurrent starts
+            const isRecognizing = await Voice.isRecognizing();
+            if (!isRecognizing) {
+              await this.startVoiceEngine();
+            }
+          } catch (e) {
+            console.error('🎤 Voice: Error during auto-restart after end:', e);
+          }
         }
-      }, 100);
+      }, 500); // 500ms stable restart
     }
   }
 
@@ -296,13 +342,14 @@ class VoiceSafetyService {
     if (!this.config) return;
 
     const results = event.value || [];
-    console.log('🎤 Speech results:', results);
+    console.log('🎤 RAW SPEECH RESULTS (Final):', JSON.stringify(results));
 
     // Check all results for keywords
     for (const text of results) {
       this.checkForKeywords(text);
     }
   }
+
 
   /**
    * Event: Partial speech results (real-time)
@@ -311,13 +358,14 @@ class VoiceSafetyService {
     if (!this.config) return;
 
     const results = event.value || [];
-    console.log('🎤 Partial results:', results);
+    console.log('🎤 RAW SPEECH RESULTS (Partial):', JSON.stringify(results));
 
     // Check partial results for immediate keyword detection
     for (const text of results) {
       this.checkForKeywords(text);
     }
   }
+
 
   /**
    * Event: Speech recognition error
@@ -327,9 +375,10 @@ class VoiceSafetyService {
     const errorCode = event.error?.code || String(event.error);
 
     // Error code 7 means "No match" (user said nothing or unrecognizable). 
-    // This is normal in continuous listening mode, so we just log it as info, not error.
-    if (errorCode === '7' || errorMsg.includes('No match')) {
-      console.log('🎤 Speech listener cycle reset (No speech matched - continuing to listen)');
+    // Error code 10 often relates to "Didn't understand" or transient engine resets on some devices.
+    // These are normal in continuous listening mode, so we just log them as info, not error.
+    if (errorCode === '7' || errorCode === '10' || errorMsg.includes('No match') || errorMsg.includes('understand')) {
+      console.log(`🎤 Speech listener cycle reset (Code: ${errorCode} - continuing to listen)`);
     } else {
       console.error('🎤 Speech recognition error:', event.error);
     }
@@ -345,12 +394,19 @@ class VoiceSafetyService {
         return;
       }
 
-      // Restart on other errors
-      setTimeout(() => {
+      // Restart on other errors with a longer delay to prevent rate-limiting
+      setTimeout(async () => {
         if (this.isListening && this.config) {
-          Voice.start(this.config.locale || 'en-US', { RECOGNIZER_ENGINE: 'GOOGLE' }).catch(console.error);
+          try {
+            const isRecognizing = await Voice.isRecognizing();
+            if (!isRecognizing) {
+              await this.startVoiceEngine();
+            }
+          } catch (e) {
+            console.error('🎤 Voice: Error during auto-restart after error:', e);
+          }
         }
-      }, 500);
+      }, 3000); // 3 second backoff for recovery (S24 needs more time)
     }
   }
 
@@ -361,22 +417,26 @@ class VoiceSafetyService {
     if (!this.config) return;
 
     const lowerText = text.toLowerCase().trim();
-    // Split text into words for exact matching
-    const words = lowerText.split(/\s+/);
+    // Aggressive normalization: remove all punctuation and normalize spaces
+    const normalizedText = lowerText.replace(/[.,/#!$%^&*;:{}=\-_`~()?]/g, ' ').replace(/\s{2,}/g, ' ').trim();
 
-    console.log('🔍 Checking text:', lowerText);
-    console.log('🔍 Words detected:', words);
+    // Split into words for exact matching
+    const words = normalizedText.split(/\s+/);
+
+    console.log('🔍 Checking text:', normalizedText);
+    if (normalizedText !== lowerText) {
+      console.log('🔍 Raw text was:', lowerText);
+    }
     console.log('🔍 Looking for keywords:', this.config.keywords);
 
     for (const keyword of this.config.keywords) {
       const lowerKeyword = keyword.toLowerCase().trim();
+      // Normalize keyword too just in case it has punctuation
+      const normalizedKeyword = lowerKeyword.replace(/[.,/#!$%^&*;:{}=\-_`~()?]/g, ' ').replace(/\s{2,}/g, ' ').trim();
 
-      // Use regex to check for the keyword as a whole word, 
-      // avoiding issues with punctuation marks returned by Google (e.g., "help!")
-      const regex = new RegExp(`\\b${lowerKeyword}\\b`, 'i');
-      const isMatch = regex.test(lowerText);
-
-      console.log(`🔍 Checking "${lowerKeyword}": ${isMatch ? '✅ MATCH' : '❌ No match'}`);
+      // Check using regex on normalized text
+      const regex = new RegExp(`\\b${normalizedKeyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+      const isMatch = regex.test(normalizedText) || (normalizedText.includes(normalizedKeyword) && normalizedKeyword.length > 3);
 
       if (isMatch) {
         // Prevent duplicate triggers for same keyword

@@ -35,15 +35,15 @@ const onboardingData: OnboardingData[] = [
     id: 2,
     title: "Elevate Your Safety With Quick Actions",
     description: "Get instant access to emergency contacts, location sharing, and safety alerts when you need them most.",
-    icon: "warning",
-    useImage: false,
+    useImage: true,
+    image: require('../assets/images/Quick-Actions.png'),
   },
   {
     id: 3,
     title: "Stay Protected And Achieve Peace of Mind",
     description: "Connect with trusted contacts, share your location, and get help instantly with our emergency features.",
     useImage: true,
-    image: require('../assets/images/Secure-Device.jpg'),
+    image: require('../assets/images/Stay-Protected.png'),
   },
 ];
 
@@ -70,16 +70,16 @@ const OnboardingFlow: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      
+      <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
+
 
       {/* Main Content */}
       <View style={styles.content}>
         {/* Icon/Image Area */}
         <View style={styles.iconContainer}>
           {currentData.useImage && currentData.image ? (
-            <Image 
-              source={currentData.image} 
+            <Image
+              source={currentData.image}
               style={styles.logoImage}
               resizeMode="contain"
             />
@@ -109,7 +109,7 @@ const OnboardingFlow: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
         <TouchableOpacity onPress={handleSkip} style={styles.skipButton}>
           <Text style={styles.skipText}>Skip</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity onPress={handleNext} style={styles.nextButton}>
           <Icon name="arrow-right" size={20} color={Colors.background} />
         </TouchableOpacity>
@@ -152,7 +152,7 @@ const styles = StyleSheet.create({
     resizeMode: 'contain',
   },
   titleContainer: {
-    alignItems: 'flex-start',
+    alignItems: 'center',
   },
   title: {
     fontSize: 28,
@@ -160,13 +160,13 @@ const styles = StyleSheet.create({
     color: Colors.text,
     lineHeight: 36,
     marginBottom: 16,
-    textAlign: 'left',
+    textAlign: 'center',
   },
   description: {
     fontSize: 16,
     color: Colors.textSecondary,
     lineHeight: 24,
-    textAlign: 'left',
+    textAlign: 'center',
   },
   backgroundGraphics: {
     position: 'absolute',
@@ -177,34 +177,13 @@ const styles = StyleSheet.create({
     zIndex: -1,
   },
   graphic1: {
-    position: 'absolute',
-    bottom: 0,
-    right: -50,
-    width: 200,
-    height: 200,
-    backgroundColor: Colors.primaryLight,
-    opacity: 0.1,
-    borderRadius: 100,
+    display: 'none',
   },
   graphic2: {
-    position: 'absolute',
-    bottom: 50,
-    right: 50,
-    width: 150,
-    height: 150,
-    backgroundColor: Colors.primary,
-    opacity: 0.05,
-    borderRadius: 75,
+    display: 'none',
   },
   graphic3: {
-    position: 'absolute',
-    bottom: 100,
-    right: 100,
-    width: 100,
-    height: 100,
-    backgroundColor: Colors.primaryDark,
-    opacity: 0.08,
-    borderRadius: 50,
+    display: 'none',
   },
   navigation: {
     flexDirection: 'row',

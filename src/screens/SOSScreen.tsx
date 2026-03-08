@@ -58,7 +58,7 @@ const SOSScreen: React.FC = () => {
   const [isVoiceListening, setIsVoiceListening] = useState(false);
   const [keywords, setKeywords] = useState<string[]>(['help']);
   const [keywordInput, setKeywordInput] = useState('');
-  
+
   const countdownTimerRef = useRef<any>(null);
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const voicePulseAnim = useRef(new Animated.Value(1)).current;
@@ -68,13 +68,13 @@ const SOSScreen: React.FC = () => {
     checkEmergencyContacts();
     collectDeviceInfo();
     requestLocationPermission();
-    
+
     // Load saved voice state and restore if it was enabled
     loadVoiceState();
-    
+
     // Handle app state changes (background/foreground)
     const subscription = AppState.addEventListener('change', handleAppStateChange);
-    
+
     // Cleanup - DON'T stop voice service on unmount to keep it running across tabs
     return () => {
       subscription.remove();
@@ -86,7 +86,7 @@ const SOSScreen: React.FC = () => {
 
   const handleAppStateChange = (nextAppState: any) => {
     console.log('📱 App State Changed:', appState.current, '->', nextAppState);
-    
+
     if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
       // App came to foreground
       console.log('📱 App came to FOREGROUND');
@@ -102,30 +102,31 @@ const SOSScreen: React.FC = () => {
         // Keep voice listening active in background
       }
     }
-    
+
     appState.current = nextAppState;
   };
 
   // Restart voice listening when keywords change (only if actually changed by user)
   const prevKeywordsRef = useRef<string[]>(keywords);
-  
+
   useEffect(() => {
     // Check if keywords actually changed (not just component remount)
     const keywordsChanged = JSON.stringify(prevKeywordsRef.current) !== JSON.stringify(keywords);
-    
+
     if (isVoiceListening && keywords.length > 0 && keywordsChanged) {
       // Stop and restart with new keywords
       const restartListening = async () => {
         console.log('🔄 Restarting voice listening with new keywords:', keywords);
         await voiceSafetyService.stopListening();
-        
+
         const started = await voiceSafetyService.startListening({
           keywords: keywords,
           locale: 'en-US',
           onKeywordDetected: (keyword, fullText) => {
             console.log('🚨 EMERGENCY KEYWORD DETECTED:', keyword);
             console.log('🚨 Full text:', fullText);
-            triggerSOSAlert();
+            console.log('🎤 SOS Triggered by Voice!');
+            triggerSOSAlert('voice_keyword');
           },
           onError: (error) => {
             console.error('Voice recognition error:', error);
@@ -136,14 +137,14 @@ const SOSScreen: React.FC = () => {
             );
           },
         });
-        
+
         if (!started) {
           setIsVoiceListening(false);
         }
       };
       restartListening();
     }
-    
+
     // Update previous keywords reference
     prevKeywordsRef.current = keywords;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -269,7 +270,7 @@ const SOSScreen: React.FC = () => {
           try {
             const authStatus = await Geolocation.requestAuthorization('whenInUse');
             console.log('iOS Location authorization status:', authStatus);
-            
+
             if (authStatus === 'granted' || authStatus === 'whenInUse') {
               getCurrentLocation();
             } else {
@@ -279,8 +280,8 @@ const SOSScreen: React.FC = () => {
                 'Please enable location services in Settings to use SOS features.',
                 [
                   { text: 'Cancel', style: 'cancel' },
-                  { 
-                    text: 'Open Settings', 
+                  {
+                    text: 'Open Settings',
                     onPress: () => {
                       if (Geolocation?.openSettings) {
                         Geolocation.openSettings();
@@ -330,9 +331,9 @@ const SOSScreen: React.FC = () => {
       },
       (error: any) => {
         console.error('Error getting location:', error);
-        
+
         let locationErrorMessage = 'Unable to get your current location.';
-        
+
         switch (error.code) {
           case 1: // PERMISSION_DENIED
             locationErrorMessage = 'Location permission denied. Please enable location services in Settings.';
@@ -346,9 +347,9 @@ const SOSScreen: React.FC = () => {
           default:
             locationErrorMessage = error.message || 'Unable to get your current location. Please make sure location services are enabled.';
         }
-        
+
         Alert.alert('Location Error', locationErrorMessage);
-        
+
         // Set a default location if error
         setLocation({
           latitude: 28.6139,
@@ -356,9 +357,9 @@ const SOSScreen: React.FC = () => {
           accuracy: 0,
         });
       },
-      { 
-        enableHighAccuracy: true, 
-        timeout: 20000, 
+      {
+        enableHighAccuracy: true,
+        timeout: 20000,
         maximumAge: 10000,
         showLocationDialog: true, // This helps on Android
         forceRequestLocation: true, // Force location request
@@ -429,7 +430,7 @@ const SOSScreen: React.FC = () => {
     scaleAnim.setValue(1);
   };
 
-  const triggerSOSAlert = async () => {
+  const triggerSOSAlert = async (triggerMode: string = 'manual_button') => {
     setShowCountdown(false);
     setIsActivating(true);
     scaleAnim.setValue(1);
@@ -439,7 +440,7 @@ const SOSScreen: React.FC = () => {
       getCurrentLocation();
       await collectDeviceInfo();
 
-      console.log('📤 Sending SOS alert...', {
+      console.log('📤 Sending SOS alert via:', triggerMode, {
         location,
         deviceInfo,
       });
@@ -447,7 +448,7 @@ const SOSScreen: React.FC = () => {
       const response = await apiService.post('/api/sos/trigger', {
         location: location || { latitude: 0, longitude: 0, address: 'Location unavailable' },
         deviceInfo,
-        triggerMode: 'manual_button',
+        triggerMode: triggerMode,
       });
 
       console.log('📥 SOS response:', response);
@@ -490,14 +491,14 @@ const SOSScreen: React.FC = () => {
       // Monitor network status changes
       const unsubscribe = NetInfo.addEventListener((state: any) => {
         const isConnected = state.isConnected;
-        
+
         // Only update if status actually changed
         if (lastNetworkStatus !== null && lastNetworkStatus !== isConnected) {
           if (!isConnected) {
             // Device went offline
             offlineStartTime = Date.now();
             console.log('📴 Device went offline');
-            
+
             // Get last known location and send offline notification
             Geolocation.getCurrentPosition(
               (position: any) => {
@@ -519,11 +520,11 @@ const SOSScreen: React.FC = () => {
           } else if (offlineStartTime) {
             // Device came back online
             const offlineDuration = Date.now() - offlineStartTime;
-            
+
             // Only notify if device was offline for more than threshold
             if (offlineDuration >= OFFLINE_THRESHOLD) {
               console.log(`📶 Device back online (was offline for ${Math.round(offlineDuration / 1000)}s)`);
-              
+
               // Get current location and send online notification
               Geolocation.getCurrentPosition(
                 (position: any) => {
@@ -539,11 +540,11 @@ const SOSScreen: React.FC = () => {
             } else {
               console.log(`📶 Device back online (brief disconnect, no notification)`);
             }
-            
+
             offlineStartTime = null;
           }
         }
-        
+
         lastNetworkStatus = isConnected;
       });
 
@@ -573,7 +574,7 @@ const SOSScreen: React.FC = () => {
         clearInterval(locationInterval);
         console.log('🛑 Location monitoring stopped');
       }, 3600000);
-      
+
       console.log('✅ Location monitoring started');
     } catch (error) {
       console.error('Error starting location monitoring:', error);
@@ -614,7 +615,7 @@ const SOSScreen: React.FC = () => {
     try {
       // Check if voice service is already listening
       const isCurrentlyListening = voiceSafetyService.getIsListening();
-      
+
       if (isCurrentlyListening) {
         // Voice is already running, just sync UI state
         const savedState = await voiceStateService.loadState();
@@ -668,18 +669,20 @@ const SOSScreen: React.FC = () => {
               'Microphone permission is required for voice safety mode. Please enable it in Settings.',
               [
                 { text: 'Cancel', style: 'cancel' },
-                { text: 'Open Settings', onPress: () => {
-                  // Try to open app settings
-                  if (Platform.OS === 'android') {
-                    const { Linking } = require('react-native');
-                    Linking.openSettings();
+                {
+                  text: 'Open Settings', onPress: () => {
+                    // Try to open app settings
+                    if (Platform.OS === 'android') {
+                      const { Linking } = require('react-native');
+                      Linking.openSettings();
+                    }
                   }
-                }},
+                },
               ]
             );
             return;
           }
-          
+
           console.log('🎤 Microphone permission granted');
         } catch (err) {
           console.error('Error requesting microphone permission:', err);
@@ -694,7 +697,8 @@ const SOSScreen: React.FC = () => {
         onKeywordDetected: (keyword, fullText) => {
           console.log('🚨 EMERGENCY KEYWORD DETECTED:', keyword);
           console.log('🚨 Full text:', fullText);
-          triggerSOSAlert();
+          console.log('🎤 SOS Triggered by Voice!');
+          triggerSOSAlert('voice_keyword');
         },
         onError: (error) => {
           console.error('Voice recognition error:', error);
@@ -758,7 +762,7 @@ const SOSScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView 
+      <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         bounces={true}
@@ -773,140 +777,140 @@ const SOSScreen: React.FC = () => {
             </Text>
           </View>
 
-        {/* Voice Safety Mode Section */}
-        <View style={styles.voiceSafetySection}>
-          <View style={styles.voiceSafetyHeader}>
-            <Icon name="microphone" size={24} color={Colors.primary} />
-            <Text style={styles.voiceSafetyTitle}>Voice Safety Mode</Text>
-          </View>
-          
-          <Text style={styles.voiceSafetyDescription}>
-            Add keywords that will trigger SOS when spoken
-          </Text>
+          {/* Voice Safety Mode Section */}
+          <View style={styles.voiceSafetySection}>
+            <View style={styles.voiceSafetyHeader}>
+              <Icon name="microphone" size={24} color={Colors.primary} />
+              <Text style={styles.voiceSafetyTitle}>Voice Safety Mode</Text>
+            </View>
 
-          {/* Keywords Chips Display */}
-          <View style={styles.keywordsChipsContainer}>
-            {keywords.map((keyword, index) => (
-              <View key={index} style={styles.keywordChip}>
-                <Text style={styles.keywordChipText}>{keyword}</Text>
-                <TouchableOpacity 
-                  onPress={() => removeKeyword(keyword)}
-                  disabled={isVoiceListening}
-                  style={styles.keywordRemoveButton}
-                >
-                  <Icon name="close" size={16} color="#666" />
-                </TouchableOpacity>
-              </View>
-            ))}
-          </View>
-
-          {/* Add Keyword Input */}
-          <View style={styles.keywordInputContainer}>
-            <TextInput
-              style={styles.keywordInput}
-              value={keywordInput}
-              onChangeText={setKeywordInput}
-              placeholder="Type a keyword..."
-              placeholderTextColor={Colors.textSecondary}
-              editable={!isVoiceListening}
-              onSubmitEditing={addKeyword}
-              returnKeyType="done"
-            />
-            <TouchableOpacity 
-              onPress={addKeyword}
-              disabled={!keywordInput.trim() || isVoiceListening}
-              style={[
-                styles.addKeywordButton,
-                (!keywordInput.trim() || isVoiceListening) && styles.addKeywordButtonDisabled
-              ]}
-            >
-              <Icon 
-                name="send" 
-                size={20} 
-                color={!keywordInput.trim() || isVoiceListening ? '#CCC' : Colors.primary} 
-              />
-            </TouchableOpacity>
-          </View>
-
-          {isVoiceListening && (
-            <Text style={styles.activeKeywordsText}>
-              🎤 Listening for: {keywords.join(', ')}
+            <Text style={styles.voiceSafetyDescription}>
+              Add keywords that will trigger SOS when spoken
             </Text>
-          )}
 
-          <Animated.View style={{ transform: [{ scale: voicePulseAnim }] }}>
+            {/* Keywords Chips Display */}
+            <View style={styles.keywordsChipsContainer}>
+              {keywords.map((keyword, index) => (
+                <View key={index} style={styles.keywordChip}>
+                  <Text style={styles.keywordChipText}>{keyword}</Text>
+                  <TouchableOpacity
+                    onPress={() => removeKeyword(keyword)}
+                    disabled={isVoiceListening}
+                    style={styles.keywordRemoveButton}
+                  >
+                    <Icon name="close" size={16} color="#666" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+
+            {/* Add Keyword Input */}
+            <View style={styles.keywordInputContainer}>
+              <TextInput
+                style={styles.keywordInput}
+                value={keywordInput}
+                onChangeText={setKeywordInput}
+                placeholder="Type a keyword..."
+                placeholderTextColor={Colors.textSecondary}
+                editable={!isVoiceListening}
+                onSubmitEditing={addKeyword}
+                returnKeyType="done"
+              />
+              <TouchableOpacity
+                onPress={addKeyword}
+                disabled={!keywordInput.trim() || isVoiceListening}
+                style={[
+                  styles.addKeywordButton,
+                  (!keywordInput.trim() || isVoiceListening) && styles.addKeywordButtonDisabled
+                ]}
+              >
+                <Icon
+                  name="send"
+                  size={20}
+                  color={!keywordInput.trim() || isVoiceListening ? '#CCC' : Colors.primary}
+                />
+              </TouchableOpacity>
+            </View>
+
+            {isVoiceListening && (
+              <Text style={styles.activeKeywordsText}>
+                🎤 Listening for: {keywords.join(', ')}
+              </Text>
+            )}
+
+            <Animated.View style={{ transform: [{ scale: voicePulseAnim }] }}>
+              <TouchableOpacity
+                style={[
+                  styles.voiceButton,
+                  isVoiceListening && styles.voiceButtonActive
+                ]}
+                onPress={isVoiceListening ? stopVoiceListening : startVoiceListening}
+                activeOpacity={0.8}
+              >
+                <Icon
+                  name={isVoiceListening ? 'microphone' : 'microphone-off'}
+                  size={32}
+                  color="#FFFFFF"
+                />
+                <Text style={styles.voiceButtonText}>
+                  {isVoiceListening ? 'Stop Listening' : 'Start Listening'}
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
+
+            {isVoiceListening && (
+              <View style={styles.listeningIndicator}>
+                <View style={styles.listeningDot} />
+                <Text style={styles.listeningText}>Actively listening for emergency keywords</Text>
+              </View>
+            )}
+          </View>
+
+          {/* SOS Button - Reduced Size */}
+          <View style={styles.sosButtonContainer}>
             <TouchableOpacity
-              style={[
-                styles.voiceButton,
-                isVoiceListening && styles.voiceButtonActive
-              ]}
-              onPress={isVoiceListening ? stopVoiceListening : startVoiceListening}
+              style={styles.sosButton}
+              onPress={handleSOSPress}
+              disabled={isActivating}
               activeOpacity={0.8}
             >
-              <Icon 
-                name={isVoiceListening ? 'microphone' : 'microphone-off'}
-                size={32}
-                color="#FFFFFF"
-              />
-              <Text style={styles.voiceButtonText}>
-                {isVoiceListening ? 'Stop Listening' : 'Start Listening'}
-              </Text>
+              {isActivating ? (
+                <ActivityIndicator size="large" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Icon name="alarm-light" size={60} color="#FFFFFF" />
+                  <Text style={styles.sosText}>SOS</Text>
+                </>
+              )}
             </TouchableOpacity>
-          </Animated.View>
+          </View>
 
-          {isVoiceListening && (
-            <View style={styles.listeningIndicator}>
-              <View style={styles.listeningDot} />
-              <Text style={styles.listeningText}>Actively listening for emergency keywords</Text>
+          <Text style={styles.instruction}>Tap for instant SOS alert</Text>
+          <Text style={styles.description}>
+            Emergency services and your trusted contacts will be notified with your
+            location and device information.
+          </Text>
+
+          <View style={styles.infoContainer}>
+            <View style={styles.infoRow}>
+              <Icon name="battery" size={24} color={Colors.primary} />
+              <Text style={styles.infoText}>
+                Battery: {deviceInfo?.batteryLevel || 0}%
+              </Text>
             </View>
-          )}
-        </View>
-
-        {/* SOS Button - Reduced Size */}
-        <View style={styles.sosButtonContainer}>
-          <TouchableOpacity
-            style={styles.sosButton}
-            onPress={handleSOSPress}
-            disabled={isActivating}
-            activeOpacity={0.8}
-          >
-            {isActivating ? (
-              <ActivityIndicator size="large" color="#FFFFFF" />
-            ) : (
-              <>
-                <Icon name="alarm-light" size={60} color="#FFFFFF" />
-                <Text style={styles.sosText}>SOS</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        <Text style={styles.instruction}>Tap for instant SOS alert</Text>
-        <Text style={styles.description}>
-          Emergency services and your trusted contacts will be notified with your
-          location and device information.
-        </Text>
-
-        <View style={styles.infoContainer}>
-          <View style={styles.infoRow}>
-            <Icon name="battery" size={24} color={Colors.primary} />
-            <Text style={styles.infoText}>
-              Battery: {deviceInfo?.batteryLevel || 0}%
-            </Text>
+            <View style={styles.infoRow}>
+              <Icon name="signal" size={24} color={Colors.primary} />
+              <Text style={styles.infoText}>
+                Network: {deviceInfo?.networkStatus || 'Unknown'}
+              </Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Icon name="map-marker" size={24} color={Colors.primary} />
+              <Text style={styles.infoText}>
+                Location: {location ? 'Available' : 'Unavailable'}
+              </Text>
+            </View>
           </View>
-          <View style={styles.infoRow}>
-            <Icon name="signal" size={24} color={Colors.primary} />
-            <Text style={styles.infoText}>
-              Network: {deviceInfo?.networkStatus || 'Unknown'}
-            </Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Icon name="map-marker" size={24} color={Colors.primary} />
-            <Text style={styles.infoText}>
-              Location: {location ? 'Available' : 'Unavailable'}
-            </Text>
-          </View>
-        </View>
         </View>
       </ScrollView>
 
