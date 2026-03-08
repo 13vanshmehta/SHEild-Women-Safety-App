@@ -74,7 +74,7 @@ exports.triggerSOS = async (req, res) => {
     // Send notifications synchronously to ensure they're sent before responding
     try {
       await sendSOSNotifications(sosAlert._id, user, emergencyContacts, location, deviceInfo, triggerMode);
-      
+
       // Reload the alert to get updated notification count
       const updatedAlert = await SOSAlert.findById(sosAlert._id);
       const totalNotifications = updatedAlert.notificationsSent.length;
@@ -89,7 +89,7 @@ exports.triggerSOS = async (req, res) => {
       });
     } catch (notificationError) {
       console.error('❌ Error sending notifications:', notificationError);
-      
+
       // Even if notifications fail, the alert was created
       return res.status(200).json({
         success: true,
@@ -115,7 +115,7 @@ async function sendSOSNotifications(alertId, user, emergencyContacts, location, 
   console.log('\n🚨 ═══════════════════════════════════════');
   console.log('🚨 STARTING SOS NOTIFICATION PROCESS');
   console.log('🚨 ═══════════════════════════════════════\n');
-  
+
   console.log(`📋 Alert ID: ${alertId}`);
   console.log(`👤 User: ${user.firstName} ${user.lastName}`);
   console.log(`📞 User Phone: ${user.phoneNumber || 'Not provided'}`);
@@ -124,7 +124,7 @@ async function sendSOSNotifications(alertId, user, emergencyContacts, location, 
   console.log(`📶 Network: ${deviceInfo?.networkStatus || 'unknown'}`);
   console.log(`📱 Emergency Contacts: ${emergencyContacts.length}`);
   console.log('');
-  
+
   try {
     const sosAlert = await SOSAlert.findById(alertId);
     if (!sosAlert) {
@@ -135,7 +135,7 @@ async function sendSOSNotifications(alertId, user, emergencyContacts, location, 
     const userName = `${user.firstName} ${user.lastName}`;
     const userPhone = user.phoneNumber || 'Not provided';
     const googleMapsLink = `https://www.google.com/maps?q=${location.latitude},${location.longitude}`;
-    
+
     // Get address from coordinates if not provided
     let address = location.address || '';
     if (!address || address.trim() === '') {
@@ -143,13 +143,13 @@ async function sendSOSNotifications(alertId, user, emergencyContacts, location, 
         // Use OpenStreetMap Nominatim for reverse geocoding (free, no API key needed)
         const fetch = require('node-fetch');
         const geocodeUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${location.latitude}&lon=${location.longitude}&zoom=18&addressdetails=1`;
-        
+
         const response = await fetch(geocodeUrl, {
           headers: {
             'User-Agent': 'SHEild-Safety-App/1.0'
           }
         });
-        
+
         if (response.ok) {
           const data = await response.json();
           if (data.display_name) {
@@ -166,18 +166,19 @@ async function sendSOSNotifications(alertId, user, emergencyContacts, location, 
         address = `${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`;
       }
     }
-    
+
     // Format trigger mode for display
     const triggerModeMap = {
       'manual_button': 'Tapped SOS Button in App',
       'voice_detection': 'Voice Detection',
+      'voice_keyword': 'Voice Command (Keyword)',
       'fall_detection': 'Fall Detection',
       'shake_detection': 'Shaked Phone',
       'long_press': 'Long Pressed Button',
       'double_press': 'Double Pressed Button'
     };
     const triggerMethod = triggerModeMap[triggerMode] || 'SOS Button';
-    
+
     // Create SHORT SMS message (to avoid carrier blocking)
     const smsMessage = `EMERGENCY SOS ALERT!
 ${userName} needs help!
@@ -205,7 +206,7 @@ Location: ${googleMapsLink}`;
     console.log('─────────────────────────────────────');
     console.log(smsMessage);
     console.log('─────────────────────────────────────\n');
-    
+
     console.log('📝 WhatsApp Message (Full):');
     console.log('─────────────────────────────────────');
     console.log(whatsappMessage);
@@ -215,15 +216,15 @@ Location: ${googleMapsLink}`;
     // STEP 1: Send to Emergency Contacts
     // ═══════════════════════════════════════
     console.log('📱 STEP 1: Sending to Emergency Contacts\n');
-    
+
     let emergencyContactsSuccess = 0;
     let emergencyContactsFailed = 0;
-    
+
     for (let i = 0; i < emergencyContacts.length; i++) {
       const contact = emergencyContacts[i];
       console.log(`\n👤 Contact ${i + 1}/${emergencyContacts.length}: ${contact.name}`);
       console.log(`   Phone: ${contact.phoneNumber}`);
-      
+
       const notification = {
         recipientType: 'emergency_contact',
         recipientId: contact._id,
@@ -240,7 +241,7 @@ Location: ${googleMapsLink}`;
       console.log(`   📱 Sending SMS...`);
       try {
         const smsResult = await twilioService.sendSMS(contact.phoneNumber, smsMessage);
-        
+
         if (smsResult.success) {
           notification.smsStatus = 'sent';
           notification.smsSid = smsResult.sid;
@@ -261,7 +262,7 @@ Location: ${googleMapsLink}`;
       console.log(`   💬 Sending WhatsApp...`);
       try {
         const whatsappResult = await twilioService.sendWhatsApp(contact.phoneNumber, whatsappMessage);
-        
+
         if (whatsappResult.success) {
           notification.whatsappStatus = 'sent';
           notification.whatsappSid = whatsappResult.sid;
@@ -286,7 +287,7 @@ Location: ${googleMapsLink}`;
       }
 
       sosAlert.notificationsSent.push(notification);
-      
+
       // Update last contacted (even if failed)
       try {
         contact.lastContacted = new Date();
@@ -295,7 +296,7 @@ Location: ${googleMapsLink}`;
         console.log(`   ⚠️  Could not update last contacted: ${saveError.message}`);
       }
     }
-    
+
     console.log(`\n✅ Emergency contacts processed: ${emergencyContacts.length}`);
     console.log(`   Success: ${emergencyContactsSuccess}, Failed: ${emergencyContactsFailed}\n`);
 
@@ -303,7 +304,7 @@ Location: ${googleMapsLink}`;
     // STEP 2: Send to Trust Circle Groups (IN-APP ONLY)
     // ═══════════════════════════════════════
     console.log('👥 STEP 2: Sending to Trust Circle Groups (In-App Messages)\n');
-    
+
     const userGroups = await Group.find({
       'members.user': user._id,
       'members.isActive': true,
@@ -313,14 +314,14 @@ Location: ${googleMapsLink}`;
     console.log(`   Found ${userGroups.length} groups\n`);
 
     const GroupMessage = require('../models/groupMessage');
-    
+
     let groupsSuccess = 0;
     let groupsFailed = 0;
 
     for (let i = 0; i < userGroups.length; i++) {
       const group = userGroups[i];
       console.log(`\n📢 Group ${i + 1}/${userGroups.length}: ${group.name}`);
-      
+
       // Create in-app message in the group chat (independent - don't stop if one fails)
       try {
         const groupMessage = new GroupMessage({
@@ -399,7 +400,7 @@ Location: ${googleMapsLink}`;
       } catch (groupError) {
         console.log(`   ❌ Error sending to group: ${groupError.message}`);
         groupsFailed++;
-        
+
         // Still track the failed attempt
         sosAlert.notificationsSent.push({
           recipientType: 'group',
@@ -413,7 +414,7 @@ Location: ${googleMapsLink}`;
         });
       }
     }
-    
+
     console.log(`\n✅ Groups processed: ${userGroups.length} (in-app messages only)`);
     console.log(`   Success: ${groupsSuccess}, Failed: ${groupsFailed}\n`);
 
@@ -422,14 +423,14 @@ Location: ${googleMapsLink}`;
     // ═══════════════════════════════════════
     sosAlert.status = 'sent';
     await sosAlert.save();
-    
+
     // Calculate statistics
     const emergencyContactNotifications = sosAlert.notificationsSent.filter(n => n.recipientType === 'emergency_contact');
     const groupNotifications = sosAlert.notificationsSent.filter(n => n.recipientType === 'group');
-    
+
     const smsSuccess = emergencyContactNotifications.filter(n => n.smsStatus === 'sent').length;
     const whatsappSuccess = emergencyContactNotifications.filter(n => n.whatsappStatus === 'sent').length;
-    
+
     console.log('\n🚨 ═══════════════════════════════════════');
     console.log('🚨 SOS NOTIFICATION SUMMARY');
     console.log('🚨 ═══════════════════════════════════════');
@@ -446,7 +447,7 @@ Location: ${googleMapsLink}`;
     console.error('❌ ═══════════════════════════════════════');
     console.error(error);
     console.error('❌ ═══════════════════════════════════════\n');
-    
+
     // Update status to failed
     try {
       const sosAlert = await SOSAlert.findById(alertId);
@@ -457,7 +458,7 @@ Location: ${googleMapsLink}`;
     } catch (saveError) {
       console.error('Failed to update SOS alert status:', saveError);
     }
-    
+
     throw error;
   }
 }
@@ -490,11 +491,11 @@ exports.updateLocation = async (req, res) => {
     // Check if status actually changed and we haven't already notified
     const currentStatus = isOffline ? 'offline' : 'online';
     const lastNotifiedStatus = sosAlert.lastNotifiedStatus;
-    
+
     // Only send notification if status changed from last notification
     let shouldNotify = false;
     let statusMessage = '';
-    
+
     if (isOffline && lastNotifiedStatus !== 'offline') {
       // Device just went offline (and we haven't notified about offline yet)
       shouldNotify = true;
@@ -530,14 +531,14 @@ exports.updateLocation = async (req, res) => {
 
       // Send update to emergency contacts (async, don't wait)
       for (const contact of emergencyContacts) {
-        twilioService.sendSMS(contact.phoneNumber, statusMessage).catch(err => 
+        twilioService.sendSMS(contact.phoneNumber, statusMessage).catch(err =>
           console.error('Error sending location update SMS:', err)
         );
-        twilioService.sendWhatsApp(contact.phoneNumber, statusMessage).catch(err => 
+        twilioService.sendWhatsApp(contact.phoneNumber, statusMessage).catch(err =>
           console.error('Error sending location update WhatsApp:', err)
         );
       }
-      
+
       console.log(`📍 Status change notification sent: ${isOffline ? 'OFFLINE' : 'ONLINE'}`);
     } else {
       console.log(`📍 Location updated (no notification needed)`);
@@ -669,10 +670,10 @@ exports.cancelSOS = async (req, res) => {
     const cancelMessage = `✅ SOS Alert CANCELLED\n\n${user.firstName} ${user.lastName} has cancelled the emergency alert. They are safe now.`;
 
     for (const contact of emergencyContacts) {
-      twilioService.sendSMS(contact.phoneNumber, cancelMessage).catch(err => 
+      twilioService.sendSMS(contact.phoneNumber, cancelMessage).catch(err =>
         console.error('Error sending cancellation SMS:', err)
       );
-      twilioService.sendWhatsApp(contact.phoneNumber, cancelMessage).catch(err => 
+      twilioService.sendWhatsApp(contact.phoneNumber, cancelMessage).catch(err =>
         console.error('Error sending cancellation WhatsApp:', err)
       );
     }

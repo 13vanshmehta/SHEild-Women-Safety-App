@@ -22,7 +22,7 @@ const sosAlertSchema = new mongoose.Schema({
   },
   triggerMode: {
     type: String,
-    enum: ['manual_button', 'voice_detection', 'fall_detection', 'shake_detection', 'long_press', 'double_press'],
+    enum: ['manual_button', 'voice_detection', 'voice_keyword', 'fall_detection', 'shake_detection', 'long_press', 'double_press'],
     default: 'manual_button'
   },
   location: {
@@ -136,7 +136,7 @@ sosAlertSchema.index({ triggerTime: -1 });
 sosAlertSchema.index({ status: 1, createdAt: -1 });
 
 // Method to add location update
-sosAlertSchema.methods.addLocationUpdate = function(latitude, longitude, address = '', isOffline = false) {
+sosAlertSchema.methods.addLocationUpdate = function (latitude, longitude, address = '', isOffline = false) {
   this.locationUpdates.push({
     latitude,
     longitude,
@@ -144,7 +144,7 @@ sosAlertSchema.methods.addLocationUpdate = function(latitude, longitude, address
     timestamp: new Date(),
     isOffline
   });
-  
+
   // Update main location if online
   if (!isOffline) {
     this.location.latitude = latitude;
