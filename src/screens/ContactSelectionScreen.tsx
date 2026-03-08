@@ -48,32 +48,44 @@ const ContactSelectionScreen: React.FC<ContactSelectionScreenProps> = ({
   const loadContacts = useCallback(async () => {
     try {
       setLoading(true);
-      const permission = await contactService.checkPermission();
-      setHasPermission(permission);
-
-      if (!permission) {
-        const granted = await contactService.requestPermission();
-        setHasPermission(granted);
-        if (!granted) {
-          Alert.alert(
-            'Permission Required',
-            'Please grant contact permission to add emergency contacts.',
-            [{ text: 'OK', onPress: onBack }]
-          );
-          return;
-        }
+      
+      // Request permission (this will show iOS dialog if needed)
+      const granted = await contactService.requestPermission();
+      
+      if (!granted) {
+        setHasPermission(false);
+        setLoading(false);
+        return;
       }
-
+      
+      // Permission granted - update state and fetch contacts
+      setHasPermission(true);
       const contactList = await contactService.getContacts();
       setContacts(contactList);
       setFilteredContacts(contactList);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading contacts:', error);
-      Alert.alert('Error', 'Failed to load contacts. Please try again.');
+      Alert.alert('Error', error?.message || 'Failed to load contacts');
+      setHasPermission(false);
     } finally {
       setLoading(false);
     }
-  }, [onBack]);
+  }, []);
+
+  const checkInitialPermission = useCallback(async () => {
+    try {
+      const permission = await contactService.checkPermission();
+      setHasPermission(permission);
+      
+      // If permission is already granted, load contacts automatically
+      if (permission) {
+        await loadContacts();
+      }
+    } catch (error) {
+      console.error('Error checking initial permission:', error);
+      setHasPermission(false);
+    }
+  }, [loadContacts]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -82,21 +94,51 @@ const ContactSelectionScreen: React.FC<ContactSelectionScreenProps> = ({
   }, [loadContacts]);
 
   useEffect(() => {
-    loadContacts();
-  }, [loadContacts]);
+    checkInitialPermission();
+  }, [checkInitialPermission]);
 
   useEffect(() => {
-    if (searchQuery.trim()) {
-      const filtered = contacts.filter(contact =>
-        contact.displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        contact.phoneNumbers.some(phone => 
-          phone.number.replace(/\D/g, '').includes(searchQuery.replace(/\D/g, ''))
-        )
-      );
-      setFilteredContacts(filtered);
-    } else {
+    if (!searchQuery.trim()) {
+      // No search query - show all contacts
       setFilteredContacts(contacts);
+      return;
     }
+    
+    // Filter contacts based on search query
+    const query = searchQuery.toLowerCase().trim();
+    const filtered = contacts.filter(contact => {
+      // Search in display name
+      const displayName = (contact.displayName || '').toLowerCase();
+      if (displayName.includes(query)) return true;
+      
+      // Search in given name
+      const givenName = (contact.givenName || '').toLowerCase();
+      if (givenName.includes(query)) return true;
+      
+      // Search in family name
+      const familyName = (contact.familyName || '').toLowerCase();
+      if (familyName.includes(query)) return true;
+      
+      // Search in phone numbers (remove non-digits for comparison)
+      const queryDigits = query.replace(/\D/g, '');
+      if (queryDigits.length > 0) {
+        const phoneMatch = contact.phoneNumbers.some(phone => {
+          const phoneDigits = phone.number.replace(/\D/g, '');
+          return phoneDigits.includes(queryDigits);
+        });
+        if (phoneMatch) return true;
+      }
+      
+      // Search in email addresses
+      const emailMatch = contact.emailAddresses.some(email =>
+        email.email.toLowerCase().includes(query)
+      );
+      if (emailMatch) return true;
+      
+      return false;
+    });
+    
+    setFilteredContacts(filtered);
   }, [searchQuery, contacts]);
 
   const handleContactSelect = (contact: Contact) => {
@@ -270,7 +312,7 @@ const ContactSelectionScreen: React.FC<ContactSelectionScreenProps> = ({
     </View>
   );
 
-  if (!hasPermission) {
+  if (!hasPermission && !loading) {
     return (
       <SafeAreaView style={styles.container}>
         <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
@@ -280,9 +322,28 @@ const ContactSelectionScreen: React.FC<ContactSelectionScreenProps> = ({
           <Text style={styles.permissionMessage}>
             SHEild needs access to your contacts to add emergency contacts from your contact book.
           </Text>
-          <TouchableOpacity style={styles.permissionButton} onPress={loadContacts}>
+          <TouchableOpacity 
+            style={styles.permissionButton} 
+            onPress={loadContacts}
+            disabled={loading}
+          >
             <Text style={styles.permissionButtonText}>Grant Permission</Text>
           </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Show loading screen when requesting permission or loading contacts
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>
+            {hasPermission ? 'Loading contacts...' : 'Requesting permission...'}
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -316,6 +377,10 @@ const ContactSelectionScreen: React.FC<ContactSelectionScreenProps> = ({
           placeholderTextColor={Colors.textLight}
           value={searchQuery}
           onChangeText={setSearchQuery}
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="search"
+          clearButtonMode="while-editing"
         />
         {searchQuery.length > 0 && (
           <TouchableOpacity onPress={() => setSearchQuery('')}>

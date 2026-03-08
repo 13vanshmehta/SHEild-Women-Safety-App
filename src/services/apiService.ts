@@ -3,6 +3,7 @@ import Config from 'react-native-config';
 
 // Use environment variable or fallback to default
 const BASE_URL = Config.API_BASE_URL || 'http://192.168.29.17:8000';
+// const BASE_URL = Config.API_BASE_URL || 'http://192.168.0.104:8000';
 export const API_BASE_URL = BASE_URL;
 
 console.log('API Base URL:', BASE_URL);

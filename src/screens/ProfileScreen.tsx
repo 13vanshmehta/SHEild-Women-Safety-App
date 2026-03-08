@@ -9,8 +9,9 @@ import {
   ActivityIndicator,
   Modal,
   Dimensions,
+  TextInput,
+  Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAuth } from '../contexts/AuthContext';
 import { authService } from '../services/authService';
@@ -19,11 +20,14 @@ import { Colors } from '../constants/colors';
 const { width } = Dimensions.get('window');
 
 const ProfileScreen: React.FC = () => {
-  const { user, token, logout } = useAuth();
+  const { user, token, logout, updateUser } = useAuth();
   const [isDeleting, setIsDeleting] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showPhoneModal, setShowPhoneModal] = useState(false);
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [isUpdatingPhone, setIsUpdatingPhone] = useState(false);
 
   const handleDeleteAccount = () => {
     setShowDeleteModal(true);
@@ -68,10 +72,58 @@ const ProfileScreen: React.FC = () => {
     console.log('Edit profile feature coming soon');
   };
 
+  const handlePhoneNumberEdit = () => {
+    // Extract number without +91 if present
+    const currentPhone = user?.phoneNumber || '';
+    const phoneWithoutPrefix = currentPhone.startsWith('+91') 
+      ? currentPhone.substring(3) 
+      : currentPhone;
+    setPhoneNumber(phoneWithoutPrefix);
+    setShowPhoneModal(true);
+  };
+
+  const updatePhoneNumber = async () => {
+    if (!phoneNumber.trim()) {
+      Alert.alert('Error', 'Please enter a phone number');
+      return;
+    }
+
+    // Validate 10 digit number
+    if (!/^\d{10}$/.test(phoneNumber)) {
+      Alert.alert('Error', 'Please enter a valid 10-digit phone number');
+      return;
+    }
+
+    try {
+      setIsUpdatingPhone(true);
+      const fullPhoneNumber = `+91${phoneNumber}`;
+      
+      if (token) {
+        console.log('Updating phone number to:', fullPhoneNumber);
+        const response = await authService.updateProfile(token, { phoneNumber: fullPhoneNumber });
+        console.log('Update response:', response);
+        
+        if (response.success && response.data?.user) {
+          // Update the user context with the new data from backend
+          console.log('Updated user data:', response.data.user);
+          updateUser(response.data.user);
+          setShowPhoneModal(false);
+          Alert.alert('Success', 'Phone number updated successfully');
+        } else {
+          Alert.alert('Error', response.message || 'Failed to update phone number');
+        }
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to update phone number');
+    } finally {
+      setIsUpdatingPhone(false);
+    }
+  };
+
 
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Profile</Text>
@@ -131,11 +183,15 @@ const ProfileScreen: React.FC = () => {
             <Icon name="chevron-right" size={24} color={Colors.textLight} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.infoCard}>
+          <TouchableOpacity style={styles.infoCard} onPress={handlePhoneNumberEdit}>
             <Icon name="phone-outline" size={24} color={Colors.primary} />
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Phone Number</Text>
-              <Text style={styles.infoValue}>{user?.phoneNumber || 'Not set'}</Text>
+              <Text style={styles.infoValue}>
+                {user?.phoneNumber 
+                  ? (user.phoneNumber.startsWith('+91') ? user.phoneNumber : `+91${user.phoneNumber}`)
+                  : 'Not set'}
+              </Text>
             </View>
             <Icon name="chevron-right" size={24} color={Colors.textLight} />
           </TouchableOpacity>
@@ -288,7 +344,65 @@ const ProfileScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+
+      {/* Phone Number Edit Modal */}
+      <Modal
+        visible={showPhoneModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowPhoneModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <View style={[styles.modalIconContainer, { backgroundColor: Colors.primary + '20' }]}>
+                <Icon name="phone-outline" size={32} color={Colors.primary} />
+              </View>
+              <Text style={styles.modalTitle}>Update Phone Number</Text>
+              <Text style={styles.modalSubtitle}>
+                Enter your 10-digit phone number
+              </Text>
+            </View>
+
+            <View style={styles.phoneInputContainer}>
+              <View style={styles.countryCodeContainer}>
+                <Text style={styles.countryCodeText}>+91</Text>
+              </View>
+              <TextInput
+                style={styles.phoneInput}
+                value={phoneNumber}
+                onChangeText={setPhoneNumber}
+                placeholder="Enter phone number"
+                keyboardType="phone-pad"
+                maxLength={10}
+                placeholderTextColor={Colors.textLight}
+              />
+            </View>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setShowPhoneModal(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.modalButton, styles.confirmButton]}
+                onPress={updatePhoneNumber}
+                disabled={isUpdatingPhone}
+              >
+                {isUpdatingPhone ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.confirmButtonText}>Update</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
   );
 };
 
@@ -553,6 +667,35 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  phoneInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 12,
+    backgroundColor: Colors.secondary,
+    overflow: 'hidden',
+  },
+  countryCodeContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: Colors.primary + '10',
+    borderRightWidth: 1,
+    borderRightColor: Colors.border,
+  },
+  countryCodeText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.primary,
+  },
+  phoneInput: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: Colors.text,
   },
 });
 

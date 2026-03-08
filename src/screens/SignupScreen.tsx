@@ -19,6 +19,7 @@ import { Colors } from '../constants';
 import { authService } from '../services/authService';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { useAuth } from '../contexts/AuthContext';
+import Config from 'react-native-config';
 
 interface SignupScreenProps {
   onSignupSuccess: (email: string) => void;
@@ -38,8 +39,17 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignupSuccess, onNavigate
 
   // Google Sign-In configuration
   useEffect(() => {
+    console.log('Configuring Google Sign-In with:', {
+      webClientId: Config.GOOGLE_WEB_CLIENT_ID,
+      iosClientId: Config.GOOGLE_IOS_CLIENT_ID,
+      platform: Platform.OS,
+    });
+    
     GoogleSignin.configure({
-      webClientId: '387247252263-fggkf3drod1j2fn9ms7sa9gruep1cpg0.apps.googleusercontent.com', // Web client ID
+      // For Android, we must use the Web Client ID (server client ID) 
+      // This is required for ID token generation that will be verified on the backend
+      webClientId: Config.GOOGLE_WEB_CLIENT_ID || '387247252263-fggkf3drod1j2fn9ms7sa9gruep1cpg0.apps.googleusercontent.com',
+      iosClientId: Config.GOOGLE_IOS_CLIENT_ID || '387247252263-lvekppuc0mp48t8flckb4obphsra96h2.apps.googleusercontent.com',
       offlineAccess: true,
       forceCodeForRefreshToken: true,
     });

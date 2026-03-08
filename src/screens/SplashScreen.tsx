@@ -25,76 +25,86 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onAnimationComplete }) => {
   const [serverError, setServerError] = useState<string | null>(null);
 
   const checkServerAndProceed = useCallback(async () => {
-    setIsCheckingServer(true);
-    setServerError(null);
-    
     try {
       const response = await apiService.checkServerHealth();
-      
       if (response.status === 'success') {
-        onAnimationComplete();
-      } else {
-        setServerError('Server not working, please try again later');
+        return true;
       }
+      setServerError('Server not working, please try again later');
+      return false;
     } catch {
       setServerError('Server not working, please try again later');
-    } finally {
-      setIsCheckingServer(false);
+      return false;
     }
-  }, [onAnimationComplete]);
+  }, []);
 
   useEffect(() => {
-    // Start the animation sequence
-    const animationSequence = Animated.sequence([
-      // Logo pop-up animation with bounce and rotation effect
-      Animated.parallel([
-        Animated.spring(logoScale, {
-          toValue: 1,
-          tension: 50,
-          friction: 8,
-          useNativeDriver: true,
-        }),
-        Animated.timing(logoOpacity, {
-          toValue: 1,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(logoRotation, {
-          toValue: 1,
-          duration: 1200,
-          useNativeDriver: true,
-        }),
-      ]),
-      // Text fade-in animation
-      Animated.parallel([
-        Animated.timing(textOpacity, {
-          toValue: 1,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-        Animated.timing(textTranslateY, {
-          toValue: 0,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-      ]),
-      // Hold for a longer moment
-      Animated.delay(2000),
-    ]);
+    let serverIsReady = false;
+    setIsCheckingServer(true);
 
-    animationSequence.start(() => {
-      // Start server check after animation completes
-      checkServerAndProceed();
+    // 1. Start server health check immediately without waiting
+    const serverCheckPromise = checkServerAndProceed().then((success) => {
+      serverIsReady = success;
+    });
+
+    // 2. Wrap animation sequence in a promise
+    const animationPromise = new Promise<void>((resolve) => {
+      Animated.sequence([
+        // Logo pop-up animation with bounce and rotation effect
+        Animated.parallel([
+          Animated.spring(logoScale, {
+            toValue: 1,
+            tension: 50,
+            friction: 8,
+            useNativeDriver: true,
+          }),
+          Animated.timing(logoOpacity, {
+            toValue: 1,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(logoRotation, {
+            toValue: 1,
+            duration: 900,
+            useNativeDriver: true,
+          }),
+        ]),
+        // Text fade-in animation
+        Animated.parallel([
+          Animated.timing(textOpacity, {
+            toValue: 1,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+          Animated.timing(textTranslateY, {
+            toValue: 0,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+        ]),
+        // Reduced hardcoded hold to vastly speed up entry transition
+        Animated.delay(400),
+      ]).start(() => resolve());
+    });
+
+    // 3. Wait for BOTH the minimum visual animation time AND the server API response
+    Promise.all([serverCheckPromise, animationPromise]).then(() => {
+      setIsCheckingServer(false);
+
+      if (serverIsReady) {
+        onAnimationComplete();
+      }
+      // If server failed, the error state is already set and UI will reflect it
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checkServerAndProceed]);
+  }, []);
 
   return (
     <View style={styles.container}>
       <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
-      
+
       {/* Logo Container */}
-      <Animated.View 
+      <Animated.View
         style={[
           styles.logoContainer,
           {
@@ -107,7 +117,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onAnimationComplete }) => {
       >
         {/* App Logo with Glow Effect */}
         <View style={styles.logoContainer}>
-          <Image 
+          <Image
             source={require('../assets/images/Sheild-App-Logo.png')}
             style={styles.logoImage}
             resizeMode="contain"
@@ -116,7 +126,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onAnimationComplete }) => {
       </Animated.View>
 
       {/* Text Container */}
-      <Animated.View 
+      <Animated.View
         style={[
           styles.textContainer,
           {
@@ -137,7 +147,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onAnimationComplete }) => {
             <Text style={styles.loadingText}>Loading...</Text>
           </View>
         )}
-        
+
         {serverError && (
           <Text style={styles.errorText}>{serverError}</Text>
         )}

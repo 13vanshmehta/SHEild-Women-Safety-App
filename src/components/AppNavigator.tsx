@@ -27,9 +27,9 @@ const AppNavigator: React.FC = () => {
     initializeApp();
   }, []);
 
-  const handleSplashComplete = () => {
+  const handleSplashComplete = React.useCallback(() => {
     setShowSplash(false);
-  };
+  }, []);
 
   const handleOnboardingComplete = () => {
     setIsOnboardingComplete(true);
