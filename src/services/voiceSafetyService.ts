@@ -1,11 +1,13 @@
 import Voice from '@react-native-voice/voice';
-import { Alert, AppState, AppStateStatus, Platform } from 'react-native';
+import { Alert, AppState, AppStateStatus, Platform, Vibration } from 'react-native';
+import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 
 export interface VoiceSafetyConfig {
   keywords: string[];
   locale: string;
   onKeywordDetected: (keyword: string, fullText: string) => void;
   onError?: (error: any) => void;
+  silent?: boolean;
 }
 
 class VoiceSafetyService {
@@ -14,7 +16,9 @@ class VoiceSafetyService {
   private detectedKeywords: Set<string> = new Set();
   private isInitialized: boolean = false;
   private appStateSubscription: any = null;
-  private currentAppState: AppStateStatus = 'active';
+  private currentAppState: AppStateStatus = AppState.currentState;
+  private heartbeatInterval: any = null;
+  private isStarting: boolean = false;
 
   constructor() {
     // Initialize will be called when first needed
@@ -34,17 +38,49 @@ class VoiceSafetyService {
   private handleAppStateChange(nextAppState: AppStateStatus) {
     console.log('🎤 VoiceService: App State Changed:', this.currentAppState, '->', nextAppState);
 
-    if (this.currentAppState.match(/inactive|background/) && nextAppState === 'active') {
+    if (nextAppState === 'active') {
       // App came to foreground
       if (this.isListening && this.config) {
-        console.log('🎤 VoiceService: Resuming voice recognition in foreground');
-        // Voice should continue automatically, but restart if needed
+        console.log('🎤 VoiceService: Syncing voice recognition in foreground');
         this.ensureListening();
+      }
+    } else if (nextAppState.match(/inactive|background/)) {
+      // App went to background
+      if (this.isListening && this.config) {
+        console.log('🎤 VoiceService: Entering background monitoring mode');
+        this.startHeartbeat();
       }
     }
 
     this.currentAppState = nextAppState;
   }
+
+  /**
+   * Start a heartbeat timer to keep listening alive
+   */
+  private startHeartbeat() {
+    if (this.heartbeatInterval) return;
+
+    this.heartbeatInterval = setInterval(() => {
+      if (this.isListening) {
+        this.ensureListening();
+      } else {
+        this.stopHeartbeat();
+      }
+    }, 7000); // 7 second heartbeat
+  }
+
+  /**
+   * Stop the heartbeat timer
+   */
+  private stopHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
+  }
+
+
 
   /**
    * Ensure voice recognition is still running
@@ -55,11 +91,11 @@ class VoiceSafetyService {
     try {
       // Diagnostic Heartbeat
       const isRecognizing = await Voice.isRecognizing();
-      console.log('🎤 Voice Heartbeat - Recognized Status:', isRecognizing);
+      // console.log('🎤 Voice Heartbeat - Recognized Status:', isRecognizing);
 
       if (!isRecognizing) {
-        console.log('🎤 VoiceService: Voice stopped, restarting...');
-        await this.startVoiceEngine();
+        console.log('🎤 VoiceService: Voice stopped, auto-restarting...');
+        await this.startVoiceEngine(true); // Auto-restart
       }
     } catch (error) {
       console.error('🎤 VoiceService: Error ensuring listening:', error);
@@ -69,13 +105,16 @@ class VoiceSafetyService {
   /**
    * Internal helper to start Voice engine with smart strategy
    */
-  private async startVoiceEngine() {
+  private async startVoiceEngine(isAutoRestart: boolean = false) {
     if (!this.config) return;
-    const locale = this.config.locale || 'en-US';
+    if (this.isStarting) return;
+    this.isStarting = true;
+
+    const locale = this.config.locale || 'en-IN';
 
     try {
       // Strategy 1: System Default (Safest for modern devices like S24 Ultra)
-      console.log('🎤 Attempting Voice.start with SYSTEM DEFAULT engine...');
+      console.log(`🎤 Attempting Voice.start (${locale}) with SYSTEM DEFAULT engine...`);
       await Voice.start(locale, {
         EXTRA_PARTIAL_RESULTS: true,
         REQUEST_PERMISSIONS_AUTO: true
@@ -95,6 +134,8 @@ class VoiceSafetyService {
         console.error('🎤 ❌ All voice engine strategies failed:', googleError);
         throw googleError;
       }
+    } finally {
+      this.isStarting = false;
     }
   }
 
@@ -136,11 +177,10 @@ class VoiceSafetyService {
       Voice.onSpeechPartialResults = this.onSpeechPartialResults.bind(this);
       Voice.onSpeechError = this.onSpeechError.bind(this);
       Voice.onSpeechRecognized = (_e: any) => {
-        console.log('🎤 Speech recognition confirmed by engine');
+        // console.log('🎤 Speech recognition confirmed by engine');
       };
-      Voice.onSpeechVolumeChanged = (e: any) => {
-        // Just log if it's very high/low to see if mic is working
-        if (e.value > 10) console.log('🎤 Mic volume peak:', e.value);
+      Voice.onSpeechVolumeChanged = (_e: any) => {
+        // Silenced volume logs
       };
 
       this.isInitialized = true;
@@ -209,8 +249,11 @@ class VoiceSafetyService {
 
       // Start continuous recognition with background support
       try {
-        await this.startVoiceEngine();
-        console.log('🎤 ✅ Voice engine started successfully!');
+        await this.startVoiceEngine(false); // Explicit start
+        if (!config.silent) {
+          // Audio feedback removed to fix crashes
+        }
+        console.log('🎤 ✅ Voice engine started!');
       } catch (startError: any) {
         console.error('🎤 ❌ Voice.start() failed:');
         console.error('🎤 Error message:', startError?.message);
@@ -222,6 +265,7 @@ class VoiceSafetyService {
       }
 
       this.isListening = true;
+      this.startHeartbeat();
 
       console.log('🎤 Voice Safety Mode: Started listening for keywords:', config.keywords);
       console.log('🎤 Background mode enabled - will continue when app is in background');
@@ -265,9 +309,10 @@ class VoiceSafetyService {
   async stopListening(): Promise<void> {
     try {
       if (this.isListening) {
-        await Voice.stop();
-        await Voice.destroy();
         this.isListening = false;
+        this.stopHeartbeat();
+        await Voice.cancel(); // Use cancel to minimize beeps
+        await Voice.destroy();
         this.detectedKeywords.clear(); // Clear detected keywords on stop
         console.log('🛑 Voice Safety Mode: Stopped listening');
       }
@@ -281,9 +326,10 @@ class VoiceSafetyService {
    */
   async cancel(): Promise<void> {
     try {
+      this.isListening = false;
+      this.stopHeartbeat();
       await Voice.cancel();
       await Voice.destroy();
-      this.isListening = false;
       this.config = null;
       this.detectedKeywords.clear();
 
@@ -308,14 +354,14 @@ class VoiceSafetyService {
    * Event: Speech recognition started
    */
   private onSpeechStart(_event: any): void {
-    console.log('🎤 Speech started');
+    // console.log('🎤 Speech started');
   }
 
   /**
    * Event: Speech recognition ended
    */
   private onSpeechEnd(_event: any): void {
-    console.log('🎤 Speech ended');
+    // console.log('🎤 Speech ended');
 
     // Auto-restart if still in listening mode
     if (this.isListening && this.config) {
@@ -325,7 +371,7 @@ class VoiceSafetyService {
             // Check if already recognizing to avoid concurrent starts
             const isRecognizing = await Voice.isRecognizing();
             if (!isRecognizing) {
-              await this.startVoiceEngine();
+              await this.startVoiceEngine(true); // Auto-restart
             }
           } catch (e) {
             console.error('🎤 Voice: Error during auto-restart after end:', e);
@@ -342,7 +388,7 @@ class VoiceSafetyService {
     if (!this.config) return;
 
     const results = event.value || [];
-    console.log('🎤 RAW SPEECH RESULTS (Final):', JSON.stringify(results));
+    // console.log('🎤 RAW SPEECH RESULTS (Final):', JSON.stringify(results));
 
     // Check all results for keywords
     for (const text of results) {
@@ -358,7 +404,7 @@ class VoiceSafetyService {
     if (!this.config) return;
 
     const results = event.value || [];
-    console.log('🎤 RAW SPEECH RESULTS (Partial):', JSON.stringify(results));
+    // console.log('🎤 RAW SPEECH RESULTS (Partial):', JSON.stringify(results));
 
     // Check partial results for immediate keyword detection
     for (const text of results) {
@@ -374,11 +420,9 @@ class VoiceSafetyService {
     const errorMsg = event.error?.message || '';
     const errorCode = event.error?.code || String(event.error);
 
-    // Error code 7 means "No match" (user said nothing or unrecognizable). 
-    // Error code 10 often relates to "Didn't understand" or transient engine resets on some devices.
-    // These are normal in continuous listening mode, so we just log them as info, not error.
+    // these are normal in continuous listening mode, so we just log them in DEBUG if needed.
     if (errorCode === '7' || errorCode === '10' || errorMsg.includes('No match') || errorMsg.includes('understand')) {
-      console.log(`🎤 Speech listener cycle reset (Code: ${errorCode} - continuing to listen)`);
+      // Quiet reset
     } else {
       console.error('🎤 Speech recognition error:', event.error);
     }
@@ -400,7 +444,7 @@ class VoiceSafetyService {
           try {
             const isRecognizing = await Voice.isRecognizing();
             if (!isRecognizing) {
-              await this.startVoiceEngine();
+              await this.startVoiceEngine(true); // Auto-restart
             }
           } catch (e) {
             console.error('🎤 Voice: Error during auto-restart after error:', e);
@@ -446,15 +490,18 @@ class VoiceSafetyService {
           console.log('🚨 EMERGENCY KEYWORD DETECTED:', keyword);
           console.log('🚨 Full text:', text);
 
+          // Physical Feedback (Audio removed to fix crashes)
+          Vibration.vibrate([0, 200, 100, 200]); // Pulse
+          ReactNativeHapticFeedback.trigger('notificationError');
+
           // Trigger callback
           this.config.onKeywordDetected(keyword, text);
 
-          // Clear detected keywords after 5 seconds to allow re-detection
-          // Increased from 2 to 5 seconds to prevent accidental re-triggers
+          // Clear detected keywords after 10 seconds (restored old working delay)
           setTimeout(() => {
             this.detectedKeywords.delete(lowerKeyword);
-            console.log('� Reset detection for keyword:', lowerKeyword);
-          }, 5000);
+            console.log('🔄 Reset detection for keyword:', lowerKeyword);
+          }, 10000);
         } else {
           console.log('⏭️ Skipping duplicate detection for:', lowerKeyword);
         }

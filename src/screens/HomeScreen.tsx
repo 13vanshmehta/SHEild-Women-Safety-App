@@ -739,7 +739,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 100,
+    paddingBottom: 140, // Increased to clear bottom navigation bar
   },
   greetingContainer: {
     paddingHorizontal: 20,

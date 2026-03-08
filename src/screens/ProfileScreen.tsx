@@ -75,8 +75,8 @@ const ProfileScreen: React.FC = () => {
   const handlePhoneNumberEdit = () => {
     // Extract number without +91 if present
     const currentPhone = user?.phoneNumber || '';
-    const phoneWithoutPrefix = currentPhone.startsWith('+91') 
-      ? currentPhone.substring(3) 
+    const phoneWithoutPrefix = currentPhone.startsWith('+91')
+      ? currentPhone.substring(3)
       : currentPhone;
     setPhoneNumber(phoneWithoutPrefix);
     setShowPhoneModal(true);
@@ -97,12 +97,12 @@ const ProfileScreen: React.FC = () => {
     try {
       setIsUpdatingPhone(true);
       const fullPhoneNumber = `+91${phoneNumber}`;
-      
+
       if (token) {
         console.log('Updating phone number to:', fullPhoneNumber);
         const response = await authService.updateProfile(token, { phoneNumber: fullPhoneNumber });
         console.log('Update response:', response);
-        
+
         if (response.success && response.data?.user) {
           // Update the user context with the new data from backend
           console.log('Updated user data:', response.data.user);
@@ -164,7 +164,7 @@ const ProfileScreen: React.FC = () => {
         {/* User Info Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Personal Information</Text>
-          
+
           <TouchableOpacity style={styles.infoCard}>
             <Icon name="account-outline" size={24} color={Colors.primary} />
             <View style={styles.infoContent}>
@@ -188,7 +188,7 @@ const ProfileScreen: React.FC = () => {
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Phone Number</Text>
               <Text style={styles.infoValue}>
-                {user?.phoneNumber 
+                {user?.phoneNumber
                   ? (user.phoneNumber.startsWith('+91') ? user.phoneNumber : `+91${user.phoneNumber}`)
                   : 'Not set'}
               </Text>
@@ -285,7 +285,7 @@ const ProfileScreen: React.FC = () => {
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={[styles.modalButton, styles.confirmButton]}
                 onPress={confirmLogout}
@@ -328,7 +328,7 @@ const ProfileScreen: React.FC = () => {
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={[styles.modalButton, styles.deleteButton]}
                 onPress={confirmDeleteAccount}
@@ -386,7 +386,7 @@ const ProfileScreen: React.FC = () => {
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={[styles.modalButton, styles.confirmButton]}
                 onPress={updatePhoneNumber}
@@ -426,7 +426,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 100,
+    paddingBottom: 140, // Increased to clear bottom navigation bar
   },
   profileHeader: {
     alignItems: 'center',

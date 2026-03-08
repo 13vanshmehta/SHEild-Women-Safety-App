@@ -47,6 +47,8 @@ class AudioService {
         channels: 1,
         sampleRate: 44100,
         quality: 'high',
+        format: 'mp4',
+        encoder: 'aac',
       });
 
       // Prepare and start recording
@@ -101,7 +103,7 @@ class AudioService {
 
       // Get the full path
       const fullPath = this.recorder.fsPath;
-      
+
       // Destroy recorder
       this.recorder.destroy();
       this.recorder = null;
@@ -138,7 +140,7 @@ class AudioService {
             ios: `${RNFS.DocumentDirectoryPath}/${this.recordingPath}`,
             android: `${RNFS.CachesDirectoryPath}/${this.recordingPath}`,
           });
-          
+
           if (fullPath) {
             const exists = await RNFS.exists(fullPath);
             if (exists) {
@@ -148,7 +150,7 @@ class AudioService {
         } catch (deleteError) {
           console.warn('Error deleting recording file:', deleteError);
         }
-        
+
         this.recordingPath = null;
       }
     } catch (error) {
@@ -156,31 +158,58 @@ class AudioService {
     }
   }
 
+  private isPlaying: boolean = false;
+
   async playAudio(url: string): Promise<void> {
     try {
-      // Stop any existing playback
+      // 1. Force stop any existing playback before continuing
       if (this.player) {
-        this.player.destroy();
+        try {
+          this.player.stop();
+          this.player.destroy();
+        } catch (e) { }
+        this.player = null;
       }
 
-      // Create new player
-      this.player = new Player(url, {
-        autoDestroy: false,
+      this.isPlaying = true;
+
+      // 2. Create the player instance
+      const newPlayer = new Player(url, {
+        autoDestroy: true,
+        continuesToPlayInBackground: true,
       });
 
-      // Prepare and play
+      // 3. Store in class variable for global stop/pause control
+      this.player = newPlayer;
+
+      // 4. Prepare and play using LOCAL REFERENCE to avoid null crashes if this.player is reset elsewhere
       await new Promise<void>((resolve, reject) => {
-        this.player!.prepare((err) => {
+        // Safe check for the constant reference
+        if (!newPlayer) {
+          this.isPlaying = false;
+          return reject(new Error('Player creation failed'));
+        }
+
+        const timeout = setTimeout(() => {
+          this.isPlaying = false;
+          reject(new Error('Audio playback timeout'));
+        }, 5000);
+
+        newPlayer.prepare((err) => {
           if (err) {
+            clearTimeout(timeout);
+            this.isPlaying = false;
             console.error('Player prepare error:', err);
             reject(err);
           } else {
-            this.player!.play((error) => {
+            // Re-verify instance still exists (though newPlayer is local, we check for logic sake)
+            newPlayer.play((error) => {
+              clearTimeout(timeout);
+              this.isPlaying = false;
               if (error) {
                 console.error('Player play error:', error);
                 reject(error);
               } else {
-                console.log('Audio playback started');
                 resolve();
               }
             });
@@ -188,23 +217,22 @@ class AudioService {
         });
       });
     } catch (error) {
-      console.error('Error playing audio:', error);
-      throw error;
+      this.isPlaying = false;
+      console.error('Error in playAudio workflow:', error);
     }
   }
 
   async stopAudio(): Promise<void> {
     try {
       if (this.player) {
-        this.player.stop(() => {
-          if (this.player) {
-            this.player.destroy();
-            this.player = null;
-          }
-        });
+        this.player.stop();
+        this.player.destroy();
+        this.player = null;
       }
+      this.isPlaying = false;
     } catch (error) {
-      console.error('Error stopping audio:', error);
+      console.warn('Error stopping audio:', error);
+      this.isPlaying = false;
     }
   }
 

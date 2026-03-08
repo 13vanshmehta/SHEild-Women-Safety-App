@@ -51,28 +51,28 @@ const LinkableText: React.FC<{
   // Improved URL regex pattern that handles more cases
   // Matches http(s) URLs and common patterns
   const urlPattern = /(https?:\/\/[^\s]+)/gi;
-  
+
   const parts = [];
   let lastIndex = 0;
   let match;
-  
+
   // Find all URLs in the text
   const regex = new RegExp(urlPattern);
   while ((match = regex.exec(text)) !== null) {
     let url = match[0];
-    
+
     // Remove trailing punctuation that's not part of the URL
     // Common punctuation at end of sentences: . , ! ? ) ] }
     const trailingPunctuationPattern = /[.,!?)\]}>]+$/;
     const trailingMatch = url.match(trailingPunctuationPattern);
     let trailingPunctuation = '';
-    
+
     if (trailingMatch) {
       // Check if the punctuation is actually part of the URL
       // Keep ) if there's a matching ( in the URL
       const openParens = (url.match(/\(/g) || []).length;
       const closeParens = (url.match(/\)/g) || []).length;
-      
+
       if (closeParens > openParens) {
         // Remove extra closing parens
         const extraParens = closeParens - openParens;
@@ -86,7 +86,7 @@ const LinkableText: React.FC<{
         }
         url = tempUrl;
       }
-      
+
       // Remove other trailing punctuation
       const otherPunctuation = url.match(/[.,!?>\]]+$/);
       if (otherPunctuation) {
@@ -94,7 +94,7 @@ const LinkableText: React.FC<{
         url = url.substring(0, url.length - otherPunctuation[0].length);
       }
     }
-    
+
     // Add text before the URL
     if (match.index > lastIndex) {
       parts.push({
@@ -102,13 +102,13 @@ const LinkableText: React.FC<{
         content: text.substring(lastIndex, match.index),
       });
     }
-    
+
     // Add the URL
     parts.push({
       type: 'link',
       content: url,
     });
-    
+
     // Add trailing punctuation as text
     if (trailingPunctuation) {
       parts.push({
@@ -116,10 +116,10 @@ const LinkableText: React.FC<{
         content: trailingPunctuation,
       });
     }
-    
+
     lastIndex = match.index + match[0].length;
   }
-  
+
   // Add remaining text
   if (lastIndex < text.length) {
     parts.push({
@@ -127,12 +127,12 @@ const LinkableText: React.FC<{
       content: text.substring(lastIndex),
     });
   }
-  
+
   // If no links found, return plain text
   if (parts.length === 0) {
     return <Text style={style}>{text}</Text>;
   }
-  
+
   return (
     <Text style={style}>
       {parts.map((part, index) => {
@@ -161,9 +161,9 @@ const LinkableText: React.FC<{
 };
 
 // Create Group Modal Component
-const CreateGroupModal: React.FC<{ 
-  visible: boolean; 
-  onClose: () => void; 
+const CreateGroupModal: React.FC<{
+  visible: boolean;
+  onClose: () => void;
   onSuccess: () => void;
   setSuccessModal: (modal: any) => void;
   shareJoinCode: (code: string, name: string) => void;
@@ -200,14 +200,14 @@ const CreateGroupModal: React.FC<{
       if (response && response.success) {
         const joinCode = response.data?.joinCode;
         const createdGroupName = response.data?.name || groupName;
-        
+
         // Clear form fields
         setGroupName('');
         setDescription('');
-        
+
         // Close the create group modal
         onClose();
-        
+
         // Show custom success modal
         setSuccessModal({
           visible: true,
@@ -289,9 +289,9 @@ const CreateGroupModal: React.FC<{
 };
 
 // Join Group Modal Component
-const JoinGroupModal: React.FC<{ 
-  visible: boolean; 
-  onClose: () => void; 
+const JoinGroupModal: React.FC<{
+  visible: boolean;
+  onClose: () => void;
   onSuccess: () => void;
   showToast: (message: string, type: 'success' | 'error') => void;
   showAlert: (title: string, message: string, buttons?: any[], icon?: string, iconColor?: string) => void;
@@ -440,10 +440,10 @@ const ImageMessageBubble: React.FC<{
 
       // Try to get from server
       const response = await apiService.get(`/api/groups/${groupId}/messages/${message._id}/media`);
-      
+
       if (response && response.success && response.data && response.data.mediaData) {
         const mediaData = response.data.mediaData;
-        
+
         // Cache it locally
         const cacheKey = `image_${message._id}`;
         try {
@@ -488,24 +488,24 @@ const ImageMessageBubble: React.FC<{
         // Max height: 400px (reasonable for chat)
         const maxWidth = SCREEN_WIDTH * 0.7;
         const maxHeight = 400;
-        
+
         let displayWidth = width;
         let displayHeight = height;
-        
+
         // Scale down if too wide
         if (width > maxWidth) {
           const ratio = maxWidth / width;
           displayWidth = maxWidth;
           displayHeight = height * ratio;
         }
-        
+
         // Scale down if too tall
         if (displayHeight > maxHeight) {
           const ratio = maxHeight / displayHeight;
           displayWidth = displayWidth * ratio;
           displayHeight = maxHeight;
         }
-        
+
         // Minimum size for very small images
         const minSize = 100;
         if (displayWidth < minSize && displayHeight < minSize) {
@@ -513,7 +513,7 @@ const ImageMessageBubble: React.FC<{
           displayWidth *= scale;
           displayHeight *= scale;
         }
-        
+
         setImageDimensions({ width: Math.round(displayWidth), height: Math.round(displayHeight) });
       },
       (error) => {
@@ -540,24 +540,24 @@ const ImageMessageBubble: React.FC<{
           activeOpacity={0.7}
           onPress={downloadImage}
           onLongPress={onLongPress}
-          style={[styles.imageBubbleContainer, { 
-            justifyContent: 'center', 
+          style={[styles.imageBubbleContainer, {
+            justifyContent: 'center',
             alignItems: 'center',
             backgroundColor: 'rgba(0,0,0,0.05)',
             minHeight: 150,
           }]}
         >
           <Icon name="download" size={40} color={Colors.primary} />
-          <Text style={[styles.messageText, { 
-            color: Colors.primary, 
+          <Text style={[styles.messageText, {
+            color: Colors.primary,
             marginTop: 8,
             fontSize: 14,
             fontWeight: '600',
           }]}>
             Tap to download image
           </Text>
-          <Text style={[styles.messageText, { 
-            color: Colors.textLight, 
+          <Text style={[styles.messageText, {
+            color: Colors.textLight,
             marginTop: 4,
             fontSize: 11,
           }]}>
@@ -574,8 +574,8 @@ const ImageMessageBubble: React.FC<{
     return (
       <View style={[styles.imageBubbleContainer, { justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="small" color={Colors.primary} />
-        <Text style={[styles.messageText, { 
-          color: Colors.textLight, 
+        <Text style={[styles.messageText, {
+          color: Colors.textLight,
           marginTop: 8,
           fontSize: 12,
         }]}>
@@ -591,24 +591,24 @@ const ImageMessageBubble: React.FC<{
       <TouchableOpacity
         activeOpacity={0.7}
         onLongPress={onLongPress}
-        style={[styles.imageBubbleContainer, { 
-          justifyContent: 'center', 
+        style={[styles.imageBubbleContainer, {
+          justifyContent: 'center',
           alignItems: 'center',
           backgroundColor: 'rgba(0,0,0,0.05)',
           minHeight: 150,
         }]}
       >
         <Icon name="image-off" size={40} color={Colors.textLight} />
-        <Text style={[styles.messageText, { 
-          color: Colors.textLight, 
+        <Text style={[styles.messageText, {
+          color: Colors.textLight,
           marginTop: 8,
           fontSize: 12,
           textAlign: 'center',
         }]}>
           {message.hasMediaData ? 'Failed to load image' : 'Image no longer available'}
         </Text>
-        <Text style={[styles.messageText, { 
-          color: Colors.textLight, 
+        <Text style={[styles.messageText, {
+          color: Colors.textLight,
           marginTop: 4,
           fontSize: 10,
           textAlign: 'center',
@@ -623,14 +623,14 @@ const ImageMessageBubble: React.FC<{
       </TouchableOpacity>
     );
   }
-  
+
   // Show downloaded image with dynamic dimensions
   const imageStyle = imageDimensions
     ? {
-        width: imageDimensions.width,
-        height: imageDimensions.height,
-        borderRadius: 12,
-      }
+      width: imageDimensions.width,
+      height: imageDimensions.height,
+      borderRadius: 12,
+    }
     : styles.imageBubble; // Fallback to default style while loading dimensions
 
   return (
@@ -675,9 +675,9 @@ const ImageMessageBubble: React.FC<{
 };
 
 // Group Chat Screen Component - Rewritten with proper layout
-const GroupChatScreen: React.FC<{ 
-  group: any; 
-  onBack: () => void; 
+const GroupChatScreen: React.FC<{
+  group: any;
+  onBack: () => void;
   onOpenGroupDetails: () => void;
   showAlert: (title: string, message: string, buttons?: any[], icon?: string, iconColor?: string) => void;
 }> = ({ group, onBack, onOpenGroupDetails, showAlert }) => {
@@ -704,7 +704,7 @@ const GroupChatScreen: React.FC<{
   const [imageViewerLoading, setImageViewerLoading] = useState(false);
 
   // Layout & scroll state
-  const scrollViewRef = useRef<ScrollView | null>(null);
+  const flatListRef = useRef<FlatList | null>(null);
   const [inputHeight, setInputHeight] = useState(100); // Default height estimate
 
   useEffect(() => {
@@ -781,12 +781,12 @@ const GroupChatScreen: React.FC<{
           message: 'SHEild needs camera access to take and send photos.',
           examples: ['Share photos with your trust circle'],
         });
-        
+
         if (cameraStatus !== 'granted') {
           return false;
         }
       }
-      
+
       return true;
     } catch (error) {
       console.error('Error requesting media permissions:', error);
@@ -823,21 +823,21 @@ const GroupChatScreen: React.FC<{
         type: asset.type,
         fileSize: asset.fileSize,
       });
-      
+
       // Compress large images before upload
       let fileUri = asset.uri;
       let fileSize = asset.fileSize || 0;
-      
+
       // If image is larger than 500KB, we'll use quality 0.7 for compression
       const maxSize = 500 * 1024; // 500KB
       const quality = fileSize > maxSize ? 0.7 : 0.8;
-      
+
       console.log(`📦 Image size: ${Math.round(fileSize / 1024)}KB, using quality: ${quality}`);
-      
+
       const formData = new FormData();
       const fileName = asset.fileName || `photo-${Date.now()}.jpg`;
       const type = asset.type || 'image/jpeg';
-      
+
       // Normalize URI for both platforms
       // iOS: Handle both file:// and assets-library:// URIs
       if (Platform.OS === 'ios') {
@@ -851,7 +851,7 @@ const GroupChatScreen: React.FC<{
           fileUri = `file://${fileUri}`;
         }
       }
-      
+
       console.log('📤 Upload details:', {
         originalUri: asset.uri,
         normalizedUri: fileUri,
@@ -860,7 +860,7 @@ const GroupChatScreen: React.FC<{
         platform: Platform.OS,
         quality: quality,
       });
-      
+
       // @ts-ignore - React Native FormData accepts this format
       formData.append('file', {
         uri: fileUri,
@@ -870,29 +870,29 @@ const GroupChatScreen: React.FC<{
       formData.append('fileType', 'image');
 
       console.log('📡 Uploading to:', `/api/groups/${group._id}/media`);
-      
+
       // Add timeout handling
       const uploadPromise = apiService.upload(`/api/groups/${group._id}/media`, formData);
-      const timeoutPromise = new Promise((_, reject) => 
+      const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Upload timeout - please try again')), 30000)
       );
-      
+
       const uploadRes = await Promise.race([uploadPromise, timeoutPromise]) as any;
       console.log('✅ Upload response:', uploadRes);
-      
+
       // For images, use blob data; for audio, use URL
       const mediaUrl = uploadRes?.data?.mediaUrl;
       const mediaData = uploadRes?.data?.mediaData;
-      
-      console.log('📦 Media response:', { 
-        hasUrl: !!mediaUrl, 
+
+      console.log('📦 Media response:', {
+        hasUrl: !!mediaUrl,
         hasData: !!mediaData,
-        dataLength: mediaData?.length 
+        dataLength: mediaData?.length
       });
-      
+
       // Prefer blob data for images, fall back to URL
       const finalMediaUrl = mediaData || mediaUrl;
-      
+
       if (!finalMediaUrl) {
         showAlert('Error', 'Failed to upload image - no data received.', undefined, 'alert-circle', '#EF4444');
         return;
@@ -914,7 +914,7 @@ const GroupChatScreen: React.FC<{
         stack: error?.stack,
         response: error?.response,
       });
-      
+
       // Provide more helpful error messages
       let errorMessage = 'Failed to send image';
       if (error?.message?.includes('timeout')) {
@@ -924,7 +924,7 @@ const GroupChatScreen: React.FC<{
       } else if (error?.message) {
         errorMessage = error.message;
       }
-      
+
       showAlert('Error', errorMessage, undefined, 'alert-circle', '#EF4444');
     }
   };
@@ -956,7 +956,7 @@ const GroupChatScreen: React.FC<{
   const handleTakePhoto = async () => {
     try {
       console.log('📷 Camera button pressed - platform:', Platform.OS);
-      
+
       // On Android, request permissions first
       // On iOS, react-native-image-picker handles permissions automatically
       if (Platform.OS === 'android') {
@@ -978,22 +978,22 @@ const GroupChatScreen: React.FC<{
         cameraType: 'back',
         includeBase64: false,
       });
-      
+
       console.log('📷 Camera result:', {
         didCancel: result.didCancel,
         errorCode: result.errorCode,
         errorMessage: result.errorMessage,
         assetsCount: result.assets?.length || 0,
       });
-      
+
       if (result.didCancel) {
         console.log('📷 User cancelled camera');
         return;
       }
-      
+
       if (result.errorCode) {
         console.error('📷 Camera error:', result.errorCode, result.errorMessage);
-        
+
         // Handle specific error codes
         if (result.errorCode === 'camera_unavailable') {
           showAlert('Camera Unavailable', 'Your device camera is not available.', undefined, 'alert-circle', '#EF4444');
@@ -1007,12 +1007,12 @@ const GroupChatScreen: React.FC<{
         }
         return;
       }
-      
+
       if (!result.assets || result.assets.length === 0) {
         console.log('📷 No image captured');
         return;
       }
-      
+
       console.log('📤 Uploading captured image...');
       await uploadAndSendImage(result.assets[0]);
     } catch (error: any) {
@@ -1086,9 +1086,9 @@ const GroupChatScreen: React.FC<{
 
   // Scroll to bottom helper (newest messages at bottom)
   const scrollToBottom = useCallback((animated = true) => {
-    if (scrollViewRef.current && messages.length > 0) {
+    if (flatListRef.current && messages.length > 0) {
       setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({ animated });
+        flatListRef.current?.scrollToEnd({ animated });
       }, 100);
     }
   }, [messages.length]);
@@ -1132,8 +1132,7 @@ const GroupChatScreen: React.FC<{
 
     showAlert(
       'Delete Messages',
-      `Are you sure you want to delete ${selectedMessageIds.length} message${
-        selectedMessageIds.length > 1 ? 's' : ''
+      `Are you sure you want to delete ${selectedMessageIds.length} message${selectedMessageIds.length > 1 ? 's' : ''
       }?`,
       [
         { text: 'Cancel', style: 'cancel' },
@@ -1314,498 +1313,486 @@ const GroupChatScreen: React.FC<{
 
   return (
     <View style={styles.chatOuterWrapper}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.primary} />
+      <StatusBar barStyle="light-content" backgroundColor="#09090B" />
       <View style={styles.chatContainer}>
-        {/* Chat Header - Purple theme like reference */}
+        {/* Chat Header - Glassmorphism */}
         <View style={styles.chatHeader}>
-        <TouchableOpacity
-          onPress={() => {
-            if (isSelectingMessages) {
-              clearMessageSelection();
-            } else {
-              onBack();
-            }
-          }}
-          style={styles.backButton}
-        >
-          <Icon name={isSelectingMessages ? 'close' : 'arrow-left'} size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-
-        {/* Tappable group info (avatar + name) */}
-        <TouchableOpacity
-          style={styles.chatHeaderInfo}
-          onPress={() => {
-            if (!isSelectingMessages) {
-              onOpenGroupDetails();
-            }
-          }}
-        >
-          <View style={styles.chatHeaderAvatar}>
-            {group.groupImage ? (
-              <Image source={{ uri: group.groupImage }} style={styles.chatHeaderAvatarImage} />
-            ) : (
-              <Text style={styles.chatHeaderAvatarText}>
-                {(group.name || 'GP').substring(0, 2).toUpperCase()}
-              </Text>
-            )}
-          </View>
-          <View style={styles.chatHeaderTextContainer}>
-            {isSelectingMessages ? (
-              <>
-                <Text style={styles.chatGroupName} numberOfLines={1}>
-                  {selectedMessageIds.length} selected
-                </Text>
-                <Text style={styles.chatGroupMembers} numberOfLines={1}>
-                  Tap messages to select
-                </Text>
-              </>
-            ) : (
-              <>
-                <Text style={styles.chatGroupName} numberOfLines={1}>{group.name}</Text>
-                <View style={styles.chatGroupStatus}>
-                  <View style={styles.onlineIndicator} />
-                  <Text style={styles.chatGroupMembers} numberOfLines={1}>
-                    {group.members?.length || 0} members
-                  </Text>
-                </View>
-              </>
-            )}
-          </View>
-        </TouchableOpacity>
-
-        {/* Header actions */}
-        {isSelectingMessages ? (
           <TouchableOpacity
-            style={styles.chatMenuButton}
-            onPress={handleDeleteSelectedMessages}
+            onPress={() => {
+              if (isSelectingMessages) {
+                clearMessageSelection();
+              } else {
+                onBack();
+              }
+            }}
+            style={styles.backButton}
           >
-            <Icon name="delete" size={22} color="#FFFFFF" />
+            <Icon name={isSelectingMessages ? 'close' : 'arrow-left'} size={24} color="#FFFFFF" />
           </TouchableOpacity>
-        ) : (
-          <View style={styles.chatHeaderActions}>
-            <TouchableOpacity style={styles.chatActionButton}>
-              <Icon name="phone" size={22} color="#FFFFFF" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.chatActionButton}>
-              <Icon name="video" size={22} color="#FFFFFF" />
-            </TouchableOpacity>
+
+          {/* Tappable group info (avatar + name) */}
+          <TouchableOpacity
+            style={styles.chatHeaderInfo}
+            onPress={() => {
+              if (!isSelectingMessages) {
+                onOpenGroupDetails();
+              }
+            }}
+          >
+            <View style={styles.chatHeaderAvatar}>
+              {group.groupImage ? (
+                <Image source={{ uri: group.groupImage }} style={styles.chatHeaderAvatarImage} />
+              ) : (
+                <Text style={styles.chatHeaderAvatarText}>
+                  {(group.name || 'GP').substring(0, 2).toUpperCase()}
+                </Text>
+              )}
+            </View>
+            <View style={styles.chatHeaderTextContainer}>
+              {isSelectingMessages ? (
+                <>
+                  <Text style={styles.chatGroupName} numberOfLines={1}>
+                    {selectedMessageIds.length} selected
+                  </Text>
+                  <Text style={styles.chatGroupMembers} numberOfLines={1}>
+                    Tap messages to select
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.chatGroupName} numberOfLines={1}>{group.name}</Text>
+                  <View style={styles.chatGroupStatus}>
+                    <View style={styles.onlineIndicator} />
+                    <Text style={styles.chatGroupMembers} numberOfLines={1}>
+                      {group.members?.length || 0} members
+                    </Text>
+                  </View>
+                </>
+              )}
+            </View>
+          </TouchableOpacity>
+
+          {/* Header actions */}
+          {isSelectingMessages ? (
             <TouchableOpacity
               style={styles.chatMenuButton}
-              onPress={() => setIsMenuVisible(true)}
+              onPress={handleDeleteSelectedMessages}
             >
-              <Icon name="dots-vertical" size={22} color="#FFFFFF" />
+              <Icon name="delete" size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.chatHeaderActions}>
+              <TouchableOpacity style={styles.chatActionButton}>
+                <Icon name="phone" size={22} color="#FFFFFF" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.chatActionButton}>
+                <Icon name="video" size={22} color="#FFFFFF" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.chatMenuButton}
+                onPress={() => setIsMenuVisible(true)}
+              >
+                <Icon name="dots-vertical" size={22} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
+        {isSearchMode && (
+          <View style={styles.chatSearchBar}>
+            <Icon name="magnify" size={18} color={Colors.textLight} />
+            <TextInput
+              style={styles.chatSearchInput}
+              placeholder="Find messages..."
+              placeholderTextColor={Colors.textLight}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Icon name="close-circle" size={18} color={Colors.textLight} />
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={styles.chatSearchClose}
+              onPress={() => {
+                setIsSearchMode(false);
+                setSearchQuery('');
+              }}
+            >
+              <Icon name="close" size={18} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
         )}
-      </View>
 
-      {isSearchMode && (
-        <View style={styles.chatSearchBar}>
-          <Icon name="magnify" size={18} color={Colors.textLight} />
-          <TextInput
-            style={styles.chatSearchInput}
-            placeholder="Find messages..."
-            placeholderTextColor={Colors.textLight}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Icon name="close-circle" size={18} color={Colors.textLight} />
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity
-            style={styles.chatSearchClose}
-            onPress={() => {
-              setIsSearchMode(false);
-              setSearchQuery('');
-            }}
-          >
-            <Icon name="close" size={18} color={Colors.text} />
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Chat actions menu */}
-      <Modal
-        visible={isMenuVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setIsMenuVisible(false)}
-      >
-        <View style={styles.chatMenuOverlay}>
-          <View style={styles.chatMenuContent}>
-            <TouchableOpacity
-              style={styles.chatMenuItem}
-              onPress={() => {
-                setIsMenuVisible(false);
-                onOpenGroupDetails();
-              }}
-            >
-              <Icon name="account-group" size={20} color={Colors.text} />
-              <Text style={styles.chatMenuItemText}>Group info</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.chatMenuItem}
-              onPress={() => {
-                setIsMenuVisible(false);
-                setIsSelectingMessages(true);
-                setSelectedMessageIds([]);
-              }}
-            >
-              <Icon name="check-circle" size={22} color={Colors.text} />
-              <Text style={styles.chatMenuItemText}>Select messages</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.chatMenuItem}
-              onPress={() => {
-                setIsMenuVisible(false);
-                setIsSearchMode(true);
-              }}
-            >
-              <Icon name="magnify" size={22} color={Colors.text} />
-              <Text style={styles.chatMenuItemText}>Find messages</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.chatMenuItem, styles.chatMenuItemDestructive]}
-              onPress={() => {
-                setIsMenuVisible(false);
-                showAlert('Leave Group', 'Leaving group will be available in a future update from here.', undefined, 'information', Colors.primary);
-              }}
-            >
-              <Icon name="logout" size={20} color="#EF4444" />
-              <Text style={[styles.chatMenuItemText, styles.chatMenuItemDestructiveText]}>Leave group</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Message actions modal (delete / edit / forward) */}
-      {isMessageActionsVisible && activeMessage ? (
+        {/* Chat actions menu */}
         <Modal
-          visible={isMessageActionsVisible}
+          visible={isMenuVisible}
           transparent
           animationType="fade"
-          onRequestClose={() => {
-            setIsMessageActionsVisible(false);
-            setActiveMessage(null);
-          }}
+          onRequestClose={() => setIsMenuVisible(false)}
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.messageActionsContent}>
-              <Text style={styles.messageActionsTitle}>Message options</Text>
-
-              {activeMessage.isOwn && activeMessage.messageType === 'text' && (
-                <TouchableOpacity
-                  style={styles.messageActionsItem}
-                  onPress={handleStartEditActiveMessage}
-                >
-                  <Icon name="pencil" size={20} color={Colors.text} />
-                  <Text style={styles.messageActionsItemText}>Edit message</Text>
-                </TouchableOpacity>
-              )}
-
-              {/* Enter selection mode from long-press menu */}
+          <View style={styles.chatMenuOverlay}>
+            <View style={styles.chatMenuContent}>
               <TouchableOpacity
-                style={styles.messageActionsItem}
+                style={styles.chatMenuItem}
                 onPress={() => {
-                  setIsMessageActionsVisible(false);
+                  setIsMenuVisible(false);
+                  onOpenGroupDetails();
+                }}
+              >
+                <Icon name="account-group" size={20} color={Colors.text} />
+                <Text style={styles.chatMenuItemText}>Group info</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.chatMenuItem}
+                onPress={() => {
+                  setIsMenuVisible(false);
                   setIsSelectingMessages(true);
-                  if (activeMessage && !selectedMessageIds.includes(activeMessage._id)) {
-                    setSelectedMessageIds(prev => [...prev, activeMessage._id]);
-                  }
+                  setSelectedMessageIds([]);
                 }}
               >
-                <Icon name="check-circle" size={20} color={Colors.text} />
-                <Text style={styles.messageActionsItemText}>Select messages</Text>
+                <Icon name="check-circle" size={22} color={Colors.text} />
+                <Text style={styles.chatMenuItemText}>Select messages</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.messageActionsItem}
-                onPress={handleForwardActiveMessage}
-              >
-                <Icon name="share" size={20} color={Colors.text} />
-                <Text style={styles.messageActionsItemText}>Forward</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.messageActionsItem}
-                onPress={handleDeleteActiveMessage}
-              >
-                <Icon name="delete" size={20} color="#EF4444" />
-                <Text
-                  style={[styles.messageActionsItemText, styles.messageActionsItemDestructive]}
-                >
-                  Delete
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.messageActionsCancel}
+                style={styles.chatMenuItem}
                 onPress={() => {
-                  setIsMessageActionsVisible(false);
-                  setActiveMessage(null);
+                  setIsMenuVisible(false);
+                  setIsSearchMode(true);
                 }}
               >
-                <Text style={styles.messageActionsCancelText}>Cancel</Text>
+                <Icon name="magnify" size={22} color={Colors.text} />
+                <Text style={styles.chatMenuItemText}>Find messages</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.chatMenuItem, styles.chatMenuItemDestructive]}
+                onPress={() => {
+                  setIsMenuVisible(false);
+                  showAlert('Leave Group', 'Leaving group will be available in a future update from here.', undefined, 'information', Colors.primary);
+                }}
+              >
+                <Icon name="logout" size={20} color="#EF4444" />
+                <Text style={[styles.chatMenuItemText, styles.chatMenuItemDestructiveText]}>Leave group</Text>
               </TouchableOpacity>
             </View>
           </View>
         </Modal>
-      ) : null}
 
-      {/* Edit message modal */}
-      {isEditModalVisible && activeMessage ? (
-        <Modal
-          visible={isEditModalVisible}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setIsEditModalVisible(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.editMessageContent}>
-              <Text style={styles.editMessageTitle}>Edit message</Text>
-              <TextInput
-                style={styles.editMessageInput}
-                value={editText}
-                onChangeText={setEditText}
-                multiline
-                placeholder="Update your message..."
-                placeholderTextColor={Colors.textLight}
-              />
-              <View style={styles.editMessageButtonsRow}>
+        {/* Message actions modal (delete / edit / forward) */}
+        {isMessageActionsVisible && activeMessage ? (
+          <Modal
+            visible={isMessageActionsVisible}
+            transparent
+            animationType="fade"
+            onRequestClose={() => {
+              setIsMessageActionsVisible(false);
+              setActiveMessage(null);
+            }}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.messageActionsContent}>
+                <Text style={styles.messageActionsTitle}>Message options</Text>
+
+                {activeMessage.isOwn && activeMessage.messageType === 'text' && (
+                  <TouchableOpacity
+                    style={styles.messageActionsItem}
+                    onPress={handleStartEditActiveMessage}
+                  >
+                    <Icon name="pencil" size={20} color={Colors.text} />
+                    <Text style={styles.messageActionsItemText}>Edit message</Text>
+                  </TouchableOpacity>
+                )}
+
+                {/* Enter selection mode from long-press menu */}
                 <TouchableOpacity
-                  style={styles.editMessageButtonSecondary}
-                  onPress={() => setIsEditModalVisible(false)}
+                  style={styles.messageActionsItem}
+                  onPress={() => {
+                    setIsMessageActionsVisible(false);
+                    setIsSelectingMessages(true);
+                    if (activeMessage && !selectedMessageIds.includes(activeMessage._id)) {
+                      setSelectedMessageIds(prev => [...prev, activeMessage._id]);
+                    }
+                  }}
                 >
-                  <Text style={styles.editMessageButtonSecondaryText}>Cancel</Text>
+                  <Icon name="check-circle" size={20} color={Colors.text} />
+                  <Text style={styles.messageActionsItemText}>Select messages</Text>
                 </TouchableOpacity>
+
                 <TouchableOpacity
-                  style={styles.editMessageButtonPrimary}
-                  onPress={handleSaveEditedMessage}
+                  style={styles.messageActionsItem}
+                  onPress={handleForwardActiveMessage}
                 >
-                  <Text style={styles.editMessageButtonPrimaryText}>Save</Text>
+                  <Icon name="share" size={20} color={Colors.text} />
+                  <Text style={styles.messageActionsItemText}>Forward</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.messageActionsItem}
+                  onPress={handleDeleteActiveMessage}
+                >
+                  <Icon name="delete" size={20} color="#EF4444" />
+                  <Text
+                    style={[styles.messageActionsItemText, styles.messageActionsItemDestructive]}
+                  >
+                    Delete
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.messageActionsCancel}
+                  onPress={() => {
+                    setIsMessageActionsVisible(false);
+                    setActiveMessage(null);
+                  }}
+                >
+                  <Text style={styles.messageActionsCancelText}>Cancel</Text>
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
-        </Modal>
-      ) : null}
+          </Modal>
+        ) : null}
 
-      {/* Forward message modal */}
-      {isForwardModalVisible && activeMessage ? (
-        <Modal
-          visible={isForwardModalVisible}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setIsForwardModalVisible(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.forwardModalContent}>
-              <Text style={styles.forwardModalTitle}>Forward to...</Text>
-              {forwardLoading ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color={Colors.primary} />
+        {/* Edit message modal */}
+        {isEditModalVisible && activeMessage ? (
+          <Modal
+            visible={isEditModalVisible}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setIsEditModalVisible(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.editMessageContent}>
+                <Text style={styles.editMessageTitle}>Edit message</Text>
+                <TextInput
+                  style={styles.editMessageInput}
+                  value={editText}
+                  onChangeText={setEditText}
+                  multiline
+                  placeholder="Update your message..."
+                  placeholderTextColor={Colors.textLight}
+                />
+                <View style={styles.editMessageButtonsRow}>
+                  <TouchableOpacity
+                    style={styles.editMessageButtonSecondary}
+                    onPress={() => setIsEditModalVisible(false)}
+                  >
+                    <Text style={styles.editMessageButtonSecondaryText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.editMessageButtonPrimary}
+                    onPress={handleSaveEditedMessage}
+                  >
+                    <Text style={styles.editMessageButtonPrimaryText}>Save</Text>
+                  </TouchableOpacity>
                 </View>
-              ) : forwardGroups.length > 0 ? (
-                <ScrollView style={{ maxHeight: 300 }}>
-                  {forwardGroups.map((g: any) => (
-                    <TouchableOpacity
-                      key={g._id}
-                      style={styles.forwardGroupItem}
-                      onPress={() => handleForwardToGroup(g._id)}
-                    >
-                      <View style={styles.forwardGroupAvatar}>
-                        <Text style={styles.forwardGroupAvatarText}>
-                          {(g.name || 'GP').substring(0, 2).toUpperCase()}
-                        </Text>
-                      </View>
-                      <View style={styles.forwardGroupInfo}>
-                        <Text style={styles.forwardGroupName}>{g.name}</Text>
-                        {!!g.lastMessagePreview && (
-                          <Text style={styles.forwardGroupSubtitle} numberOfLines={1}>
-                            {g.lastMessagePreview}
-                          </Text>
-                        )}
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              ) : (
-                <Text style={styles.forwardEmptyText}>No groups available.</Text>
-              )}
-
-              <TouchableOpacity
-                style={styles.messageActionsCancel}
-                onPress={() => setIsForwardModalVisible(false)}
-              >
-                <Text style={styles.messageActionsCancelText}>Cancel</Text>
-              </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        </Modal>
-      ) : null}
+          </Modal>
+        ) : null}
 
-      {/* Messages and Input - Wrapped in KeyboardAvoidingView */}
-      <KeyboardAvoidingView
-        style={styles.keyboardAvoidingView}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-      >
-        {/* Messages */}
-        <View style={styles.messagesWrapper}>
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={Colors.primary} />
-            </View>
-          ) : (
-            <ScrollView
-              ref={scrollViewRef}
-              style={styles.messagesContainer}
-              contentContainerStyle={styles.messagesContent}
-              showsVerticalScrollIndicator={true}
-              keyboardShouldPersistTaps="handled"
-              onContentSizeChange={() => {
-                // Scroll to bottom when content changes (new messages)
-                scrollViewRef.current?.scrollToEnd({ animated: true });
-              }}
-            >
-              {/* Render messages in normal order - old at top, new at bottom */}
-              {messagesToRender.map((message, index) => {
-                const isSelected = selectedMessageIds.includes(message._id);
-                const previousMessage = index > 0 ? messagesToRender[index - 1] : null;
-                const showDateSeparator = shouldShowDateSeparator(message, previousMessage);
-
-                return (
-                  <View key={message._id || index}>
-                    {showDateSeparator && (
-                      <View style={styles.dateSeparator}>
-                        <Text style={styles.dateSeparatorText}>
-                          {formatDate(message.timestamp)}
-                        </Text>
-                      </View>
-                    )}
-                    <View style={[
-                      styles.messageWrapper,
-                      message.isOwn ? styles.ownMessageWrapper : styles.otherMessageWrapper,
-                    ]}>
-                      {/* Sender name and timestamp header */}
-                      <View style={styles.messageHeader}>
-                        {!message.isOwn && (
-                          <View style={styles.messageAvatar}>
-                            <Text style={styles.messageAvatarText}>
-                              {message.sender.name.charAt(0).toUpperCase()}
-                            </Text>
-                          </View>
-                        )}
-                        <Text style={[
-                          styles.messageSenderName,
-                          message.isOwn ? styles.ownSenderName : styles.otherSenderName
-                        ]}>
-                          {message.isOwn ? 'You' : message.sender.name}
-                        </Text>
-                        <Text style={styles.messageHeaderTime}>
-                          {formatTime(message.timestamp)}
-                        </Text>
-                      </View>
-
-                      <RNTouchableOpacity
-                        activeOpacity={0.7}
-                        delayLongPress={500}
-                        onLongPress={() => {
-                          ReactNativeHapticFeedback.trigger('impactMedium', hapticOptions);
-                          if (isSelectingMessages) {
-                            toggleMessageSelection(message._id);
-                          } else {
-                            openMessageActions(message);
-                          }
-                        }}
-                        onPress={() => {
-                          if (isSelectingMessages) {
-                            toggleMessageSelection(message._id);
-                          }
-                        }}
+        {/* Forward message modal */}
+        {isForwardModalVisible && activeMessage ? (
+          <Modal
+            visible={isForwardModalVisible}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setIsForwardModalVisible(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.forwardModalContent}>
+                <Text style={styles.forwardModalTitle}>Forward to...</Text>
+                {forwardLoading ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={Colors.primary} />
+                  </View>
+                ) : forwardGroups.length > 0 ? (
+                  <ScrollView style={{ maxHeight: 300 }}>
+                    {forwardGroups.map((g: any) => (
+                      <TouchableOpacity
+                        key={g._id}
+                        style={styles.forwardGroupItem}
+                        onPress={() => handleForwardToGroup(g._id)}
                       >
-                        {message.messageType === 'location' && message.location ? (
-                      (() => {
-                        try {
-                          const lat = message.location?.latitude;
-                          const lng = message.location?.longitude;
+                        <View style={styles.forwardGroupAvatar}>
+                          <Text style={styles.forwardGroupAvatarText}>
+                            {(g.name || 'GP').substring(0, 2).toUpperCase()}
+                          </Text>
+                        </View>
+                        <View style={styles.forwardGroupInfo}>
+                          <Text style={styles.forwardGroupName}>{g.name}</Text>
+                          {!!g.lastMessagePreview && (
+                            <Text style={styles.forwardGroupSubtitle} numberOfLines={1}>
+                              {g.lastMessagePreview}
+                            </Text>
+                          )}
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                ) : (
+                  <Text style={styles.forwardEmptyText}>No groups available.</Text>
+                )}
 
-                          // Validate location data
-                          if (
-                            typeof lat !== 'number' ||
-                            typeof lng !== 'number' ||
-                            isNaN(lat) ||
-                            isNaN(lng) ||
-                            lat < -90 ||
-                            lat > 90 ||
-                            lng < -180 ||
-                            lng > 180
-                          ) {
-                            console.warn('Invalid location data:', message.location);
-                            return (
-                              <View style={styles.locationCard}>
-                                <Text style={styles.messageText}>Invalid location data</Text>
+                <TouchableOpacity
+                  style={styles.messageActionsCancel}
+                  onPress={() => setIsForwardModalVisible(false)}
+                >
+                  <Text style={styles.messageActionsCancelText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
+        ) : null}
+
+        {/* Messages and Input - Wrapped in KeyboardAvoidingView */}
+        <KeyboardAvoidingView
+          style={styles.keyboardAvoidingView}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        >
+          {/* Messages */}
+          <View style={styles.messagesWrapper}>
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+              </View>
+            ) : (
+              <FlatList
+                ref={flatListRef}
+                data={messagesToRender}
+                keyExtractor={(item, index) => item._id || index.toString()}
+                style={styles.messagesContainer}
+                contentContainerStyle={styles.messagesContent}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+                onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
+                renderItem={({ item: message, index }) => {
+                  const isSelected = selectedMessageIds.includes(message._id);
+                  const previousMessage = index > 0 ? messagesToRender[index - 1] : null;
+                  const showDateSeparator = shouldShowDateSeparator(message, previousMessage);
+
+                  return (
+                    <View>
+                      {showDateSeparator && (
+                        <View style={styles.dateSeparator}>
+                          <View style={styles.dateSeparatorLine} />
+                          <Text style={styles.dateSeparatorText}>
+                            {formatDate(message.timestamp)}
+                          </Text>
+                          <View style={styles.dateSeparatorLine} />
+                        </View>
+                      )}
+                      <View style={[
+                        styles.messageWrapper,
+                        message.isOwn ? styles.ownMessageWrapper : styles.otherMessageWrapper,
+                      ]}>
+                        {/* Sender name and timestamp header */}
+                        <View style={[styles.messageHeader, message.isOwn && { justifyContent: 'flex-end' }]}>
+                          {!message.isOwn && (
+                            <View style={styles.messageAvatar}>
+                              <Text style={styles.messageAvatarText}>
+                                {message.sender.name.charAt(0).toUpperCase()}
+                              </Text>
+                            </View>
+                          )}
+                          <Text style={[
+                            styles.messageSenderName,
+                            message.isOwn ? styles.ownSenderName : styles.otherSenderName
+                          ]}>
+                            {message.isOwn ? 'You' : message.sender.name}
+                          </Text>
+                          <Text style={styles.messageHeaderTime}>
+                            {formatTime(message.timestamp)}
+                          </Text>
+                        </View>
+
+                        <RNTouchableOpacity
+                          activeOpacity={0.7}
+                          delayLongPress={500}
+                          onLongPress={() => {
+                            ReactNativeHapticFeedback.trigger('impactMedium', hapticOptions);
+                            if (isSelectingMessages) {
+                              toggleMessageSelection(message._id);
+                            } else {
+                              openMessageActions(message);
+                            }
+                          }}
+                          onPress={() => {
+                            if (isSelectingMessages) {
+                              toggleMessageSelection(message._id);
+                            }
+                          }}
+                        >
+                          {message.messageType === 'location' && message.location ? (
+                            (() => {
+                              try {
+                                const lat = message.location?.latitude;
+                                const lng = message.location?.longitude;
+
+                                // Validate location data
+                                if (
+                                  typeof lat !== 'number' ||
+                                  typeof lng !== 'number' ||
+                                  isNaN(lat) ||
+                                  isNaN(lng) ||
+                                  lat < -90 ||
+                                  lat > 90 ||
+                                  lng < -180 ||
+                                  lng > 180
+                                ) {
+                                  return (
+                                    <View style={styles.locationCard}>
+                                      <Text style={styles.messageText}>Invalid location data</Text>
+                                    </View>
+                                  );
+                                }
+
+                                const openInMaps = () => {
+                                  const url = Platform.select({
+                                    ios: `maps://maps.apple.com/?q=${lat},${lng}`,
+                                    android: `geo:${lat},${lng}?q=${lat},${lng}`,
+                                  }) || `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+                                  Linking.openURL(url).catch(() => { });
+                                };
+
+                                const mapUrl = `https://maps.geoapify.com/v1/staticmap?style=osm-bright&width=260&height=160&center=lonlat:${lng},${lat}&zoom=15&apiKey=${GEOAPIFY_API_KEY}`;
+                                const senderName = message.sender?.name || 'User';
+                                const senderInitials = senderName.charAt(0).toUpperCase();
+
+                                return (
+                                  <TouchableOpacity activeOpacity={0.9} onPress={openInMaps} style={styles.locationCard}>
+                                    <Image source={{ uri: mapUrl }} style={styles.locationMap} resizeMode="cover" />
+                                    <View style={styles.locationPinContainer}>
+                                      <View style={styles.locationPinPlaceholder}>
+                                        <Text style={styles.locationPinText}>{senderInitials}</Text>
+                                      </View>
+                                    </View>
+                                  </TouchableOpacity>
+                                );
+                              } catch (e) { return null; }
+                            })()
+                          ) : message.messageType === 'audio' && message.mediaUrl ? (
+                            <View style={[styles.audioMessageContainer, message.isOwn ? styles.ownMessageBubble : styles.otherMessageBubble]}>
+                              <View style={styles.audioPlayButton}>
+                                <Icon name="microphone" size={18} color="#FFFFFF" />
                               </View>
-                            );
-                          }
-
-                          const openInMaps = () => {
-                            const url =
-                              Platform.select({
-                                ios: `maps://maps.apple.com/?q=${lat},${lng}`,
-                                android: `geo:${lat},${lng}?q=${lat},${lng}`,
-                              }) ||
-                              `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
-
-                            Linking.openURL(url).catch((err: any) => {
-                              console.error('Failed to open maps for location message:', err);
-                              // Fallback to web maps
-                              Linking.openURL(
-                                `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
-                              ).catch(() => {});
-                            });
-                          };
-
-                          // Compute "live until" time (1 hour after message timestamp)
-                          const messageDate = message.timestamp
-                            ? new Date(message.timestamp)
-                            : new Date();
-                          const liveUntilDate = new Date(
-                            messageDate.getTime() + 60 * 60 * 1000,
-                          );
-                          const liveUntil = liveUntilDate.toLocaleTimeString('en-US', {
-                            hour: 'numeric',
-                            minute: '2-digit',
-                            hour12: true,
-                          });
-
-                          const isLive = message.location?.isLive === true;
-
-                          // Get Geoapify map URL WITHOUT marker
-                          const style = 'osm-bright';
-                          const mapUrl = `https://maps.geoapify.com/v1/staticmap?` +
-                            `style=${style}` +
-                            `&width=260` +
-                            `&height=180` +
-                            `&center=lonlat:${lng},${lat}` +
-                            `&zoom=15` +
-                            `&apiKey=${GEOAPIFY_API_KEY}`;
-
-                          // Get sender info for avatar
-                          const senderName = message.sender?.name || 'User';
-                          const senderInitials = senderName.charAt(0).toUpperCase();
-                          const senderProfilePicture = message.sender?.profilePicture || null;
-
-                          return (
-                            <TouchableOpacity
-                              activeOpacity={0.9}
-                              delayLongPress={500}
-                              onPress={openInMaps}
+                              <View style={styles.audioInfo}>
+                                <Text style={[styles.audioDuration, { color: '#FFFFFF' }]}>Audio Message</Text>
+                              </View>
+                            </View>
+                          ) : message.messageType === 'image' ? (
+                            <ImageMessageBubble
+                              message={message}
+                              groupId={group._id}
+                              onOpenViewer={(uri) => {
+                                setImageViewerUri(uri);
+                                setImageViewerVisible(true);
+                              }}
                               onLongPress={() => {
                                 ReactNativeHapticFeedback.trigger('impactMedium', hapticOptions);
                                 if (isSelectingMessages) {
@@ -1814,195 +1801,104 @@ const GroupChatScreen: React.FC<{
                                   openMessageActions(message);
                                 }
                               }}
-                              style={styles.locationCard}
-                            >
-                              {/* Map without marker */}
-                              <Image
-                                source={{ uri: mapUrl }}
-                                style={styles.locationMap}
-                                resizeMode="cover"
-                                onError={(error) => {
-                                  console.warn('Failed to load Geoapify map:', error);
-                                }}
-                              />
-                              {/* User profile photo as pin overlay */}
-                              <View style={styles.locationPinContainer}>
-                                {senderProfilePicture ? (
-                                  <Image
-                                    source={{ uri: senderProfilePicture }}
-                                    style={styles.locationPinImage}
-                                  />
-                                ) : (
-                                  <View style={styles.locationPinPlaceholder}>
-                                    <Text style={styles.locationPinText}>{senderInitials}</Text>
-                                  </View>
-                                )}
-                              </View>
-                            </TouchableOpacity>
-                          );
-                        } catch (error) {
-                          console.error('Error rendering location message:', error);
-                          return (
-                            <View style={styles.locationCard}>
-                              <Text style={styles.messageText}>Unable to display location</Text>
-                            </View>
-                          );
-                        }
-                      })()
-                    ) : message.messageType === 'audio' && message.mediaUrl ? (
-                      (() => {
-                        const duration = message.duration || 0;
-                        const minutes = Math.floor(duration / 60);
-                        const seconds = duration % 60;
-                        const formattedDuration =
-                          duration > 0
-                            ? `${minutes}:${seconds.toString().padStart(2, '0')}`
-                            : '0:00';
-
-                        return (
-                          <View style={styles.audioMessageContainer}>
+                            />
+                          ) : (
                             <View
                               style={[
-                                styles.audioPlayButton,
-                                {
-                                  backgroundColor: message.isOwn
-                                    ? 'rgba(255,255,255,0.25)'
-                                    : 'rgba(30,58,138,0.15)',
-                                },
+                                styles.messageBubble,
+                                message.isOwn ? styles.ownMessageBubble : styles.otherMessageBubble,
+                                isSelected && styles.selectedMessageBubble,
                               ]}
                             >
-                              <Icon
-                                name="microphone"
-                                size={18}
-                                color={message.isOwn ? '#FFFFFF' : Colors.primary}
+                              <LinkableText
+                                text={message.text}
+                                style={[
+                                  styles.messageText,
+                                  message.isOwn ? styles.ownMessageText : styles.otherMessageText,
+                                ]}
+                                isOwnMessage={message.isOwn}
                               />
                             </View>
-                            <View style={styles.audioInfo}>
-                              <Text
-                                style={[
-                                  styles.audioDuration,
-                                  message.isOwn
-                                    ? styles.ownMessageText
-                                    : styles.otherMessageText,
-                                ]}
-                              >
-                                {formattedDuration}
-                              </Text>
-                            </View>
-                          </View>
-                        );
-                      })()
-                    ) : message.messageType === 'image' ? (
-                      <ImageMessageBubble
-                        message={message}
-                        groupId={group._id}
-                        onOpenViewer={(uri) => {
-                          setImageViewerUri(uri);
-                          setImageViewerVisible(true);
-                        }}
-                        onLongPress={() => {
-                          ReactNativeHapticFeedback.trigger('impactMedium', hapticOptions);
-                          if (isSelectingMessages) {
-                            toggleMessageSelection(message._id);
-                          } else {
-                            openMessageActions(message);
-                          }
-                        }}
-                      />
-                    ) : (
-                      <View
-                        style={[
-                          styles.messageBubble,
-                          message.isOwn ? styles.ownMessageBubble : styles.otherMessageBubble,
-                          isSelected && styles.selectedMessageBubble,
-                        ]}
-                      >
-                        <LinkableText
-                          text={message.text}
-                          style={[
-                            styles.messageText,
-                            message.isOwn ? styles.ownMessageText : styles.otherMessageText,
-                          ]}
-                          isOwnMessage={message.isOwn}
-                        />
+                          )}
+                        </RNTouchableOpacity>
                       </View>
-                    )}
-                  </RNTouchableOpacity>
                     </View>
-                  </View>
-                );
-              })}
-            </ScrollView>
-          )}
-        </View>
+                  );
+                }}
+              />
+            )}
+          </View>
 
-      {/* In-app image viewer */}
-      <Modal
-        visible={imageViewerVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
-          setImageViewerVisible(false);
-          setImageViewerUri(null);
-        }}
-      >
-        <View style={styles.imageViewerOverlay}>
-          <TouchableOpacity
-            style={styles.imageViewerCloseButton}
-            onPress={() => {
+          {/* In-app image viewer */}
+          <Modal
+            visible={imageViewerVisible}
+            transparent
+            animationType="fade"
+            onRequestClose={() => {
               setImageViewerVisible(false);
               setImageViewerUri(null);
             }}
           >
-            <Icon name="close" size={28} color="#FFFFFF" />
-          </TouchableOpacity>
-          <View style={styles.imageViewerContent}>
-            {imageViewerLoading && (
-              <ActivityIndicator size="large" color="#FFFFFF" />
-            )}
-            {imageViewerUri && !imageViewerLoading && (
-              <Image
-                source={{ uri: imageViewerUri }}
-                style={styles.imageViewerImage}
-                resizeMode="contain"
+            <View style={styles.imageViewerOverlay}>
+              <TouchableOpacity
+                style={styles.imageViewerCloseButton}
+                onPress={() => {
+                  setImageViewerVisible(false);
+                  setImageViewerUri(null);
+                }}
+              >
+                <Icon name="close" size={28} color="#FFFFFF" />
+              </TouchableOpacity>
+              <View style={styles.imageViewerContent}>
+                {imageViewerLoading && (
+                  <ActivityIndicator size="large" color="#FFFFFF" />
+                )}
+                {imageViewerUri && !imageViewerLoading && (
+                  <Image
+                    source={{ uri: imageViewerUri }}
+                    style={styles.imageViewerImage}
+                    resizeMode="contain"
+                  />
+                )}
+              </View>
+            </View>
+          </Modal>
+
+          {/* Message Input */}
+          <View style={styles.messageInputContainer}>
+            <View style={styles.messageInputInner}>
+              <TouchableOpacity style={styles.messageInputIconButton} onPress={handlePickImage}>
+                <Icon name="attachment" size={22} color="rgba(255, 255, 255, 0.6)" />
+              </TouchableOpacity>
+              <TextInput
+                style={styles.messageInput}
+                placeholder="Type a message..."
+                placeholderTextColor="rgba(255, 255, 255, 0.4)"
+                value={newMessage}
+                onChangeText={setNewMessage}
+                multiline
               />
-            )}
+              {newMessage.trim() ? (
+                <TouchableOpacity
+                  style={styles.sendButton}
+                  onPress={sendMessage}
+                >
+                  <Icon name="send" size={20} color="#FFFFFF" />
+                </TouchableOpacity>
+              ) : (
+                <View style={{ flexDirection: 'row' }}>
+                  <TouchableOpacity style={styles.messageInputIconButton} onPress={handleTakePhoto}>
+                    <Icon name="camera" size={22} color="rgba(255, 255, 255, 0.6)" />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.messageInputIconButton} onPress={sendLiveLocation}>
+                    <Icon name="map-marker" size={22} color="rgba(255, 255, 255, 0.6)" />
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
           </View>
-        </View>
-      </Modal>
-
-      {/* Message Input */}
-      <View style={styles.messageInputContainer}>
-        <View style={styles.messageInputInner}>
-
-          <TouchableOpacity style={styles.messageInputIconButton} onPress={handlePickImage}>
-            <Icon name="image" size={20} color={Colors.textLight} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.messageInputIconButton} onPress={handleTakePhoto}>
-            <Icon name="camera" size={20} color={Colors.textLight} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.messageInputIconButton} onPress={sendLiveLocation}>
-            <Icon name="map-marker" size={20} color={Colors.textLight} />
-          </TouchableOpacity>
-          <TextInput
-            style={styles.messageInput}
-            placeholder="Type here..."
-            placeholderTextColor={Colors.textLight}
-            value={newMessage}
-            onChangeText={setNewMessage}
-            multiline
-          />
-          <TouchableOpacity 
-            style={[styles.sendButton, !newMessage.trim() && styles.sendButtonDisabled]}
-            onPress={sendMessage}
-            disabled={!newMessage.trim()}
-          >
-            <Icon name="send" size={20} color={Colors.background} />
-          </TouchableOpacity>
-        </View>
+        </KeyboardAvoidingView>
       </View>
-      </KeyboardAvoidingView>
-    </View>
     </View>
   );
 };
@@ -2034,8 +1930,8 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
   const [adding, setAdding] = useState(false);
 
   // Filter out contacts who are already members
-  const availableContacts = emergencyContacts.filter(contact => 
-    !existingMembers.some(member => 
+  const availableContacts = emergencyContacts.filter(contact =>
+    !existingMembers.some(member =>
       member.phoneNumber === contact.phoneNumber
     )
   );
@@ -2050,8 +1946,8 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
   });
 
   const toggleContact = (contactId: string) => {
-    setSelectedContacts(prev => 
-      prev.includes(contactId) 
+    setSelectedContacts(prev =>
+      prev.includes(contactId)
         ? prev.filter(id => id !== contactId)
         : [...prev, contactId]
     );
@@ -2065,12 +1961,12 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
 
     try {
       setAdding(true);
-      
+
       // Get selected contacts data
       const contactsToAdd = emergencyContacts.filter(c => c._id && selectedContacts.includes(c._id));
-      
+
       // Add each contact to the group
-      const promises = contactsToAdd.map(contact => 
+      const promises = contactsToAdd.map(contact =>
         apiService.post(`/api/groups/${groupId}/members`, {
           phoneNumber: contact.phoneNumber,
           name: contact.name || 'Contact',
@@ -2078,10 +1974,10 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
       );
 
       const results = await Promise.all(promises);
-      
+
       // Check if all succeeded
       const allSuccess = results.every(r => r?.success);
-      
+
       if (allSuccess) {
         showToast(`${selectedContacts.length} member(s) added successfully!`, 'success');
         setSelectedContacts([]);
@@ -2110,7 +2006,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
               <Icon name="close" size={24} color={Colors.text} />
             </TouchableOpacity>
             <Text style={styles.addMemberModalTitle}>Add Members</Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={handleAddMembers}
               disabled={adding || selectedContacts.length === 0}
             >
@@ -2218,10 +2114,10 @@ interface GroupDetailsModalProps {
   showAlert: (title: string, message: string, buttons?: any[], icon?: string, iconColor?: string) => void;
 }
 
-const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({ 
-  visible, 
-  groupId, 
-  onClose, 
+const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
+  visible,
+  groupId,
+  onClose,
   onShareJoinCode,
   emergencyContacts,
   showToast,
@@ -2282,10 +2178,10 @@ const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
             try {
               setRemovingMemberId(memberId);
               const response = await apiService.delete(`/api/groups/${groupId}/members/${memberId}`);
-              
+
               if (response && response.success) {
                 showToast('Member removed successfully', 'success');
-                
+
                 // Refresh group details
                 const detailsResponse = await apiService.get(`/api/groups/${groupId}`);
                 if (detailsResponse && detailsResponse.success && detailsResponse.data) {
@@ -2321,7 +2217,7 @@ const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
         <View style={styles.groupDetailsContent}>
           <View style={styles.groupDetailsHeader}>
             <TouchableOpacity onPress={onClose} style={styles.groupDetailsBackButton}>
-              <Icon name="arrow-left" size={22} color={Colors.text} />
+              <Icon name="arrow-left" size={22} color="#FFFFFF" />
             </TouchableOpacity>
             <Text style={styles.groupDetailsTitle}>Group info</Text>
           </View>
@@ -2373,7 +2269,7 @@ const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
                   <Text style={styles.groupDetailsSectionLabel}>
                     Members ({Array.isArray(group.members) ? group.members.filter((m: any) => m.isActive !== false).length : 0})
                   </Text>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.addMemberButton}
                     onPress={() => setShowAddMember(true)}
                   >
@@ -2388,33 +2284,33 @@ const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
                     .map((member: any) => {
                       const isRemoving = removingMemberId === member.user;
                       return (
-                      <View key={member._id || member.phoneNumber} style={styles.groupDetailsMemberRow}>
-                        <View style={styles.groupDetailsMemberAvatar}>
-                          <Text style={styles.groupDetailsMemberAvatarText}>
-                            {(member.name || 'U').charAt(0).toUpperCase()}
-                          </Text>
+                        <View key={member._id || member.phoneNumber} style={styles.groupDetailsMemberRow}>
+                          <View style={styles.groupDetailsMemberAvatar}>
+                            <Text style={styles.groupDetailsMemberAvatarText}>
+                              {(member.name || 'U').charAt(0).toUpperCase()}
+                            </Text>
+                          </View>
+                          <View style={styles.groupDetailsMemberInfo}>
+                            <Text style={styles.groupDetailsMemberName}>{member.name}</Text>
+                            <Text style={styles.groupDetailsMemberMeta}>
+                              {member.phoneNumber}
+                              {member.role ? ` • ${renderMemberRole(member)}` : ''}
+                            </Text>
+                          </View>
+                          {member.user && (
+                            <TouchableOpacity
+                              style={styles.removeMemberButton}
+                              onPress={() => handleRemoveMember(member.user, member.name)}
+                              disabled={isRemoving}
+                            >
+                              {isRemoving ? (
+                                <ActivityIndicator size="small" color="#EF4444" />
+                              ) : (
+                                <Icon name="close-circle" size={24} color="#EF4444" />
+                              )}
+                            </TouchableOpacity>
+                          )}
                         </View>
-                        <View style={styles.groupDetailsMemberInfo}>
-                          <Text style={styles.groupDetailsMemberName}>{member.name}</Text>
-                          <Text style={styles.groupDetailsMemberMeta}>
-                            {member.phoneNumber}
-                            {member.role ? ` • ${renderMemberRole(member)}` : ''}
-                          </Text>
-                        </View>
-                        {member.user && (
-                          <TouchableOpacity
-                            style={styles.removeMemberButton}
-                            onPress={() => handleRemoveMember(member.user, member.name)}
-                            disabled={isRemoving}
-                          >
-                            {isRemoving ? (
-                              <ActivityIndicator size="small" color="#EF4444" />
-                            ) : (
-                              <Icon name="close-circle" size={24} color="#EF4444" />
-                            )}
-                          </TouchableOpacity>
-                        )}
-                      </View>
                       );
                     })
                 ) : (
@@ -2486,18 +2382,18 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
   const [actionGroup, setActionGroup] = useState<any | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
-  
+
   // Emergency contact actions
   const [contactActionsVisible, setContactActionsVisible] = useState(false);
   const [actionContact, setActionContact] = useState<any | null>(null);
   const isDeletingContactRef = useRef(false);
-  
+
   const [tabIndex, setTabIndex] = useState(0);
   const loadEmergencyContacts = useCallback(async () => {
     try {
       setLoading(true);
       const response = await emergencyContactService.getEmergencyContacts();
-      
+
       if (response && response.success) {
         // Handle paginated response structure from backend
         if (response.data && typeof response.data === 'object' && 'contacts' in response.data) {
@@ -2525,7 +2421,7 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
       }
     } catch (error: any) {
       console.error('Error loading emergency contacts:', error);
-      
+
       // Only log detailed error info, don't show alert
       // This prevents showing error alerts when user has no contacts yet
       // or when it's a network/server issue (which is expected during development)
@@ -2540,7 +2436,7 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
       console.log('Loading groups...');
       const response = await apiService.get('/api/groups');
       console.log('Groups response:', response);
-      
+
       if (response && response.success && response.data) {
         // Backend returns { success: true, data: { groups: [...], pagination: {...} } }
         const groupsList = response.data.groups || [];
@@ -2570,7 +2466,7 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
     const setupSocketListeners = async () => {
       try {
         socketInstance = await connectSocket();
-        
+
         // Listen for new messages in any group
         const handleGroupMessage = (message: any) => {
           console.log('Received group message, refreshing groups list');
@@ -2614,7 +2510,7 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
 
   const shareGroupCode = useCallback((code: string, name: string) => {
     const shareMessage = `Join my group "${name}" on SHEild!\n\nJoin Code: ${code}\n\nUse this code to join my group and stay safe together!`;
-    
+
     Share.share({
       message: shareMessage,
       title: 'Join my SHEild Group',
@@ -2660,7 +2556,7 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
 
   const handleDeleteContact = async () => {
     if (!actionContact) return;
-    
+
     try {
       await emergencyContactService.deleteEmergencyContact(actionContact._id);
       setEmergencyContacts(prev => prev.filter(c => c._id !== actionContact._id));
@@ -2719,8 +2615,7 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
 
     showAlert(
       'Delete Groups',
-      `Are you sure you want to delete ${selectedGroupIds.length} group${
-        selectedGroupIds.length > 1 ? 's' : ''
+      `Are you sure you want to delete ${selectedGroupIds.length} group${selectedGroupIds.length > 1 ? 's' : ''
       }?`,
       [
         { text: 'Cancel', style: 'cancel' },
@@ -2755,7 +2650,7 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
     console.log('handleContactSelected called with contact:', contact);
     setCurrentScreen('main');
     console.log('Loading emergency contacts to refresh...');
-    
+
     // Refresh the list after adding a contact
     try {
       await loadEmergencyContacts();
@@ -2775,24 +2670,24 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
     !normalizedQuery || activeTab !== 'groups'
       ? groups
       : groups.filter((group) => {
-          const name = (group.name || '').toLowerCase();
-          const preview = (group.lastMessagePreview || '').toLowerCase();
-          return name.includes(normalizedQuery) || preview.includes(normalizedQuery);
-        });
+        const name = (group.name || '').toLowerCase();
+        const preview = (group.lastMessagePreview || '').toLowerCase();
+        return name.includes(normalizedQuery) || preview.includes(normalizedQuery);
+      });
 
   const emergencyContactsToRender =
     !normalizedQuery || activeTab !== 'emergency'
       ? emergencyContacts
       : emergencyContacts.filter((contact) => {
-          const name = (contact.name || '').toLowerCase();
-          const phone = (contact.phoneNumber || '').toLowerCase();
-          const relationship = (contact.relationship || '').toLowerCase();
-          return (
-            name.includes(normalizedQuery) ||
-            phone.includes(normalizedQuery) ||
-            relationship.includes(normalizedQuery)
-          );
-        });
+        const name = (contact.name || '').toLowerCase();
+        const phone = (contact.phoneNumber || '').toLowerCase();
+        const relationship = (contact.relationship || '').toLowerCase();
+        return (
+          name.includes(normalizedQuery) ||
+          phone.includes(normalizedQuery) ||
+          relationship.includes(normalizedQuery)
+        );
+      });
 
   const renderAddModal = () => (
     <Modal
@@ -2804,7 +2699,7 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <Text style={styles.modalTitle}>Group Options</Text>
-          
+
           <TouchableOpacity style={styles.modalOption} onPress={handleCreateGroup}>
             <Icon name="account-multiple-plus" size={24} color={Colors.primary} />
             <View style={styles.modalOptionText}>
@@ -2936,24 +2831,24 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
       </View>
 
       <SlideView currentIndex={tabIndex} onIndexChange={setTabIndex} style={styles.slideViewContainer}>
-          {/* Groups Tab Content */}
-          <ScrollView 
-            style={[styles.scrollView, { width: SCREEN_WIDTH }]} 
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[Colors.primary]}
-          />
-        }
-      >
-            <View style={styles.groupListContainer}>
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={Colors.primary} />
+        {/* Groups Tab Content */}
+        <ScrollView
+          style={[styles.scrollView, { width: SCREEN_WIDTH }]}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[Colors.primary]}
+            />
+          }
+        >
+          <View style={styles.groupListContainer}>
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={Colors.primary} />
                 <Text style={styles.loadingText}>Loading groups...</Text>
-            </View>
+              </View>
             ) : groupsToRender.length > 0 ? (
               groupsToRender.map((group) => {
                 const avatarColors = ['#546E7A', '#5C6BC0', '#7E57C2', '#42A5F5', '#26A69A', '#66BB6A', '#FFA726', '#EF5350'];
@@ -2963,7 +2858,7 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
                 // Format last message preview based on message type
                 let lastMessagePreview = '';
                 let lastMessageIcon: string | null = null;
-                
+
                 if (group.lastMessage) {
                   // Show "You" if current user sent it, otherwise show sender name
                   const isOwnMessage = group.lastMessage.isOwn === true;
@@ -2972,7 +2867,7 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
                   const senderFirstName = fullSenderName.split(' ')[0] || fullSenderName;
                   const senderName = isOwnMessage ? 'You' : senderFirstName;
                   const messageType = group.lastMessage.messageType;
-                  
+
                   if (messageType === 'image') {
                     lastMessagePreview = `${senderName}: sent an image`;
                     lastMessageIcon = 'image';
@@ -2996,12 +2891,12 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
                 const lastActivityTime = group.lastMessageAt || group.lastActivity || group.createdAt;
                 const timeLabel = lastActivityTime
                   ? new Date(lastActivityTime).toLocaleTimeString('en-US', {
-                      hour: 'numeric',
-                      minute: '2-digit',
-                      hour12: true,
-                    })
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true,
+                  })
                   : '';
-                
+
                 const handleGroupLongPress = () => {
                   ReactNativeHapticFeedback.trigger('impactMedium', hapticOptions);
                   setActionGroup(group);
@@ -3011,65 +2906,65 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
                 const isSelected = selectedGroupIds.includes(group._id);
 
                 return (
-                  <TouchableOpacity 
-                    key={group._id} 
+                  <TouchableOpacity
+                    key={group._id}
                     style={styles.groupListItem}
                     onPress={() => (selectionMode ? toggleGroupSelection(group._id) : handleGroupPress(group))}
                     onLongPress={handleGroupLongPress}
                     delayLongPress={250}
                   >
                     {/* Group Avatar */}
-                  <View style={styles.groupAvatarContainer}>
-                    <View style={[styles.groupAvatar, { backgroundColor: avatarColor }]}>
-                      <Text style={styles.groupAvatarText}>
-                        {group.name?.substring(0, 2).toUpperCase() || 'GP'}
-                      </Text>
-                      {selectionMode && (
-                        <View style={styles.groupCheckboxOverlay}>
-                          <Icon
-                            name={isSelected ? 'check-circle' : 'circle-outline'}
-                            size={18}
-                            color={isSelected ? Colors.primary : '#FFFFFF'}
-                          />
-                        </View>
-                      )}
+                    <View style={styles.groupAvatarContainer}>
+                      <View style={[styles.groupAvatar, { backgroundColor: avatarColor }]}>
+                        <Text style={styles.groupAvatarText}>
+                          {group.name?.substring(0, 2).toUpperCase() || 'GP'}
+                        </Text>
+                        {selectionMode && (
+                          <View style={styles.groupCheckboxOverlay}>
+                            <Icon
+                              name={isSelected ? 'check-circle' : 'circle-outline'}
+                              size={18}
+                              color={isSelected ? Colors.primary : '#FFFFFF'}
+                            />
+                          </View>
+                        )}
+                      </View>
                     </View>
-                  </View>
-                
-                {/* Group Info */}
+
+                    {/* Group Info */}
                     <View style={styles.groupInfo}>
-                  <View style={styles.groupHeader}>
-                    <Text style={styles.groupName} numberOfLines={1}>
-                      {group.name}
-                    </Text>
-                    <View style={styles.groupRightColumn}>
-                      {!!timeLabel && (
-                        <Text style={styles.groupTime}>{timeLabel}</Text>
-                      )}
-                      {unreadCount > 0 && (
-                        <View style={styles.unreadBadge}>
-                          <Text style={styles.unreadText}>{unreadCount}</Text>
+                      <View style={styles.groupHeader}>
+                        <Text style={styles.groupName} numberOfLines={1}>
+                          {group.name}
+                        </Text>
+                        <View style={styles.groupRightColumn}>
+                          {!!timeLabel && (
+                            <Text style={styles.groupTime}>{timeLabel}</Text>
+                          )}
+                          {unreadCount > 0 && (
+                            <View style={styles.unreadBadge}>
+                              <Text style={styles.unreadText}>{unreadCount}</Text>
+                            </View>
+                          )}
                         </View>
-                      )}
+                      </View>
+
+                      <View style={styles.groupSubtitle}>
+                        <View style={styles.groupLastMessageRow}>
+                          {lastMessageIcon && (
+                            <Icon
+                              name={lastMessageIcon}
+                              size={14}
+                              color={Colors.textLight}
+                              style={styles.groupLastMessageIcon}
+                            />
+                          )}
+                          <Text style={styles.groupLastMessage} numberOfLines={1}>
+                            {lastMessagePreview}
+                          </Text>
+                        </View>
+                      </View>
                     </View>
-                  </View>
-                  
-                  <View style={styles.groupSubtitle}>
-                    <View style={styles.groupLastMessageRow}>
-                      {lastMessageIcon && (
-                        <Icon
-                          name={lastMessageIcon}
-                          size={14}
-                          color={Colors.textLight}
-                          style={styles.groupLastMessageIcon}
-                        />
-                      )}
-                      <Text style={styles.groupLastMessage} numberOfLines={1}>
-                        {lastMessagePreview}
-                      </Text>
-                    </View>
-                  </View>
-                  </View>
                   </TouchableOpacity>
                 );
               })
@@ -3079,7 +2974,7 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
                 <Text style={styles.emptyStateTitle}>No groups yet</Text>
                 <Text style={styles.emptyStateMessage}>
                   Create your first group to start chatting with friends
-                      </Text>
+                </Text>
                 <TouchableOpacity
                   style={styles.emptyStateButton}
                   onPress={handleCreateGroupPress}
@@ -3087,14 +2982,14 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
                   <Icon name="plus" size={20} color="#FFFFFF" />
                   <Text style={styles.emptyStateButtonText}>Create Group</Text>
                 </TouchableOpacity>
-          </View>
-        )}
+              </View>
+            )}
           </View>
         </ScrollView>
 
         {/* Emergency Contact Tab Content */}
-        <ScrollView 
-          style={[styles.scrollView, { width: SCREEN_WIDTH }]} 
+        <ScrollView
+          style={[styles.scrollView, { width: SCREEN_WIDTH }]}
           contentContainerStyle={styles.scrollContent}
           refreshControl={
             <RefreshControl
@@ -3114,7 +3009,7 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
               emergencyContactsToRender.map((contact) => {
                 const avatarColors = ['#546E7A', '#5C6BC0', '#7E57C2', '#42A5F5', '#26A69A', '#66BB6A', '#FFA726', '#EF5350'];
                 const avatarColor = avatarColors[contact.name?.charCodeAt(0) % avatarColors.length || 0];
-                
+
                 return (
                   <TouchableOpacity
                     key={contact._id}
@@ -3134,7 +3029,7 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
                         </Text>
                       </View>
                     </View>
-                    
+
                     {/* Contact Info */}
                     <View style={styles.contactInfo}>
                       <View style={styles.contactHeader}>
@@ -3145,37 +3040,37 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
                           <View style={styles.primaryBadge}>
                             <Icon name="star" size={12} color="#FFD700" />
                             <Text style={styles.primaryText}>Primary</Text>
-          </View>
-        )}
+                          </View>
+                        )}
                       </View>
-                      
+
                       <View style={styles.contactSubtitle}>
                         <Text style={styles.contactLastMessage} numberOfLines={1}>
                           {contact.relationship.charAt(0).toUpperCase() + contact.relationship.slice(1)} • {emergencyContactService.formatPhoneNumber(contact.phoneNumber)}
-          </Text>
+                        </Text>
                       </View>
                     </View>
-                    </TouchableOpacity>
+                  </TouchableOpacity>
                 );
               })
-              ) : (
-                <View style={styles.emptyState}>
-                  <Icon name="account-search" size={48} color={Colors.textLight} />
-                  <Text style={styles.emptyStateTitle}>No emergency contacts</Text>
-                  <Text style={styles.emptyStateMessage}>
-                    Add your first emergency contact to get started
-                  </Text>
-                  <TouchableOpacity
-                    style={styles.emptyStateButton}
-                    onPress={() => setShowAddModal(true)}
-                  >
-                    <Icon name="plus" size={20} color="#FFFFFF" />
-                    <Text style={styles.emptyStateButtonText}>Add Contact</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          </ScrollView>
+            ) : (
+              <View style={styles.emptyState}>
+                <Icon name="account-search" size={48} color={Colors.textLight} />
+                <Text style={styles.emptyStateTitle}>No emergency contacts</Text>
+                <Text style={styles.emptyStateMessage}>
+                  Add your first emergency contact to get started
+                </Text>
+                <TouchableOpacity
+                  style={styles.emptyStateButton}
+                  onPress={() => setShowAddModal(true)}
+                >
+                  <Icon name="plus" size={20} color="#FFFFFF" />
+                  <Text style={styles.emptyStateButtonText}>Add Contact</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </ScrollView>
       </SlideView>
 
       {/* Group long-press actions modal */}
@@ -3259,7 +3154,7 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
             setActionContact(null);
           }}
         >
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.modalOverlay}
             activeOpacity={1}
             onPress={() => {
@@ -3269,7 +3164,7 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
           >
             <View style={styles.groupActionsContent} onStartShouldSetResponder={() => true}>
               <Text style={styles.groupActionsTitle}>{actionContact.name}</Text>
-              
+
               <TouchableOpacity
                 style={styles.groupActionsItem}
                 onPress={() => {
@@ -3278,27 +3173,27 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
                     console.log('Already processing delete, ignoring');
                     return;
                   }
-                  
+
                   isDeletingContactRef.current = true;
                   const contactToDelete = actionContact;
                   setContactActionsVisible(false);
                   setActionContact(null);
-                  
+
                   // Small delay to ensure modal is closed before showing alert
                   setTimeout(() => {
                     showAlert(
                       'Delete Contact',
                       `Are you sure you want to delete ${contactToDelete.name} from your emergency contacts?`,
                       [
-                        { 
-                          text: 'Cancel', 
+                        {
+                          text: 'Cancel',
                           style: 'cancel',
                           onPress: () => {
                             isDeletingContactRef.current = false;
                           }
                         },
-                        { 
-                          text: 'Delete', 
+                        {
+                          text: 'Delete',
                           style: 'destructive',
                           onPress: async () => {
                             try {
@@ -3409,7 +3304,7 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
               </View>
               <Text style={styles.successModalTitle}>{successModal.title}</Text>
               <Text style={styles.successModalMessage}>{successModal.message}</Text>
-              
+
               {successModal.joinCode && (
                 <View style={styles.joinCodeContainer}>
                   <Text style={styles.joinCodeLabel}>Join Code:</Text>
@@ -3463,22 +3358,256 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
 const styles = StyleSheet.create({
   screenWrapper: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: '#09090B',
+  },
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 12,
+    backgroundColor: '#09090B',
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
+  },
+  selectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  selectionHeaderIconButton: {
+    padding: 8,
+  },
+  tabContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+  tabBackground: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 14,
+    padding: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 10,
+  },
+  activeTab: {
+    backgroundColor: Colors.primary,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.4)',
+  },
+  activeTabText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    marginHorizontal: 16,
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#FFFFFF',
+    marginLeft: 10,
+    paddingVertical: 0,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 100,
+  },
+  groupListContainer: {
+    paddingTop: 8,
+  },
+  groupListItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  groupAvatarContainer: {
+    marginRight: 15,
+  },
+  groupAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  groupAvatarText: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  groupCheckboxOverlay: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#09090B',
+    borderRadius: 12,
+    padding: 2,
+  },
+  groupInfo: {
+    flex: 1,
+  },
+  groupHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  groupName: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    flex: 1,
+  },
+  groupRightColumn: {
+    alignItems: 'flex-end',
+  },
+  groupTime: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.4)',
+    fontWeight: '500',
+  },
+  groupSubtitle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  groupLastMessageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  groupLastMessageIcon: {
+    marginRight: 4,
+  },
+  groupLastMessage: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.5)',
+    flex: 1,
+  },
+  unreadBadge: {
+    backgroundColor: Colors.primary,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    marginTop: 4,
+  },
+  unreadText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#18181B',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 24,
+    paddingBottom: 40,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  modalOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    padding: 18,
+    borderRadius: 18,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  modalOptionText: {
+    flex: 1,
+    marginLeft: 15,
+  },
+  modalOptionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  modalOptionSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.5)',
+    marginTop: 2,
+  },
+  modalCancelButton: {
+    marginTop: 8,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: 'rgba(255, 255, 255, 0.5)',
+  },
+  screenWrapper: {
+    flex: 1,
+    backgroundColor: '#09090B',
   },
   container: {
     flex: 1,
-    // Main Trust Circle screen background
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#09090B',
   },
   header: {
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 8,
+    backgroundColor: '#09090B',
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: Colors.text,
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
   selectionHeaderRow: {
     flexDirection: 'row',
@@ -3490,54 +3619,58 @@ const styles = StyleSheet.create({
   },
   tabContainer: {
     paddingHorizontal: 20,
-    paddingBottom: 8,
+    paddingBottom: 12,
+    backgroundColor: '#09090B',
   },
   tabBackground: {
     flexDirection: 'row',
-    backgroundColor: '#E4E7FF',
-    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 16,
     padding: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   tab: {
     flex: 1,
-    paddingVertical: 8,
-    borderRadius: 999,
+    paddingVertical: 10,
+    borderRadius: 12,
     alignItems: 'center',
   },
   activeTab: {
     backgroundColor: Colors.primary,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   tabText: {
     fontSize: 14,
-    fontWeight: '500',
-    color: Colors.textLight,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.5)',
   },
   activeTabText: {
     color: '#FFFFFF',
-    fontWeight: '600',
+    fontWeight: '700',
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F5F6FB',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     marginHorizontal: 20,
-    marginTop: 8,
-    marginBottom: 12,
+    marginTop: 4,
+    marginBottom: 16,
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 24,
-    borderWidth: 0,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   searchInput: {
     flex: 1,
     marginLeft: 10,
-    fontSize: 14,
-    color: Colors.text,
+    fontSize: 15,
+    color: '#FFFFFF',
   },
   slideViewContainer: {
     flex: 1,
@@ -3546,7 +3679,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 120,
+    paddingBottom: 140, // Increased to clear bottom navigation bar
   },
   emergencyListContainer: {
     backgroundColor: 'transparent',
@@ -3555,19 +3688,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
     marginHorizontal: 16,
     marginVertical: 6,
-    borderRadius: 18,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#4B5563',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
   },
   contactAvatarContainer: {
-    marginRight: 12,
+    marginRight: 14,
   },
   contactAvatar: {
     width: 52,
@@ -3591,14 +3721,14 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   contactName: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: Colors.text,
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#FFFFFF',
     flex: 1,
   },
   contactTime: {
     fontSize: 12,
-    color: Colors.textLight,
+    color: 'rgba(255, 255, 255, 0.4)',
     fontWeight: '400',
   },
   contactSubtitle: {
@@ -3608,7 +3738,7 @@ const styles = StyleSheet.create({
   },
   contactLastMessage: {
     fontSize: 14,
-    color: Colors.textLight,
+    color: 'rgba(255, 255, 255, 0.5)',
     flex: 1,
     fontWeight: '400',
   },
@@ -3619,11 +3749,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 12,
-    marginBottom: 4, // small space between groups
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#E5E7EB',
-    backgroundColor: '#FFFFFF',
+    paddingVertical: 16,
+    marginBottom: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
   },
   groupAvatarContainer: {
     marginRight: 12,
@@ -3660,9 +3790,9 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   groupName: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: Colors.text,
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#FFFFFF',
     flex: 1,
   },
   groupTime: {
@@ -3686,7 +3816,7 @@ const styles = StyleSheet.create({
   },
   groupLastMessage: {
     fontSize: 14,
-    color: Colors.textLight,
+    color: 'rgba(255, 255, 255, 0.5)',
     flex: 1,
     fontWeight: '400',
   },
@@ -3702,10 +3832,10 @@ const styles = StyleSheet.create({
   unreadText: {
     color: '#FFFFFF',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   chatListContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#09090B',
   },
   infoCard: {
     backgroundColor: Colors.primaryLight + '10',
@@ -3719,13 +3849,13 @@ const styles = StyleSheet.create({
   infoTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: Colors.text,
+    color: '#FFFFFF',
     marginTop: 12,
     marginBottom: 8,
   },
   infoDescription: {
     fontSize: 14,
-    color: Colors.textSecondary,
+    color: 'rgba(255, 255, 255, 0.6)',
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -3734,20 +3864,20 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: Colors.text,
+    fontWeight: '700',
+    color: '#FFFFFF',
     marginBottom: 15,
   },
   contactCard: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
-    padding: 15,
-    borderRadius: 15,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    padding: 16,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: 10,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    marginBottom: 12,
   },
   primaryBadge: {
     flexDirection: 'row',
@@ -3766,12 +3896,12 @@ const styles = StyleSheet.create({
   },
   contactPhone: {
     fontSize: 14,
-    color: Colors.textSecondary,
+    color: 'rgba(255, 255, 255, 0.6)',
     marginBottom: 2,
   },
   contactEmail: {
     fontSize: 12,
-    color: Colors.textLight,
+    color: 'rgba(255, 255, 255, 0.4)',
     marginBottom: 2,
   },
   contactRelationship: {
@@ -3794,7 +3924,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 10,
     fontSize: 16,
-    color: Colors.textLight,
+    color: 'rgba(255, 255, 255, 0.5)',
   },
   emptyState: {
     alignItems: 'center',
@@ -3802,18 +3932,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
   },
   emptyStateTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.text,
-    marginTop: 15,
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginTop: 16,
     marginBottom: 8,
   },
   emptyStateMessage: {
-    fontSize: 14,
-    color: Colors.textLight,
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.5)',
     textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 20,
+    paddingHorizontal: 40,
+    marginBottom: 24,
+    lineHeight: 22,
   },
   emptyStateButton: {
     flexDirection: 'row',
@@ -3847,25 +3978,25 @@ const styles = StyleSheet.create({
   },
   // New Modal Styles
   createGroupModalContent: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#09090B',
     flex: 1,
     marginTop: 50,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
   },
   createGroupModalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingVertical: 18,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   createGroupModalTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#000000',
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   createGroupModalNext: {
     fontSize: 16,
@@ -3888,26 +4019,26 @@ const styles = StyleSheet.create({
   groupNameInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 14,
     paddingHorizontal: 15,
     paddingVertical: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   groupNameInput: {
     flex: 1,
     marginLeft: 10,
     fontSize: 16,
-    color: '#000000',
+    color: '#FFFFFF',
   },
   groupImageUpload: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    padding: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: 14,
+    padding: 24,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     borderStyle: 'dashed',
   },
   uploadText: {
@@ -3938,7 +4069,7 @@ const styles = StyleSheet.create({
   },
   participantName: {
     fontSize: 12,
-    color: '#000000',
+    color: 'rgba(255, 255, 255, 0.7)',
     marginTop: 4,
     textAlign: 'center',
   },
@@ -3954,25 +4085,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   participantModalContent: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#09090B',
     flex: 1,
     marginTop: 50,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
   },
   participantModalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingVertical: 18,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   participantModalTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#000000',
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   participantModalNext: {
     fontSize: 16,
@@ -3982,20 +4113,20 @@ const styles = StyleSheet.create({
   participantSearchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     marginHorizontal: 20,
     marginVertical: 15,
     paddingHorizontal: 15,
     paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   participantSearchInput: {
     flex: 1,
     marginLeft: 10,
     fontSize: 16,
-    color: '#000000',
+    color: '#FFFFFF',
   },
   selectedParticipantsScroll: {
     paddingHorizontal: 20,
@@ -4021,7 +4152,7 @@ const styles = StyleSheet.create({
   },
   selectedParticipantName: {
     fontSize: 12,
-    color: '#000000',
+    color: 'rgba(255, 255, 255, 0.7)',
     marginTop: 4,
     textAlign: 'center',
   },
@@ -4043,7 +4174,7 @@ const styles = StyleSheet.create({
   addParticipantsTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#000000',
+    color: '#FFFFFF',
     marginBottom: 15,
   },
   participantsList: {
@@ -4073,7 +4204,7 @@ const styles = StyleSheet.create({
   participantListItemName: {
     flex: 1,
     fontSize: 16,
-    color: '#000000',
+    color: '#FFFFFF',
   },
   participantCheckbox: {
     width: 24,
@@ -4091,20 +4222,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: Colors.background,
-    borderRadius: 20,
-    padding: 20,
+    backgroundColor: '#18181B',
+    borderRadius: 24,
+    padding: 24,
     marginHorizontal: 20,
     width: '90%',
     maxWidth: 400,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   groupActionsContent: {
-    backgroundColor: Colors.background,
-    borderRadius: 18,
-    padding: 18,
+    backgroundColor: '#18181B',
+    borderRadius: 20,
+    padding: 20,
     marginHorizontal: 40,
     width: '80%',
     maxWidth: 340,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   groupActionsTitle: {
     fontSize: 16,
@@ -4160,12 +4295,14 @@ const styles = StyleSheet.create({
 
   // Message actions modal styles
   messageActionsContent: {
-    backgroundColor: Colors.background,
-    borderRadius: 18,
-    padding: 18,
+    backgroundColor: '#18181B',
+    borderRadius: 20,
+    padding: 20,
     marginHorizontal: 24,
     width: '90%',
     maxWidth: 420,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   messageActionsTitle: {
     fontSize: 16,
@@ -4199,12 +4336,14 @@ const styles = StyleSheet.create({
 
   // Edit message modal styles
   editMessageContent: {
-    backgroundColor: Colors.background,
-    borderRadius: 18,
-    padding: 18,
+    backgroundColor: '#18181B',
+    borderRadius: 20,
+    padding: 20,
     marginHorizontal: 24,
     width: '90%',
     maxWidth: 420,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   editMessageTitle: {
     fontSize: 16,
@@ -4221,8 +4360,8 @@ const styles = StyleSheet.create({
     minHeight: 80,
     textAlignVertical: 'top',
     fontSize: 15,
-    color: Colors.text,
-    backgroundColor: Colors.surface,
+    color: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
   },
   editMessageButtonsRow: {
     flexDirection: 'row',
@@ -4319,13 +4458,15 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   groupModalContent: {
-    backgroundColor: Colors.background,
-    borderRadius: 20,
-    padding: 20,
+    backgroundColor: '#18181B',
+    borderRadius: 24,
+    padding: 24,
     marginHorizontal: 20,
     width: '90%',
     maxWidth: 400,
     maxHeight: '80%',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   groupModalHeader: {
     flexDirection: 'row',
@@ -4347,13 +4488,13 @@ const styles = StyleSheet.create({
   },
   groupModalInput: {
     borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 12,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 14,
     paddingHorizontal: 15,
-    paddingVertical: 12,
+    paddingVertical: 14,
     fontSize: 16,
-    color: Colors.text,
-    backgroundColor: Colors.surface,
+    color: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
   },
   groupModalTextArea: {
     height: 80,
@@ -4437,13 +4578,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   successModalContent: {
-    backgroundColor: Colors.background,
-    borderRadius: 20,
-    padding: 24,
+    backgroundColor: '#18181B',
+    borderRadius: 24,
+    padding: 32,
     marginHorizontal: 20,
     width: '90%',
     maxWidth: 400,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   successModalIcon: {
     marginBottom: 16,
@@ -4527,35 +4670,32 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontSize: 16,
     fontWeight: '600',
-    },
+  },
   // Chat Screen Styles - Reference design
   chatOuterWrapper: {
     flex: 1,
-    backgroundColor: Colors.primary,
+    backgroundColor: '#000000', // OLED black
   },
   chatContainer: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#000000', // OLED black
   },
   keyboardAvoidingView: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#000000', // OLED black
   },
   messagesWrapper: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#000000', // OLED black
   },
   chatHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: Colors.primary, // Purple/blue theme
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
+    paddingVertical: 14,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)', // Dark translucent for glassmorphism
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   backButton: {
     marginRight: 12,
@@ -4566,32 +4706,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   chatHeaderAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   chatHeaderAvatarImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 20,
+    borderRadius: 22,
   },
   chatHeaderAvatarText: {
-    color: Colors.primary,
+    color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   chatHeaderTextContainer: {
     flex: 1,
   },
   chatGroupName: {
     fontSize: 17,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#FFFFFF',
   },
   chatGroupStatus: {
@@ -4608,7 +4748,7 @@ const styles = StyleSheet.create({
   },
   chatGroupMembers: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.9)',
+    color: 'rgba(255, 255, 255, 0.5)',
   },
   chatMenuButton: {
     paddingHorizontal: 4,
@@ -4632,16 +4772,18 @@ const styles = StyleSheet.create({
   chatMenuContent: {
     marginTop: 60,
     marginRight: 16,
-    borderRadius: 12,
-    backgroundColor: Colors.background,
-    paddingVertical: 4,
-    paddingHorizontal: 4,
+    borderRadius: 16,
+    backgroundColor: '#18181B',
+    paddingVertical: 6,
+    paddingHorizontal: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 4,
-    minWidth: 190,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 8,
+    minWidth: 200,
   },
   chatMenuItem: {
     flexDirection: 'row',
@@ -4653,7 +4795,7 @@ const styles = StyleSheet.create({
   chatMenuItemText: {
     marginLeft: 12,
     fontSize: 16,
-    color: Colors.text,
+    color: '#FFFFFF',
   },
   chatMenuItemDestructive: {
     marginTop: 4,
@@ -4665,16 +4807,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.secondary,
-    backgroundColor: Colors.background,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: '#18181B',
     gap: 8,
   },
   chatSearchInput: {
     flex: 1,
-    fontSize: 14,
-    color: Colors.text,
+    fontSize: 15,
+    color: '#FFFFFF',
   },
   chatSearchClose: {
     paddingHorizontal: 4,
@@ -4682,7 +4824,7 @@ const styles = StyleSheet.create({
   },
   messagesContainer: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#000000', // OLED black
   },
   messagesContent: {
     paddingTop: 10,
@@ -4690,14 +4832,16 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   messageWrapper: {
-    marginVertical: 8,
-    maxWidth: '80%',
+    marginVertical: 4,
+    maxWidth: '85%',
   },
   ownMessageWrapper: {
     alignSelf: 'flex-end',
+    alignItems: 'flex-end',
   },
   otherMessageWrapper: {
     alignSelf: 'flex-start',
+    alignItems: 'flex-start',
   },
   messageHeader: {
     flexDirection: 'row',
@@ -4706,19 +4850,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   messageSenderName: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: '700',
     marginRight: 8,
   },
   ownSenderName: {
     color: Colors.primary,
   },
   otherSenderName: {
-    color: Colors.text,
+    color: 'rgba(255, 255, 255, 0.7)',
   },
   messageHeaderTime: {
     fontSize: 11,
-    color: Colors.textSecondary,
+    color: 'rgba(255, 255, 255, 0.4)',
   },
   messageAvatar: {
     width: 24,
@@ -4748,25 +4892,38 @@ const styles = StyleSheet.create({
     maxWidth: '100%',
   },
   ownMessageBubble: {
-    backgroundColor: '#5B7FFF', // Blue for sent messages
-    borderRadius: 16,
+    backgroundColor: 'rgba(100, 100, 255, 0.2)', // Translucent primary for glassmorphism
+    borderRadius: 20,
+    borderBottomRightRadius: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(100, 100, 255, 0.3)', // Subtle border
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
   },
   otherMessageBubble: {
-    backgroundColor: '#F0F0F0', // Light gray for received messages
-    borderRadius: 16,
-    borderTopRightRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)', // Translucent white for glassmorphism
+    borderRadius: 20,
     borderBottomLeftRadius: 4,
-    borderBottomRightRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)', // Subtle border
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   messageText: {
-    fontSize: 16,
-    lineHeight: 20,
+    fontSize: 15,
+    lineHeight: 22,
   },
   ownMessageText: {
     color: '#FFFFFF',
   },
   otherMessageText: {
-    color: Colors.text,
+    color: '#FFFFFF',
   },
   messageTime: {
     fontSize: 12,
@@ -4934,44 +5091,45 @@ const styles = StyleSheet.create({
   },
 
   messageInputContainer: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: Colors.primary, // Purple/blue theme
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)', // Dark translucent for glassmorphism
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.1)',
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
   },
   messageInputInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 24,
-    paddingHorizontal: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 28,
+    paddingHorizontal: 12,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   messageInputIconButton: {
-    padding: 6,
-    marginHorizontal: 2,
+    padding: 8,
   },
   messageInput: {
     flex: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    fontSize: 15,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
     color: '#FFFFFF',
-    maxHeight: 100,
+    maxHeight: 120,
   },
   sendButton: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    backgroundColor: Colors.primary,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
   },
   sendButtonDisabled: {
     opacity: 0.5,
@@ -4985,35 +5143,24 @@ const styles = StyleSheet.create({
 
   // Date separator
   dateSeparator: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 16,
-    marginHorizontal: 20,
+    justifyContent: 'center',
+    marginVertical: 20,
+    paddingHorizontal: 20,
+  },
+  dateSeparatorLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   dateSeparatorText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 10,
-    overflow: 'hidden',
-  },
-  fabButton: {
-    position: 'absolute',
-    right: 24,
-    bottom: 32,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: Colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 6,
+    fontSize: 12,
+    fontWeight: '700',
+    color: 'rgba(255, 255, 255, 0.4)',
+    marginHorizontal: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
 
   // Group details modal styles
@@ -5024,19 +5171,21 @@ const styles = StyleSheet.create({
   },
   groupDetailsContent: {
     maxHeight: '90%',
-    backgroundColor: Colors.background,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    backgroundColor: '#09090B',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     paddingBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   groupDetailsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingTop: 16,
+    paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.secondary,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   groupDetailsBackButton: {
     padding: 6,
@@ -5044,8 +5193,8 @@ const styles = StyleSheet.create({
   },
   groupDetailsTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: Colors.text,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   groupDetailsScrollContent: {
     paddingHorizontal: 20,
@@ -5071,15 +5220,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   groupDetailsName: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: Colors.text,
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#FFFFFF',
     marginBottom: 4,
     textAlign: 'center',
   },
   groupDetailsDescription: {
-    fontSize: 14,
-    color: Colors.textSecondary,
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.5)',
     textAlign: 'center',
   },
   groupDetailsSection: {
@@ -5087,10 +5236,11 @@ const styles = StyleSheet.create({
   },
   groupDetailsSectionLabel: {
     fontSize: 12,
-    fontWeight: '600',
-    color: Colors.textLight,
+    fontWeight: '700',
+    color: 'rgba(255, 255, 255, 0.4)',
     textTransform: 'uppercase',
     marginBottom: 8,
+    letterSpacing: 1,
   },
   groupDetailsJoinRow: {
     flexDirection: 'row',
@@ -5098,19 +5248,19 @@ const styles = StyleSheet.create({
   },
   groupDetailsJoinCodeBox: {
     flex: 1,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: Colors.primary,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
   },
   groupDetailsJoinCodeText: {
-    fontSize: 18,
-    fontWeight: '700',
-    letterSpacing: 1,
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: 2,
     color: Colors.primary,
   },
   groupDetailsIconButton: {
@@ -5143,12 +5293,12 @@ const styles = StyleSheet.create({
   },
   groupDetailsMemberName: {
     fontSize: 16,
-    fontWeight: '500',
-    color: Colors.text,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   groupDetailsMemberMeta: {
     fontSize: 13,
-    color: Colors.textSecondary,
+    color: 'rgba(255, 255, 255, 0.4)',
     marginTop: 2,
   },
   removeMemberButton: {
@@ -5176,13 +5326,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: Colors.primaryLight || '#E0E7FF',
-    borderRadius: 16,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(100, 100, 255, 0.15)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(100, 100, 255, 0.3)',
   },
   addMemberButtonText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     color: Colors.primary,
     marginLeft: 4,
   },
@@ -5190,9 +5342,9 @@ const styles = StyleSheet.create({
   addMemberModalContent: {
     width: '100%',
     height: '90%',
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    backgroundColor: '#09090B',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     position: 'absolute',
     bottom: 0,
     shadowColor: '#000',
@@ -5205,15 +5357,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   addMemberModalTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: Colors.text,
+    color: '#FFFFFF',
   },
   addMemberModalDone: {
     fontSize: 16,
@@ -5236,17 +5388,19 @@ const styles = StyleSheet.create({
   addMemberSearchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F3F4F6',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     marginHorizontal: 16,
     marginVertical: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   addMemberSearchInput: {
     flex: 1,
     fontSize: 16,
-    color: Colors.text,
+    color: '#FFFFFF',
     marginLeft: 8,
     paddingVertical: 0,
   },
@@ -5275,11 +5429,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
+    paddingVertical: 14,
+    backgroundColor: '#09090B',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
   },
   addMemberContactItemSelected: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: 'rgba(100, 100, 255, 0.1)',
   },
   addMemberContactAvatar: {
     width: 48,
@@ -5320,6 +5476,23 @@ const styles = StyleSheet.create({
   addMemberCheckboxSelected: {
     backgroundColor: Colors.primary,
     borderColor: Colors.primary,
+  },
+  fabButton: {
+    position: 'absolute',
+    right: 24,
+    bottom: 110,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+    zIndex: 99,
   },
 });
 

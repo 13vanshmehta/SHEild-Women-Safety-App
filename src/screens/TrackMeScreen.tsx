@@ -42,7 +42,7 @@ interface UserLocation {
 }
 
 // --- COMPONENT DEFINITIONS (Outside main component) ---
-const MapViewComponent: React.FC<{ 
+const MapViewComponent: React.FC<{
   coordinates: Coordinates | null;
   mapRef: React.RefObject<MapView | null>;
   otherUsers: UserLocation[];
@@ -85,7 +85,7 @@ const MapViewComponent: React.FC<{
         shouldReplaceMapContent={true}
         tileSize={256}
       />
-      
+
       {/* Current User Location Marker */}
       <Marker
         coordinate={{ latitude, longitude }}
@@ -172,12 +172,12 @@ const TrackMeScreen: React.FC = () => {
     try {
       setLoadingUsers(true);
       const locations = await userLocationService.getVisibleLocations();
-      
+
       // Filter out current user
       const filteredLocations = locations.filter(
         (loc) => loc.userId !== user?.id
       );
-      
+
       setOtherUsers(filteredLocations);
       console.log(`📍 Loaded ${filteredLocations.length} other user locations`);
     } catch (err) {
@@ -194,7 +194,7 @@ const TrackMeScreen: React.FC = () => {
 
       // Request permission first
       const hasPermission = await locationService.requestPermission();
-      
+
       if (!hasPermission) {
         setError('Location permission denied. Please enable it in Settings.');
         Alert.alert(
@@ -222,7 +222,7 @@ const TrackMeScreen: React.FC = () => {
         (geoError) => {
           console.error('Error getting location:', geoError);
           let errorMessage = 'Unable to get your current location.';
-          
+
           switch (geoError.code) {
             case 1: // PERMISSION_DENIED
               errorMessage = 'Location permission denied. Please enable it in Settings.';
@@ -236,7 +236,7 @@ const TrackMeScreen: React.FC = () => {
             default:
               errorMessage = geoError.message || 'An unknown error occurred.';
           }
-          
+
           setError(errorMessage);
           setLoading(false);
         },
@@ -278,12 +278,12 @@ const TrackMeScreen: React.FC = () => {
   useEffect(() => {
     getCurrentLocation();
     fetchOtherUsersLocations();
-    
+
     // Refresh other users' locations every 30 seconds
     const interval = setInterval(() => {
       fetchOtherUsersLocations();
     }, 30000);
-    
+
     return () => clearInterval(interval);
   }, [getCurrentLocation, fetchOtherUsersLocations]);
 
@@ -313,8 +313,8 @@ const TrackMeScreen: React.FC = () => {
           {error && !loading && <ErrorView error={error} />}
           {!loading && !error && coordinates && (
             <>
-              <MapViewComponent 
-                coordinates={coordinates} 
+              <MapViewComponent
+                coordinates={coordinates}
                 mapRef={mapRef}
                 otherUsers={otherUsers}
                 currentUserId={user?.id || ''}
@@ -410,6 +410,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     gap: 20,
+    paddingBottom: 140, // Increased to clear bottom navigation bar
   },
   header: {
     alignItems: 'center',
