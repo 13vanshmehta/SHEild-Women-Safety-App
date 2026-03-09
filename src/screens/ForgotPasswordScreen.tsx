@@ -19,9 +19,9 @@ interface ForgotPasswordScreenProps {
   onNavigateToResetPassword: (email: string) => void;
 }
 
-const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ 
-  onBackToLogin, 
-  onNavigateToResetPassword 
+const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
+  onBackToLogin,
+  onNavigateToResetPassword
 }) => {
   const [emailAddress, setEmailAddress] = useState('');
   const [loading, setLoading] = useState(false);
@@ -37,10 +37,10 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
     try {
       // TODO: Implement backend call to send reset password email
       // await authService.sendPasswordResetEmail(normalized);
-      
+
       // Simulate API call
       await new Promise<void>(resolve => setTimeout(() => resolve(), 1500));
-      
+
       Alert.alert('Email sent', 'Check your inbox for the verification code.');
       onNavigateToResetPassword(normalized);
     } catch (err: any) {
@@ -54,8 +54,8 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
-      <KeyboardAvoidingView 
+      <StatusBar backgroundColor={Colors.background} barStyle="light-content" />
+      <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
@@ -89,9 +89,9 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
               </View>
             </View>
 
-            <TouchableOpacity 
-              style={[styles.button, loading && styles.buttonDisabled]} 
-              onPress={onSendEmail} 
+            <TouchableOpacity
+              style={[styles.button, loading && styles.buttonDisabled]}
+              onPress={onSendEmail}
               disabled={loading}
             >
               <Text style={styles.buttonText}>

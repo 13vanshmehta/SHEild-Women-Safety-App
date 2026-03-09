@@ -21,10 +21,10 @@ interface ResetPasswordScreenProps {
   onPasswordReset: () => void;
 }
 
-const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({ 
-  email, 
-  onBackToLogin, 
-  onPasswordReset 
+const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({
+  email,
+  onBackToLogin,
+  onPasswordReset
 }) => {
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
@@ -52,10 +52,10 @@ const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({
     try {
       // TODO: Implement backend call to verify code and reset password
       // await authService.verifyResetCodeAndSetPassword(email, normalizedCode, password);
-      
+
       // Simulate API call
       await new Promise<void>(resolve => setTimeout(() => resolve(), 2000));
-      
+
       Alert.alert('Success', 'Password has been reset. Please sign in.', [
         { text: 'OK', onPress: onPasswordReset },
       ]);
@@ -72,10 +72,10 @@ const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({
     try {
       // TODO: Implement backend call to resend code
       // await authService.sendPasswordResetEmail(email);
-      
+
       // Simulate API call
       await new Promise<void>(resolve => setTimeout(() => resolve(), 1000));
-      
+
       Alert.alert('New code sent', 'Please check your inbox for the latest code. Use the newest code only.');
     } catch (err: any) {
       const msg = err?.message || 'Failed to resend code';
@@ -86,8 +86,8 @@ const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
-      <KeyboardAvoidingView 
+      <StatusBar backgroundColor={Colors.background} barStyle="light-content" />
+      <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
@@ -150,15 +150,15 @@ const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({
                   autoCapitalize="none"
                 />
                 <Pressable onPress={() => setIsPasswordVisible(!isPasswordVisible)}>
-                  <Icon 
-                    name={isPasswordVisible ? "eye-slash" : "eye"} 
-                    size={20} 
-                    color={Colors.textSecondary} 
+                  <Icon
+                    name={isPasswordVisible ? "eye-slash" : "eye"}
+                    size={20}
+                    color={Colors.textSecondary}
                   />
                 </Pressable>
               </View>
             </View>
-            
+
             {/* Confirm Password */}
             <View style={styles.inputContainer}>
               <View style={styles.inputWrapper}>
@@ -173,18 +173,18 @@ const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({
                   autoCapitalize="none"
                 />
                 <Pressable onPress={() => setIsConfirmPasswordVisible(!isConfirmPasswordVisible)}>
-                  <Icon 
-                    name={isConfirmPasswordVisible ? "eye-slash" : "eye"} 
-                    size={20} 
-                    color={Colors.textSecondary} 
+                  <Icon
+                    name={isConfirmPasswordVisible ? "eye-slash" : "eye"}
+                    size={20}
+                    color={Colors.textSecondary}
                   />
                 </Pressable>
               </View>
             </View>
 
-            <TouchableOpacity 
-              style={[styles.button, loading && styles.buttonDisabled]} 
-              onPress={onReset} 
+            <TouchableOpacity
+              style={[styles.button, loading && styles.buttonDisabled]}
+              onPress={onReset}
               disabled={loading}
             >
               <Text style={styles.buttonText}>

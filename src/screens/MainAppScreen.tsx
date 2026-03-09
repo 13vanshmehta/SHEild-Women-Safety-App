@@ -71,7 +71,7 @@ const MainAppScreen: React.FC = () => {
 
   return (
     <View style={styles.outerContainer}>
-      <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
+      <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
       <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
         <View style={styles.screenContainer}>
           {renderScreen()}

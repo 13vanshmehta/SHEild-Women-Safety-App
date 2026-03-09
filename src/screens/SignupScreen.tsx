@@ -44,7 +44,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignupSuccess, onNavigate
       iosClientId: Config.GOOGLE_IOS_CLIENT_ID,
       platform: Platform.OS,
     });
-    
+
     GoogleSignin.configure({
       // For Android, we must use the Web Client ID (server client ID) 
       // This is required for ID token generation that will be verified on the backend
@@ -106,15 +106,15 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignupSuccess, onNavigate
   const handleGoogleSignup = async () => {
     try {
       setLoading(true);
-      
+
       // Check if Google Play Services are available
       await GoogleSignin.hasPlayServices();
-      
+
       // Sign in with Google
       const userInfo = await GoogleSignin.signIn();
-      
+
       console.log('Google Sign-Up Response:', JSON.stringify(userInfo, null, 2));
-      
+
       if (userInfo.data?.idToken) {
         // Get user info from Google API to extract user details
         const getUserInfo = async (accessToken: string) => {
@@ -134,24 +134,24 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignupSuccess, onNavigate
         // Get user details from Google
         const googleUserInfo = await getUserInfo(userInfo.data.serverAuthCode || userInfo.data.idToken);
         console.log('Google User Info:', googleUserInfo);
-        
+
         // Try to register the user with Google (this will handle both new and existing users)
         const response = await authService.googleRegisterMobile(userInfo.data.idToken);
-        
+
         if (response.success) {
           const { token, user } = response.data!;
           await login(token, user);
-          
+
           // Directly navigate to main app without showing alert
           onSignupSuccess(user.email);
         } else {
           // Check if user already exists
-          if (response.message?.includes('already exists') || 
-              response.message?.includes('already registered') ||
-              response.message?.includes('Account with this Google ID already exists') ||
-              response.message?.includes('Account with this email already exists')) {
+          if (response.message?.includes('already exists') ||
+            response.message?.includes('already registered') ||
+            response.message?.includes('Account with this Google ID already exists') ||
+            response.message?.includes('Account with this email already exists')) {
             Alert.alert(
-              'Account Already Exists', 
+              'Account Already Exists',
               'This Google account is already registered. Please use the Sign In option instead.',
               [
                 { text: 'Go to Sign In', onPress: () => onNavigateToLogin() },
@@ -168,7 +168,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignupSuccess, onNavigate
       }
     } catch (error: any) {
       console.error('Google Sign-Up Error:', error);
-      
+
       if (error.code === 'SIGN_IN_CANCELLED') {
         // User cancelled the sign-in flow
         console.log('User cancelled Google sign-up');
@@ -190,18 +190,18 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignupSuccess, onNavigate
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
-      <KeyboardAvoidingView 
+      <StatusBar backgroundColor={Colors.background} barStyle="light-content" />
+      <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView 
+        <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
           {/* Header/Logo */}
           <View style={styles.header}>
-            <Image 
+            <Image
               source={require('../assets/images/Sheild-App-Logo.png')}
               style={styles.logo}
               resizeMode="contain"
@@ -260,10 +260,10 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignupSuccess, onNavigate
                   autoCapitalize="none"
                 />
                 <Pressable onPress={() => setIsPasswordVisible(!isPasswordVisible)}>
-                  <Icon 
-                    name={isPasswordVisible ? "eye-slash" : "eye"} 
-                    size={20} 
-                    color={Colors.textSecondary} 
+                  <Icon
+                    name={isPasswordVisible ? "eye-slash" : "eye"}
+                    size={20}
+                    color={Colors.textSecondary}
                   />
                 </Pressable>
               </View>
@@ -283,10 +283,10 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignupSuccess, onNavigate
                   autoCapitalize="none"
                 />
                 <Pressable onPress={() => setIsConfirmPasswordVisible(!isConfirmPasswordVisible)}>
-                  <Icon 
-                    name={isConfirmPasswordVisible ? "eye-off-outline" : "eye-outline"} 
-                    size={20} 
-                    color={Colors.textSecondary} 
+                  <Icon
+                    name={isConfirmPasswordVisible ? "eye-off-outline" : "eye-outline"}
+                    size={20}
+                    color={Colors.textSecondary}
                   />
                 </Pressable>
               </View>
@@ -306,15 +306,15 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignupSuccess, onNavigate
             {/* Social Auth Options */}
             <View style={styles.socialContainer}>
               <Text style={styles.socialText}>Or register with</Text>
-              
+
               <View style={styles.socialButtons}>
-                <TouchableOpacity 
-                  style={styles.socialButton} 
+                <TouchableOpacity
+                  style={styles.socialButton}
                   onPress={handleGoogleSignup}
                 >
                   <Icon name="google" size={24} color="#4285F4" />
                 </TouchableOpacity>
-                
+
                 <TouchableOpacity style={styles.socialButton} onPress={handleAppleSignup}>
                   <Icon name="apple" size={24} color="#000000" />
                 </TouchableOpacity>

@@ -41,7 +41,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNavigateToS
       iosClientId: Config.GOOGLE_IOS_CLIENT_ID,
       platform: Platform.OS,
     });
-    
+
     GoogleSignin.configure({
       // For Android, we must use the Web Client ID (server client ID) 
       // This is required for ID token generation that will be verified on the backend
@@ -94,15 +94,15 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNavigateToS
   const handleGoogleLogin = async () => {
     try {
       setLoading(true);
-      
+
       // Check if Google Play Services are available
       await GoogleSignin.hasPlayServices();
-      
+
       // Sign in with Google
       const userInfo = await GoogleSignin.signIn();
-      
+
       console.log('Google Sign-In Response:', JSON.stringify(userInfo, null, 2));
-      
+
       if (userInfo.data?.idToken) {
         // Get user info from Google API (similar to the YouTube video approach)
         const getUserInfo = async (accessToken: string) => {
@@ -121,10 +121,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNavigateToS
 
         // Get user details from Google
         await getUserInfo(userInfo.data.serverAuthCode || userInfo.data.idToken);
-        
+
         // Send the ID token to your backend
         const response = await authService.googleAuthMobile(userInfo.data.idToken);
-        
+
         if (response.success) {
           const { token, user } = response.data!;
           await login(token, user);
@@ -138,7 +138,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNavigateToS
       }
     } catch (error: any) {
       console.error('Google Sign-In Error:', error);
-      
+
       if (error.code === 'SIGN_IN_CANCELLED') {
         // User cancelled the sign-in flow
         console.log('User cancelled Google sign-in');
@@ -160,18 +160,18 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNavigateToS
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
-      <KeyboardAvoidingView 
+      <StatusBar backgroundColor={Colors.background} barStyle="light-content" />
+      <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView 
+        <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
           {/* Header/Logo */}
           <View style={styles.header}>
-            <Image 
+            <Image
               source={require('../assets/images/Sheild-App-Logo.png')}
               style={styles.logo}
               resizeMode="contain"
@@ -215,14 +215,14 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNavigateToS
                   autoCapitalize="none"
                 />
                 <Pressable onPress={() => setIsPasswordVisible(!isPasswordVisible)}>
-                  <Icon 
-                    name={isPasswordVisible ? "eye-slash" : "eye"} 
-                    size={20} 
-                    color={Colors.textSecondary} 
+                  <Icon
+                    name={isPasswordVisible ? "eye-slash" : "eye"}
+                    size={20}
+                    color={Colors.textSecondary}
                   />
                 </Pressable>
               </View>
-              
+
               <TouchableOpacity style={styles.forgotPassword} onPress={onNavigateToForgotPassword}>
                 <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
               </TouchableOpacity>
@@ -242,15 +242,15 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNavigateToS
             {/* Social Auth Options */}
             <View style={styles.socialContainer}>
               <Text style={styles.socialText}>Or sign in with</Text>
-              
+
               <View style={styles.socialButtons}>
-                <TouchableOpacity 
-                  style={styles.socialButton} 
+                <TouchableOpacity
+                  style={styles.socialButton}
                   onPress={handleGoogleLogin}
                 >
                   <Icon name="google" size={24} color="#4285F4" />
                 </TouchableOpacity>
-                
+
                 <TouchableOpacity style={styles.socialButton} onPress={handleAppleLogin}>
                   <Icon name="apple" size={24} color="#000000" />
                 </TouchableOpacity>

@@ -1,9 +1,8 @@
 // API Service for SHEild Women Safety App
-import Config from 'react-native-config';
+import { API_CONFIG } from '../constants/api';
 
-// Use environment variable or fallback to default
-const BASE_URL = Config.API_BASE_URL || 'http://192.168.29.17:8000';
-// const BASE_URL = Config.API_BASE_URL || 'http://192.168.0.104:8000';
+// Use the centralized API_CONFIG as single source of truth
+const BASE_URL = API_CONFIG.BASE_URL;
 export const API_BASE_URL = BASE_URL;
 
 console.log('API Base URL:', BASE_URL);
@@ -15,7 +14,7 @@ export interface ServerResponse {
 
 class ApiService {
   private baseUrl: string;
-  
+
   constructor() {
     this.baseUrl = BASE_URL;
   }
@@ -44,14 +43,14 @@ class ApiService {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
-    
+
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
       console.log('Authorization header set with token');
     } else {
       console.log('No token available, request will not include Authorization header');
     }
-    
+
     return headers;
   }
 
@@ -82,7 +81,7 @@ class ApiService {
       console.log(`POST request to: ${this.baseUrl}${url}`);
       console.log('Request headers:', headers);
       console.log('Request body:', body);
-      
+
       const response = await fetch(`${this.baseUrl}${url}`, {
         method: 'POST',
         headers,
@@ -182,12 +181,12 @@ class ApiService {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
-      
+
       const response = await fetch(`${this.baseUrl}/onbaording`, {
         method: 'GET',
         signal: controller.signal,
       });
-      
+
       clearTimeout(timeoutId);
 
       if (response.ok) {
@@ -216,12 +215,12 @@ class ApiService {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
-      
+
       const response = await fetch(`${this.baseUrl}/`, {
         method: 'GET',
         signal: controller.signal,
       });
-      
+
       clearTimeout(timeoutId);
 
       if (response.ok) {

@@ -48,16 +48,16 @@ const ContactSelectionScreen: React.FC<ContactSelectionScreenProps> = ({
   const loadContacts = useCallback(async () => {
     try {
       setLoading(true);
-      
+
       // Request permission (this will show iOS dialog if needed)
       const granted = await contactService.requestPermission();
-      
+
       if (!granted) {
         setHasPermission(false);
         setLoading(false);
         return;
       }
-      
+
       // Permission granted - update state and fetch contacts
       setHasPermission(true);
       const contactList = await contactService.getContacts();
@@ -76,7 +76,7 @@ const ContactSelectionScreen: React.FC<ContactSelectionScreenProps> = ({
     try {
       const permission = await contactService.checkPermission();
       setHasPermission(permission);
-      
+
       // If permission is already granted, load contacts automatically
       if (permission) {
         await loadContacts();
@@ -103,22 +103,22 @@ const ContactSelectionScreen: React.FC<ContactSelectionScreenProps> = ({
       setFilteredContacts(contacts);
       return;
     }
-    
+
     // Filter contacts based on search query
     const query = searchQuery.toLowerCase().trim();
     const filtered = contacts.filter(contact => {
       // Search in display name
       const displayName = (contact.displayName || '').toLowerCase();
       if (displayName.includes(query)) return true;
-      
+
       // Search in given name
       const givenName = (contact.givenName || '').toLowerCase();
       if (givenName.includes(query)) return true;
-      
+
       // Search in family name
       const familyName = (contact.familyName || '').toLowerCase();
       if (familyName.includes(query)) return true;
-      
+
       // Search in phone numbers (remove non-digits for comparison)
       const queryDigits = query.replace(/\D/g, '');
       if (queryDigits.length > 0) {
@@ -128,16 +128,16 @@ const ContactSelectionScreen: React.FC<ContactSelectionScreenProps> = ({
         });
         if (phoneMatch) return true;
       }
-      
+
       // Search in email addresses
       const emailMatch = contact.emailAddresses.some(email =>
         email.email.toLowerCase().includes(query)
       );
       if (emailMatch) return true;
-      
+
       return false;
     });
-    
+
     setFilteredContacts(filtered);
   }, [searchQuery, contacts]);
 
@@ -164,22 +164,22 @@ const ContactSelectionScreen: React.FC<ContactSelectionScreenProps> = ({
       console.log('========= ADDING CONTACT =========');
       console.log('Contact selected:', selectedContact.displayName);
       console.log('Phone numbers:', selectedContact.phoneNumbers);
-      
+
       const emergencyContact = contactService.convertContactToEmergencyContact(selectedContact);
       emergencyContact.relationship = relationship; // Set the selected relationship
-      
+
       console.log('Converted emergency contact:', JSON.stringify(emergencyContact, null, 2));
-      
+
       console.log('Calling createEmergencyContact API...');
       const response = await emergencyContactService.createEmergencyContact(emergencyContact);
       console.log('API Response received:', JSON.stringify(response, null, 2));
-      
+
       if (response.success) {
         console.log('Contact added successfully!');
-        
+
         // Show success toast
         showToast('Emergency contact added successfully!', 'success');
-        
+
         // Call the callback to trigger refresh in parent component
         if (onContactSelected && response.data) {
           // Pass the saved contact from backend response
@@ -199,13 +199,13 @@ const ContactSelectionScreen: React.FC<ContactSelectionScreenProps> = ({
       console.error('========= ERROR ADDING CONTACT =========');
       console.error('Error object:', error);
       console.error('Error message:', error?.message);
-      
+
       // Extract error message from various possible structures
       let errorMessage = 'Failed to add emergency contact. Please try again.';
       if (error?.message) {
         errorMessage = error.message;
       }
-      
+
       Alert.alert('Error', errorMessage);
       setShowRelationshipPicker(false);
       setSelectedContact(null);
@@ -220,7 +220,7 @@ const ContactSelectionScreen: React.FC<ContactSelectionScreenProps> = ({
 
     try {
       setLoading(true);
-      const selectedContactsData = contacts.filter(contact => 
+      const selectedContactsData = contacts.filter(contact =>
         selectedContactIds.includes(contact.recordID)
       );
 
@@ -229,13 +229,13 @@ const ContactSelectionScreen: React.FC<ContactSelectionScreenProps> = ({
       );
 
       const response = await emergencyContactService.bulkImportContacts(emergencyContacts);
-      
+
       Alert.alert(
         'Success',
         `Added ${response.data.imported.length} emergency contacts successfully!`,
         [
-          { 
-            text: 'OK', 
+          {
+            text: 'OK',
             onPress: () => {
               if (onContactSelected && response.data.imported[0]) {
                 onContactSelected(response.data.imported[0]);
@@ -275,7 +275,7 @@ const ContactSelectionScreen: React.FC<ContactSelectionScreenProps> = ({
               </View>
             )}
           </View>
-          
+
           <View style={styles.contactDetails}>
             <Text style={styles.contactName}>{contact.displayName}</Text>
             {primaryPhone && (
@@ -315,15 +315,15 @@ const ContactSelectionScreen: React.FC<ContactSelectionScreenProps> = ({
   if (!hasPermission && !loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
+        <StatusBar backgroundColor={Colors.background} barStyle="light-content" />
         <View style={styles.permissionContainer}>
           <Icon name="shield-account" size={64} color={Colors.primary} />
           <Text style={styles.permissionTitle}>Contact Permission Required</Text>
           <Text style={styles.permissionMessage}>
             SHEild needs access to your contacts to add emergency contacts from your contact book.
           </Text>
-          <TouchableOpacity 
-            style={styles.permissionButton} 
+          <TouchableOpacity
+            style={styles.permissionButton}
             onPress={loadContacts}
             disabled={loading}
           >
@@ -338,7 +338,7 @@ const ContactSelectionScreen: React.FC<ContactSelectionScreenProps> = ({
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
+        <StatusBar backgroundColor={Colors.background} barStyle="light-content" />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>
@@ -351,8 +351,8 @@ const ContactSelectionScreen: React.FC<ContactSelectionScreenProps> = ({
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
-      
+      <StatusBar backgroundColor={Colors.background} barStyle="light-content" />
+
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={onBack}>
@@ -425,7 +425,7 @@ const ContactSelectionScreen: React.FC<ContactSelectionScreenProps> = ({
         <View style={styles.modalOverlay}>
           <View style={styles.relationshipModalContent}>
             <Text style={styles.relationshipModalTitle}>Select Relationship</Text>
-            
+
             <Text style={styles.relationshipModalSubtitle}>
               How do you know {selectedContact?.displayName}?
             </Text>
@@ -439,12 +439,12 @@ const ContactSelectionScreen: React.FC<ContactSelectionScreenProps> = ({
                 ]}
                 onPress={() => setRelationship(rel as any)}
               >
-                <Icon 
+                <Icon
                   name={
                     rel === 'family' ? 'account-heart' :
-                    rel === 'friend' ? 'account' :
-                    rel === 'colleague' ? 'briefcase' :
-                    rel === 'neighbor' ? 'home' : 'account-star'
+                      rel === 'friend' ? 'account' :
+                        rel === 'colleague' ? 'briefcase' :
+                          rel === 'neighbor' ? 'home' : 'account-star'
                   }
                   size={24}
                   color={relationship === rel ? Colors.background : Colors.primary}

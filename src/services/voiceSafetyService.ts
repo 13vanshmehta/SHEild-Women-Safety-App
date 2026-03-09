@@ -1,6 +1,20 @@
 import Voice from '@react-native-voice/voice';
-import { Alert, AppState, AppStateStatus, Platform, Vibration } from 'react-native';
+import { Alert, AppState, AppStateStatus, NativeModules, Platform, Vibration } from 'react-native';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
+import BackgroundJob from 'react-native-background-actions';
+
+const sleep = (time: number) => new Promise<void>((resolve) => setTimeout(resolve, time));
+
+// The background generic task to keep JS alive
+const backgroundTask = async (taskDataArguments: any) => {
+  const { delay } = taskDataArguments;
+  await new Promise<void>(async (resolve) => {
+    while (BackgroundJob.isRunning()) {
+      await sleep(delay);
+    }
+    resolve();
+  });
+};
 
 export interface VoiceSafetyConfig {
   keywords: string[];
@@ -19,6 +33,8 @@ class VoiceSafetyService {
   private currentAppState: AppStateStatus = AppState.currentState;
   private heartbeatInterval: any = null;
   private isStarting: boolean = false;
+  private sosCooldown: boolean = false;
+  private restartAfterSOSTimer: any = null;
 
   constructor() {
     // Initialize will be called when first needed
@@ -267,8 +283,11 @@ class VoiceSafetyService {
       this.isListening = true;
       this.startHeartbeat();
 
+      // Start native foreground service to keep app alive in background
+      this.startForegroundService();
+
       console.log('🎤 Voice Safety Mode: Started listening for keywords:', config.keywords);
-      console.log('🎤 Background mode enabled - will continue when app is in background');
+      console.log('🎤 Background mode enabled - foreground service keeps app alive');
       return true;
     } catch (error: any) {
       console.error('🎤 ❌ Failed to start voice recognition:', error);
@@ -310,10 +329,17 @@ class VoiceSafetyService {
     try {
       if (this.isListening) {
         this.isListening = false;
+        this.sosCooldown = false;
         this.stopHeartbeat();
+        if (this.restartAfterSOSTimer) {
+          clearTimeout(this.restartAfterSOSTimer);
+          this.restartAfterSOSTimer = null;
+        }
         await Voice.cancel(); // Use cancel to minimize beeps
         await Voice.destroy();
         this.detectedKeywords.clear(); // Clear detected keywords on stop
+        // Stop native foreground service
+        this.stopForegroundService();
         console.log('🛑 Voice Safety Mode: Stopped listening');
       }
     } catch (error) {
@@ -327,11 +353,18 @@ class VoiceSafetyService {
   async cancel(): Promise<void> {
     try {
       this.isListening = false;
+      this.sosCooldown = false;
       this.stopHeartbeat();
+      if (this.restartAfterSOSTimer) {
+        clearTimeout(this.restartAfterSOSTimer);
+        this.restartAfterSOSTimer = null;
+      }
       await Voice.cancel();
       await Voice.destroy();
       this.config = null;
       this.detectedKeywords.clear();
+      // Stop native foreground service
+      this.stopForegroundService();
 
       // Cleanup app state listener
       if (this.appStateSubscription) {
@@ -340,6 +373,53 @@ class VoiceSafetyService {
       }
     } catch (error) {
       console.error('Error canceling voice recognition:', error);
+    }
+  }
+
+  /**
+   * Start the native Android foreground service to keep app alive
+   * with a persistent notification and CPU wake lock using react-native-background-actions.
+   */
+  private async startForegroundService(): Promise<void> {
+    if (Platform.OS !== 'android') return;
+
+    try {
+      if (!BackgroundJob.isRunning()) {
+        const options = {
+          taskName: 'VoiceShield',
+          taskTitle: 'SHEild Voice Shield Active',
+          taskDesc: 'Listening for emergency keywords in background...',
+          taskIcon: {
+            name: 'ic_launcher',
+            type: 'mipmap',
+          },
+          color: '#ff0000',
+          parameters: {
+            delay: 1000,
+          },
+        };
+
+        await BackgroundJob.start(backgroundTask, options);
+        console.log('🔔 Foreground background-actions service started — JS thread will stay alive');
+      }
+    } catch (error) {
+      console.warn('⚠️ Error starting background-actions service:', error);
+    }
+  }
+
+  /**
+   * Stop the native Android foreground service.
+   */
+  private async stopForegroundService(): Promise<void> {
+    if (Platform.OS !== 'android') return;
+
+    try {
+      if (BackgroundJob.isRunning()) {
+        await BackgroundJob.stop();
+        console.log('🔕 Foreground background-actions service stopped');
+      }
+    } catch (error) {
+      console.warn('⚠️ Error stopping background-actions service:', error);
     }
   }
 
@@ -421,8 +501,10 @@ class VoiceSafetyService {
     const errorCode = event.error?.code || String(event.error);
 
     // these are normal in continuous listening mode, so we just log them in DEBUG if needed.
-    if (errorCode === '7' || errorCode === '10' || errorMsg.includes('No match') || errorMsg.includes('understand')) {
-      // Quiet reset
+    // Code 5 = Client side error (common during engine restarts on Samsung devices)
+    // Code 7 = No match, Code 10 = Timeout
+    if (errorCode === '5' || errorCode === '7' || errorCode === '10' || errorMsg.includes('No match') || errorMsg.includes('understand') || errorMsg.includes('Client side')) {
+      // Quiet reset — these are transient errors during continuous listening
     } else {
       console.error('🎤 Speech recognition error:', event.error);
     }
@@ -459,6 +541,12 @@ class VoiceSafetyService {
    */
   private checkForKeywords(text: string): void {
     if (!this.config) return;
+
+    // Skip keyword checking during SOS cooldown period
+    if (this.sosCooldown) {
+      console.log('⏳ SOS cooldown active, skipping keyword check');
+      return;
+    }
 
     const lowerText = text.toLowerCase().trim();
     // Aggressive normalization: remove all punctuation and normalize spaces
@@ -497,16 +585,44 @@ class VoiceSafetyService {
           // Trigger callback
           this.config.onKeywordDetected(keyword, text);
 
-          // Clear detected keywords after 10 seconds (restored old working delay)
-          setTimeout(() => {
-            this.detectedKeywords.delete(lowerKeyword);
-            console.log('🔄 Reset detection for keyword:', lowerKeyword);
-          }, 10000);
+          // Enter cooldown, then restart listening fresh after 7 seconds
+          this.triggerSOSCooldownAndRestart();
+
+          // Break out — only one SOS per detection cycle
+          break;
         } else {
           console.log('⏭️ Skipping duplicate detection for:', lowerKeyword);
         }
       }
     }
+  }
+
+  /**
+   * After SOS is triggered, enter cooldown for 7 seconds.
+   * We do NOT kill the voice engine here because Android blocking rules
+   * may prevent it from starting again in the background. We simply let it keep running
+   * and ignore the keywords for 7 seconds.
+   */
+  private triggerSOSCooldownAndRestart(): void {
+    if (this.sosCooldown) return; // Already in cooldown
+
+    this.sosCooldown = true;
+    console.log('⏳ SOS cooldown started (7 seconds)... Voice engine stays hot.');
+
+    // Clear any existing restart timer
+    if (this.restartAfterSOSTimer) {
+      clearTimeout(this.restartAfterSOSTimer);
+    }
+
+    this.restartAfterSOSTimer = setTimeout(() => {
+      this.restartAfterSOSTimer = null;
+
+      // Clear all detected keywords so they can be detected again
+      this.detectedKeywords.clear();
+      console.log('🔄 Cooldown over — cleared all detected keywords');
+
+      this.sosCooldown = false;
+    }, 7000); // 7 second cooldown before allowing new SOS triggers
   }
 }
 

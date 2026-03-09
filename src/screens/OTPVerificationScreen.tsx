@@ -34,7 +34,7 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
   const [resendLoading, setResendLoading] = useState(false);
   const [countdown, setCountdown] = useState(60);
   const [canResend, setCanResend] = useState(false);
-  
+
   const inputRefs = useRef<TextInput[]>([]);
 
   useEffect(() => {
@@ -55,7 +55,7 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
         if (i < 6) newOtp[i] = digit;
       });
       setOtp(newOtp);
-      
+
       // Focus on the last filled input
       const lastFilledIndex = pastedOtp.length - 1;
       if (lastFilledIndex < 5) {
@@ -82,7 +82,7 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
 
   const handleVerifyOTP = async () => {
     const otpString = otp.join('');
-    
+
     if (otpString.length !== 6) {
       Alert.alert('Error', 'Please enter the complete 6-digit OTP');
       return;
@@ -154,8 +154,8 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
-      <KeyboardAvoidingView 
+      <StatusBar backgroundColor={Colors.background} barStyle="light-content" />
+      <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
@@ -171,7 +171,7 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
 
           {/* Logo */}
           <View style={styles.logoContainer}>
-            <Image 
+            <Image
               source={require('../assets/images/Sheild-App-Logo.png')}
               style={styles.logo}
               resizeMode="contain"
