@@ -110,7 +110,10 @@ class VoiceSafetyService {
       // console.log('🎤 Voice Heartbeat - Recognized Status:', isRecognizing);
 
       if (!isRecognizing) {
-        console.log('🎤 VoiceService: Voice stopped, auto-restarting...');
+        console.log('🎤 VoiceService: Voice stopped abruptly, auto-restarting...');
+        if (Platform.OS === 'android') {
+          try { await Voice.destroy(); } catch (e: any) { } // Clean up any stuck native state
+        }
         await this.startVoiceEngine(true); // Auto-restart
       }
     } catch (error) {
@@ -451,6 +454,9 @@ class VoiceSafetyService {
             // Check if already recognizing to avoid concurrent starts
             const isRecognizing = await Voice.isRecognizing();
             if (!isRecognizing) {
+              if (Platform.OS === 'android') {
+                try { await Voice.destroy(); } catch (e: any) { } // Clean up stuck native state
+              }
               await this.startVoiceEngine(true); // Auto-restart
             }
           } catch (e) {
@@ -526,6 +532,9 @@ class VoiceSafetyService {
           try {
             const isRecognizing = await Voice.isRecognizing();
             if (!isRecognizing) {
+              if (Platform.OS === 'android') {
+                try { await Voice.destroy(); } catch (e: any) { } // Clean up any stuck state
+              }
               await this.startVoiceEngine(true); // Auto-restart
             }
           } catch (e) {
@@ -607,14 +616,17 @@ class VoiceSafetyService {
     if (this.sosCooldown) return; // Already in cooldown
 
     this.sosCooldown = true;
-    console.log('⏳ SOS cooldown started (7 seconds)... Voice engine stays hot.');
+    console.log('⏳ SOS cooldown started (7 seconds)... stopping engine explicitly to prevent lockup.');
+
+    // Explicitly destroy the native engine during cooldown to ensure clean slate
+    Voice.destroy().catch((e: any) => console.log('Error destroying voice during cooldown', e));
 
     // Clear any existing restart timer
     if (this.restartAfterSOSTimer) {
       clearTimeout(this.restartAfterSOSTimer);
     }
 
-    this.restartAfterSOSTimer = setTimeout(() => {
+    this.restartAfterSOSTimer = setTimeout(async () => {
       this.restartAfterSOSTimer = null;
 
       // Clear all detected keywords so they can be detected again
@@ -622,6 +634,19 @@ class VoiceSafetyService {
       console.log('🔄 Cooldown over — cleared all detected keywords');
 
       this.sosCooldown = false;
+
+      // Explicitly kickstart the engine if we are still supposed to be listening
+      if (this.isListening && this.config) {
+        try {
+          const isRecognizing = await Voice.isRecognizing();
+          if (!isRecognizing) {
+            console.log('🚀 Cooldown finished: Kickstarting Voice Engine.');
+            await this.startVoiceEngine(true);
+          }
+        } catch (e: any) {
+          console.error('Error restarting voice engine after cooldown', e);
+        }
+      }
     }, 7000); // 7 second cooldown before allowing new SOS triggers
   }
 }

@@ -10,8 +10,6 @@ buildscript {
         // consistent modern version so native modules like
         // react-native-geolocation-service don't crash with
         // IncompatibleClassChangeError for FusedLocationProviderClient.
-        googlePlayServicesVersion = "21.0.1"
-        playServicesVersion = "21.0.1"
         playServicesLocationVersion = "21.0.1"
     }
     repositories {
@@ -29,6 +27,10 @@ buildscript {
 apply plugin: "com.facebook.react.rootproject"
 
 allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
     tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
         kotlinOptions {
             jvmTarget = "17"
