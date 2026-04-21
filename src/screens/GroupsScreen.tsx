@@ -20,6 +20,8 @@ import {
   TouchableOpacity as RNTouchableOpacity,
   Platform,
   KeyboardAvoidingView,
+  BackHandler,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -27,6 +29,7 @@ import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { WebView } from 'react-native-webview';
 import { Colors } from '../constants';
 import { API_BASE_URL } from '../services/apiService';
 import { getOrDownloadMedia, cleanupOldMedia } from '../services/mediaCacheService';
@@ -40,6 +43,11 @@ import { requestPermissionWithRationale, PermissionStatus } from '../services/pe
 import { getGeoapifyMapUrl } from '../services/geoapifyMapService';
 import { useCustomAlert } from '../components/CustomAlert';
 import { useToast } from '../components/Toast';
+import { useAuth } from '../contexts/AuthContext';
+
+const LOCATION_PREVIEW_WIDTH = 260;
+const LOCATION_PREVIEW_HEIGHT = 160;
+const CHAT_BOTTOM_THRESHOLD = 120;
 
 // Component to render text with clickable links
 const LinkableText: React.FC<{
@@ -156,6 +164,112 @@ const LinkableText: React.FC<{
         return <Text key={index}>{part.content}</Text>;
       })}
     </Text>
+  );
+};
+
+const buildOpenStreetMapEmbedUrl = (latitude: number, longitude: number) => {
+  const latitudeOffset = 0.0035;
+  const longitudeOffset = 0.0045;
+  const bbox = [
+    longitude - longitudeOffset,
+    latitude - latitudeOffset,
+    longitude + longitudeOffset,
+    latitude + latitudeOffset,
+  ].join(',');
+
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(
+    bbox,
+  )}&layer=mapnik&marker=${encodeURIComponent(`${latitude},${longitude}`)}`;
+};
+
+const LocationMessagePreview: React.FC<{
+  latitude: number;
+  longitude: number;
+  isLive?: boolean;
+  senderInitials?: string;
+  profileImage?: string | null;
+}> = ({ latitude, longitude, isLive, senderInitials, profileImage }) => {
+  const [staticPreviewFailed, setStaticPreviewFailed] = useState(false);
+  const [embedPreviewFailed, setEmbedPreviewFailed] = useState(false);
+
+  const staticMapUrl = useMemo(
+    () =>
+      getGeoapifyMapUrl(
+        latitude,
+        longitude,
+        LOCATION_PREVIEW_WIDTH,
+        LOCATION_PREVIEW_HEIGHT,
+        15,
+      ),
+    [latitude, longitude],
+  );
+
+  const embedUrl = useMemo(
+    () => buildOpenStreetMapEmbedUrl(latitude, longitude),
+    [latitude, longitude],
+  );
+
+  return (
+    <View style={styles.locationCard}>
+      {!staticPreviewFailed ? (
+        <View style={styles.locationMapContainer}>
+          <Image
+            source={{ uri: staticMapUrl }}
+            style={styles.locationMap}
+            resizeMode="cover"
+            onError={() => setStaticPreviewFailed(true)}
+          />
+          <View style={styles.locationPinOverlay}>
+            <View style={styles.minimalPinContainer}>
+              <View style={styles.minimalPinAvatar}>
+                {profileImage ? (
+                  <Image source={{ uri: profileImage }} style={styles.minimalPinImage} />
+                ) : (
+                  <Text style={styles.minimalPinText}>{senderInitials || '?'}</Text>
+                )}
+              </View>
+              <View style={styles.minimalPinPointer} />
+            </View>
+          </View>
+        </View>
+      ) : !embedPreviewFailed ? (
+        <View style={styles.locationMapContainer} pointerEvents="none">
+          <WebView
+            originWhitelist={['*']}
+            source={{ uri: embedUrl }}
+            style={styles.locationMapWebView}
+            scrollEnabled={false}
+            showsVerticalScrollIndicator={false}
+            showsHorizontalScrollIndicator={false}
+            onError={() => setEmbedPreviewFailed(true)}
+          />
+        </View>
+      ) : (
+        <View style={[styles.locationMapContainer, styles.locationFallback]}>
+          <Icon name="map-marker-alert-outline" size={26} color={Colors.primary} />
+          <Text style={styles.locationFallbackTitle}>
+            {isLive ? 'Live location' : 'Location shared'}
+          </Text>
+          <Text style={styles.locationFallbackCoords}>
+            {latitude.toFixed(5)}, {longitude.toFixed(5)}
+          </Text>
+        </View>
+      )}
+
+      <View style={styles.locationFooter}>
+        <View style={styles.locationFooterBadge}>
+          <Icon
+            name={isLive ? 'crosshairs-gps' : 'map-marker'}
+            size={14}
+            color={Colors.primary}
+          />
+          <Text style={styles.locationFooterBadgeText}>
+            {isLive ? 'Live location' : 'Location'}
+          </Text>
+        </View>
+        <Text style={styles.locationFooterHint}>Tap to open</Text>
+      </View>
+    </View>
   );
 };
 
@@ -705,6 +819,17 @@ const GroupChatScreen: React.FC<{
   // Layout & scroll state
   const flatListRef = useRef<FlatList | null>(null);
   const [inputHeight, setInputHeight] = useState(100); // Default height estimate
+  const initialUnreadCountRef = useRef(
+    Math.max(typeof group.unreadCount === 'number' ? group.unreadCount : 0, 0),
+  );
+  const previousMessageCountRef = useRef(0);
+  const isNearBottomRef = useRef(initialUnreadCountRef.current === 0);
+  const isInitialScrollInProgressRef = useRef(false);
+  const [isInitialScrollComplete, setIsInitialScrollComplete] = useState(false);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(
+    initialUnreadCountRef.current > 0,
+  );
+  const [pendingNewMessages, setPendingNewMessages] = useState(0);
 
   useEffect(() => {
     // Clean up old cached media on chat mount
@@ -718,15 +843,18 @@ const GroupChatScreen: React.FC<{
       const response = await apiService.get(`/api/groups/${group._id}/messages`);
       console.log('📥 Messages response:', JSON.stringify(response, null, 2));
       if (response && response.success && response.data && Array.isArray(response.data.messages)) {
+        setIsInitialScrollComplete(false);
         console.log('📥 Setting', response.data.messages.length, 'messages to state');
         console.log('📥 First 3 messages:', response.data.messages.slice(0, 3));
         setMessages(response.data.messages);
       } else {
         console.log('📥 No messages in response, setting empty array');
+        setIsInitialScrollComplete(true);
         setMessages([]);
       }
     } catch (error) {
       console.error('❌ Error loading messages:', error);
+      setIsInitialScrollComplete(true);
       setMessages([]);
     } finally {
       setLoading(false);
@@ -767,6 +895,19 @@ const GroupChatScreen: React.FC<{
       console.error('Error sending live location:', error);
     }
   };
+
+  const openLocationInMaps = useCallback((latitude: number, longitude: number) => {
+    const label = 'Live Location';
+    const url = Platform.select({
+      ios: `maps:0,0?q=${label}@${latitude},${longitude}`,
+      android: `geo:0,0?q=${latitude},${longitude}(${label})`,
+      default: `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`,
+    });
+    
+    Linking.openURL(url).catch((error) => {
+      console.error('Failed to open location in maps:', error);
+    });
+  }, []);
 
 
 
@@ -1092,25 +1233,113 @@ const GroupChatScreen: React.FC<{
     }
   }, [messages.length]);
 
+  const jumpToLatest = useCallback(() => {
+    isNearBottomRef.current = true;
+    setPendingNewMessages(0);
+    setShowJumpToLatest(false);
+    scrollToBottom(true);
+  }, [scrollToBottom]);
+
+  const handleMessagesScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+      const distanceFromBottom =
+        contentSize.height - (contentOffset.y + layoutMeasurement.height);
+      const isNearBottom = distanceFromBottom <= CHAT_BOTTOM_THRESHOLD;
+
+      isNearBottomRef.current = isNearBottom;
+
+      if (isNearBottom) {
+        setPendingNewMessages(0);
+        setShowJumpToLatest(false);
+      } else if (isInitialScrollComplete) {
+        setShowJumpToLatest(true);
+      }
+    },
+    [isInitialScrollComplete],
+  );
+
   // Filter messages for search
   const messagesToRender = useMemo(() => {
     const normalized = searchQuery.trim().toLowerCase();
-    if (!isSearchMode || !normalized) {
-      return messages;
+    let filtered = messages;
+    
+    if (isSearchMode && normalized) {
+      filtered = messages.filter((m: any) => {
+        const text = (m.text || '').toLowerCase();
+        const typeLabel = m.messageType || '';
+        return text.includes(normalized) || typeLabel.includes(normalized);
+      });
     }
-    return messages.filter((m: any) => {
-      const text = (m.text || '').toLowerCase();
-      const typeLabel = m.messageType || '';
-      return text.includes(normalized) || typeLabel.includes(normalized);
-    });
+
+    return [...filtered].reverse();
   }, [messages, isSearchMode, searchQuery]);
 
-  // Auto-scroll to bottom when messages change (newest at bottom)
+  // Initial anchor + new message scroll behavior
   useEffect(() => {
-    if (messages.length > 0) {
-      scrollToBottom(true);
+    if (messages.length === 0) {
+      previousMessageCountRef.current = 0;
+      isNearBottomRef.current = true;
+      setPendingNewMessages(0);
+      setShowJumpToLatest(false);
+      setIsInitialScrollComplete(true);
+      return;
     }
-  }, [messages.length, scrollToBottom]);
+
+    const previousCount = previousMessageCountRef.current;
+    const addedCount = messages.length - previousCount;
+
+    if (previousCount === 0) {
+      const unreadCount = initialUnreadCountRef.current;
+      const targetIndex = null; // Prioritize scrolling to bottom as requested
+
+      isInitialScrollInProgressRef.current = true;
+      setIsInitialScrollComplete(false);
+      setPendingNewMessages(0);
+
+      setTimeout(() => {
+        try {
+          if (targetIndex !== null && messages.length > targetIndex) {
+            console.log(
+              `📜 Opening chat at first unread message index ${targetIndex} (unreadCount: ${unreadCount})`,
+            );
+            flatListRef.current?.scrollToIndex({
+              index: targetIndex,
+              animated: false,
+              viewPosition: 0,
+            });
+            isNearBottomRef.current = false;
+            setShowJumpToLatest(true);
+            isInitialScrollInProgressRef.current = false;
+            setIsInitialScrollComplete(true);
+          } else {
+            console.log('📜 All messages are read, waiting for content size to scroll to bottom');
+            // We'll let onContentSizeChange handle the scroll to bottom
+            // so we don't snap to the top while items are still rendering
+            isNearBottomRef.current = true;
+          }
+        } catch (error) {
+          console.warn('Initial scroll attempt failed:', error);
+          isInitialScrollInProgressRef.current = false;
+          setIsInitialScrollComplete(true);
+          flatListRef.current?.scrollToEnd({ animated: false });
+        }
+      }, 50);
+    } else if (addedCount > 0) {
+      const lastMessage = messages[messages.length - 1];
+
+      if (lastMessage?.isOwn || isNearBottomRef.current) {
+        scrollToBottom(true);
+        setPendingNewMessages(0);
+        setShowJumpToLatest(false);
+      } else {
+        setPendingNewMessages((current) => current + addedCount);
+        setShowJumpToLatest(true);
+      }
+    }
+
+    previousMessageCountRef.current = messages.length;
+  }, [messages, scrollToBottom]);
 
   const toggleMessageSelection = (messageId: string) => {
     setSelectedMessageIds(prev =>
@@ -1660,168 +1889,186 @@ const GroupChatScreen: React.FC<{
                 <ActivityIndicator size="large" color={Colors.primary} />
               </View>
             ) : (
-              <FlatList
-                ref={flatListRef}
-                data={messagesToRender}
-                keyExtractor={(item, index) => item._id || index.toString()}
-                style={styles.messagesContainer}
-                contentContainerStyle={styles.messagesContent}
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-                onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-                onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
-                renderItem={({ item: message, index }) => {
-                  const isSelected = selectedMessageIds.includes(message._id);
-                  const previousMessage = index > 0 ? messagesToRender[index - 1] : null;
-                  const showDateSeparator = shouldShowDateSeparator(message, previousMessage);
+              <>
+                <FlatList
+                  ref={flatListRef}
+                  data={messagesToRender}
+                  keyExtractor={(item, index) => item._id || index.toString()}
+                  style={styles.messagesContainer}
+                  contentContainerStyle={styles.messagesContent}
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                  inverted
+                  onScroll={handleMessagesScroll}
+                  scrollEventThrottle={16}
+                  renderItem={({ item: message, index }) => {
+                    const isSelected = selectedMessageIds.includes(message._id);
+                    const previousMessage = index < messagesToRender.length - 1 ? messagesToRender[index + 1] : null;
+                    const showDateSeparator = shouldShowDateSeparator(message, previousMessage);
 
-                  return (
-                    <View>
-                      {showDateSeparator && (
-                        <View style={styles.dateSeparator}>
-                          <View style={styles.dateSeparatorLine} />
-                          <Text style={styles.dateSeparatorText}>
-                            {formatDate(message.timestamp)}
-                          </Text>
-                          <View style={styles.dateSeparatorLine} />
-                        </View>
-                      )}
-                      <View style={[
-                        styles.messageWrapper,
-                        message.isOwn ? styles.ownMessageWrapper : styles.otherMessageWrapper,
-                      ]}>
-                        {/* Sender name and timestamp header */}
-                        <View style={[styles.messageHeader, message.isOwn && { justifyContent: 'flex-end' }]}>
-                          {!message.isOwn && (
-                            <View style={styles.messageAvatar}>
-                              <Text style={styles.messageAvatarText}>
-                                {message.sender.name.charAt(0).toUpperCase()}
-                              </Text>
-                            </View>
-                          )}
-                          <Text style={[
-                            styles.messageSenderName,
-                            message.isOwn ? styles.ownSenderName : styles.otherSenderName
-                          ]}>
-                            {message.isOwn ? 'You' : message.sender.name}
-                          </Text>
-                          <Text style={styles.messageHeaderTime}>
-                            {formatTime(message.timestamp)}
-                          </Text>
-                        </View>
+                    return (
+                      <View>
+                        {showDateSeparator && (
+                          <View style={styles.dateSeparator}>
+                            <View style={styles.dateSeparatorLine} />
+                            <Text style={styles.dateSeparatorText}>
+                              {formatDate(message.timestamp)}
+                            </Text>
+                            <View style={styles.dateSeparatorLine} />
+                          </View>
+                        )}
+                        <View style={[
+                          styles.messageWrapper,
+                          message.isOwn ? styles.ownMessageWrapper : styles.otherMessageWrapper,
+                        ]}>
+                          {/* Sender name and timestamp header */}
+                          <View style={[styles.messageHeader, message.isOwn && { justifyContent: 'flex-end' }]}>
+                            {!message.isOwn && (
+                              <View style={styles.messageAvatar}>
+                                <Text style={styles.messageAvatarText}>
+                                  {message.sender.name.charAt(0).toUpperCase()}
+                                </Text>
+                              </View>
+                            )}
+                            <Text style={[
+                              styles.messageSenderName,
+                              message.isOwn ? styles.ownSenderName : styles.otherSenderName
+                            ]}>
+                              {message.isOwn ? 'You' : message.sender.name}
+                            </Text>
+                            <Text style={styles.messageHeaderTime}>
+                              {formatTime(message.timestamp)}
+                            </Text>
+                          </View>
 
-                        <RNTouchableOpacity
-                          activeOpacity={0.7}
-                          delayLongPress={500}
-                          onLongPress={() => {
-                            ReactNativeHapticFeedback.trigger('impactMedium', hapticOptions);
-                            if (isSelectingMessages) {
-                              toggleMessageSelection(message._id);
-                            } else {
-                              openMessageActions(message);
-                            }
-                          }}
-                          onPress={() => {
-                            if (isSelectingMessages) {
-                              toggleMessageSelection(message._id);
-                            }
-                          }}
-                        >
-                          {message.messageType === 'location' && message.location ? (
-                            (() => {
-                              try {
-                                const lat = message.location?.latitude;
-                                const lng = message.location?.longitude;
-
-                                // Validate location data
-                                if (
-                                  typeof lat !== 'number' ||
-                                  typeof lng !== 'number' ||
-                                  isNaN(lat) ||
-                                  isNaN(lng) ||
-                                  lat < -90 ||
-                                  lat > 90 ||
-                                  lng < -180 ||
-                                  lng > 180
-                                ) {
-                                  return (
-                                    <View style={styles.locationCard}>
-                                      <Text style={styles.messageText}>Invalid location data</Text>
-                                    </View>
-                                  );
-                                }
-
-                                const openInMaps = () => {
-                                  const url = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=16/${lat}/${lng}`;
-                                  Linking.openURL(url).catch(() => { });
-                                };
-
-                                const mapUrl = `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=15&size=260x160&markers=${lat},${lng},red-pushpin`;
-                                const senderName = message.sender?.name || 'User';
-                                const senderInitials = senderName.charAt(0).toUpperCase();
-
-                                return (
-                                  <TouchableOpacity activeOpacity={0.9} onPress={openInMaps} style={styles.locationCard}>
-                                    <Image source={{ uri: mapUrl }} style={styles.locationMap} resizeMode="cover" />
-                                    <View style={styles.locationPinContainer}>
-                                      <View style={styles.locationPinPlaceholder}>
-                                        <Text style={styles.locationPinText}>{senderInitials}</Text>
-                                      </View>
-                                    </View>
-                                  </TouchableOpacity>
+                          <RNTouchableOpacity
+                            activeOpacity={0.7}
+                            delayLongPress={500}
+                            onLongPress={() => {
+                              ReactNativeHapticFeedback.trigger('impactMedium', hapticOptions);
+                              if (isSelectingMessages) {
+                                toggleMessageSelection(message._id);
+                              } else {
+                                openMessageActions(message);
+                              }
+                            }}
+                            onPress={() => {
+                              if (isSelectingMessages) {
+                                toggleMessageSelection(message._id);
+                              } else if (
+                                message.messageType === 'location' &&
+                                typeof message.location?.latitude === 'number' &&
+                                typeof message.location?.longitude === 'number'
+                              ) {
+                                openLocationInMaps(
+                                  message.location.latitude,
+                                  message.location.longitude,
                                 );
-                              } catch (e) { return null; }
-                            })()
-                          ) : message.messageType === 'audio' && message.mediaUrl ? (
-                            <View style={[styles.audioMessageContainer, message.isOwn ? styles.ownMessageBubble : styles.otherMessageBubble]}>
-                              <View style={styles.audioPlayButton}>
-                                <Icon name="microphone" size={18} color="#FFFFFF" />
+                              }
+                            }}
+                          >
+                            {message.messageType === 'location' && message.location ? (
+                              (() => {
+                                try {
+                                  const lat = message.location?.latitude;
+                                  const lng = message.location?.longitude;
+
+                                  // Validate location data
+                                  if (
+                                    typeof lat !== 'number' ||
+                                    typeof lng !== 'number' ||
+                                    isNaN(lat) ||
+                                    isNaN(lng) ||
+                                    lat < -90 ||
+                                    lat > 90 ||
+                                    lng < -180 ||
+                                    lng > 180
+                                  ) {
+                                    return (
+                                      <View style={styles.locationCard}>
+                                        <Text style={styles.messageText}>Invalid location data</Text>
+                                      </View>
+                                    );
+                                  }
+
+                                  return (
+                                    <LocationMessagePreview
+                                    latitude={lat}
+                                    longitude={lng}
+                                    isLive={!!message.location?.isLive}
+                                    senderInitials={message.sender?.name?.charAt(0).toUpperCase()}
+                                    profileImage={resolveMediaUrl(message.sender?.profileImage)}
+                                  />
+                                  );
+                                } catch { return null; }
+                              })()
+                            ) : message.messageType === 'audio' && message.mediaUrl ? (
+                              <View style={[styles.audioMessageContainer, message.isOwn ? styles.ownMessageBubble : styles.otherMessageBubble]}>
+                                <View style={styles.audioPlayButton}>
+                                  <Icon name="microphone" size={18} color="#FFFFFF" />
+                                </View>
+                                <View style={styles.audioInfo}>
+                                  <Text style={[styles.audioDuration, { color: '#FFFFFF' }]}>Audio Message</Text>
+                                </View>
                               </View>
-                              <View style={styles.audioInfo}>
-                                <Text style={[styles.audioDuration, { color: '#FFFFFF' }]}>Audio Message</Text>
-                              </View>
-                            </View>
-                          ) : message.messageType === 'image' ? (
-                            <ImageMessageBubble
-                              message={message}
-                              groupId={group._id}
-                              onOpenViewer={(uri) => {
-                                setImageViewerUri(uri);
-                                setImageViewerVisible(true);
-                              }}
-                              onLongPress={() => {
-                                ReactNativeHapticFeedback.trigger('impactMedium', hapticOptions);
-                                if (isSelectingMessages) {
-                                  toggleMessageSelection(message._id);
-                                } else {
-                                  openMessageActions(message);
-                                }
-                              }}
-                            />
-                          ) : (
-                            <View
-                              style={[
-                                styles.messageBubble,
-                                message.isOwn ? styles.ownMessageBubble : styles.otherMessageBubble,
-                                isSelected && styles.selectedMessageBubble,
-                              ]}
-                            >
-                              <LinkableText
-                                text={message.text}
-                                style={[
-                                  styles.messageText,
-                                  message.isOwn ? styles.ownMessageText : styles.otherMessageText,
-                                ]}
-                                isOwnMessage={message.isOwn}
+                            ) : message.messageType === 'image' ? (
+                              <ImageMessageBubble
+                                message={message}
+                                groupId={group._id}
+                                onOpenViewer={(uri) => {
+                                  setImageViewerUri(uri);
+                                  setImageViewerVisible(true);
+                                }}
+                                onLongPress={() => {
+                                  ReactNativeHapticFeedback.trigger('impactMedium', hapticOptions);
+                                  if (isSelectingMessages) {
+                                    toggleMessageSelection(message._id);
+                                  } else {
+                                    openMessageActions(message);
+                                  }
+                                }}
                               />
-                            </View>
-                          )}
-                        </RNTouchableOpacity>
+                            ) : (
+                              <View
+                                style={[
+                                  styles.messageBubble,
+                                  message.isOwn ? styles.ownMessageBubble : styles.otherMessageBubble,
+                                  isSelected && styles.selectedMessageBubble,
+                                ]}
+                              >
+                                <LinkableText
+                                  text={message.text}
+                                  style={[
+                                    styles.messageText,
+                                    message.isOwn ? styles.ownMessageText : styles.otherMessageText,
+                                  ]}
+                                  isOwnMessage={message.isOwn}
+                                />
+                              </View>
+                            )}
+                          </RNTouchableOpacity>
+                        </View>
                       </View>
+                    );
+                  }}
+                />
+              {showJumpToLatest && !loading ? (
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  style={styles.jumpToBottomFAB}
+                  onPress={jumpToLatest}
+                >
+                  <Icon name="chevron-down" size={24} color="#FFFFFF" />
+                  {pendingNewMessages > 0 && (
+                    <View style={styles.jumpToBottomBadge}>
+                      <Text style={styles.jumpToBottomBadgeText}>
+                        {pendingNewMessages > 99 ? '99+' : pendingNewMessages}
+                      </Text>
                     </View>
-                  );
-                }}
-              />
+                  )}
+                </TouchableOpacity>
+              ) : null}
+              </>
             )}
           </View>
 
@@ -2119,10 +2366,23 @@ const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
   showToast,
   showAlert
 }) => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [group, setGroup] = useState<any | null>(null);
   const [showAddMember, setShowAddMember] = useState(false);
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Check if current user is admin
+  const currentUserMember = useMemo(() => 
+    group?.members?.find((m: any) => m.user === user?.id || (m.phoneNumber === user?.phoneNumber && m.phoneNumber)),
+    [group?.members, user]
+  );
+  const isUserAdmin = group?.createdBy === user?.id || currentUserMember?.role === 'admin';
 
   useEffect(() => {
     const fetchDetails = async () => {
@@ -2200,6 +2460,90 @@ const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
     );
   };
 
+  const handleUpdateName = async () => {
+    if (!newName.trim() || newName === group?.name) {
+      setIsEditingName(false);
+      return;
+    }
+
+    try {
+      setIsUpdating(true);
+      const response = await apiService.put(`/api/groups/${groupId}`, { name: newName.trim() });
+      if (response && response.success) {
+        setGroup({ ...group, name: newName.trim() });
+        showToast('Group name updated', 'success');
+        setIsEditingName(false);
+        loadGroups();
+      }
+    } catch (error: any) {
+      showToast(error?.message || 'Failed to update name', 'error');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleLeaveGroup = async () => {
+    showAlert(
+      'Leave Group',
+      'Are you sure you want to leave this group?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Leave',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsLeaving(true);
+              const response = await apiService.post(`/api/groups/${groupId}/leave`);
+              if (response && response.success) {
+                showToast('You left the group', 'success');
+                onClose();
+                loadGroups();
+              }
+            } catch (error: any) {
+              showToast(error?.message || 'Failed to leave group', 'error');
+            } finally {
+              setIsLeaving(false);
+            }
+          }
+        }
+      ],
+      'logout',
+      '#EF4444'
+    );
+  };
+
+  const handleDeleteGroup = async () => {
+    showAlert(
+      'Delete Group',
+      'Are you sure you want to delete this group for everyone? This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsDeleting(true);
+              const response = await apiService.delete(`/api/groups/${groupId}`);
+              if (response && response.success) {
+                showToast('Group deleted', 'success');
+                onClose();
+                loadGroups();
+              }
+            } catch (error: any) {
+              showToast(error?.message || 'Failed to delete group', 'error');
+            } finally {
+              setIsDeleting(false);
+            }
+          }
+        }
+      ],
+      'delete',
+      '#EF4444'
+    );
+  };
+
   const renderMemberRole = (member: any) => {
     if (member.role === 'admin') {
       return 'Admin';
@@ -2226,12 +2570,49 @@ const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
             <ScrollView contentContainerStyle={styles.groupDetailsScrollContent}>
               {/* Group avatar + basic info */}
               <View style={styles.groupDetailsHeaderInfo}>
-                <View style={styles.groupDetailsAvatar}>
+                <TouchableOpacity 
+                  style={styles.groupDetailsAvatar}
+                  onPress={() => showToast('Update image functionality coming soon', 'success')}
+                >
                   <Text style={styles.groupDetailsAvatarText}>
                     {(group.name || 'GP').substring(0, 2).toUpperCase()}
                   </Text>
-                </View>
-                <Text style={styles.groupDetailsName}>{group.name}</Text>
+                  <View style={styles.avatarEditIcon}>
+                    <Icon name="camera" size={12} color="#FFFFFF" />
+                  </View>
+                </TouchableOpacity>
+                
+                {isEditingName ? (
+                  <View style={styles.groupNameEditRow}>
+                    <TextInput
+                      style={styles.groupNameEditInput}
+                      value={newName}
+                      onChangeText={setNewName}
+                      autoFocus
+                      maxLength={30}
+                    />
+                    <TouchableOpacity onPress={handleUpdateName} disabled={isUpdating}>
+                      {isUpdating ? (
+                        <ActivityIndicator size="small" color={Colors.primary} />
+                      ) : (
+                        <Icon name="check" size={24} color={Colors.primary} />
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={styles.groupNameRow}>
+                    <Text style={styles.groupDetailsName}>{group.name}</Text>
+                    <TouchableOpacity 
+                      onPress={() => {
+                        setNewName(group.name);
+                        setIsEditingName(true);
+                      }}
+                    >
+                      <Icon name="pencil" size={16} color={Colors.textSecondary} style={{marginLeft: 8}} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+
                 {!!group.description && (
                   <Text style={styles.groupDetailsDescription}>{group.description}</Text>
                 )}
@@ -2313,6 +2694,33 @@ const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
                   <Text style={styles.groupDetailsEmptyText}>No active members found.</Text>
                 )}
               </View>
+
+              {/* Group Actions Section */}
+              <View style={styles.groupActionsSection}>
+                <TouchableOpacity 
+                  style={styles.groupDetailsActionRow} 
+                  onPress={handleLeaveGroup}
+                  disabled={isLeaving || isDeleting}
+                >
+                  <Icon name="logout" size={20} color="#EF4444" />
+                  <Text style={[styles.groupDetailsActionText, {color: '#EF4444'}]}>
+                    {isLeaving ? 'Leaving...' : 'Leave Group'}
+                  </Text>
+                </TouchableOpacity>
+
+                {isUserAdmin && (
+                  <TouchableOpacity 
+                    style={[styles.groupDetailsActionRow, {borderBottomWidth: 0}]} 
+                    onPress={handleDeleteGroup}
+                    disabled={isLeaving || isDeleting}
+                  >
+                    <Icon name="delete" size={20} color="#EF4444" />
+                    <Text style={[styles.groupDetailsActionText, {color: '#EF4444'}]}>
+                      {isDeleting ? 'Deleting...' : 'Delete Group'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             </ScrollView>
           ) : (
             <View style={styles.groupDetailsLoadingContainer}>
@@ -2368,6 +2776,8 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
   const [activeTab, setActiveTab] = useState<'groups' | 'emergency'>('groups');
   const [currentScreen, setCurrentScreen] = useState<'main' | 'chat' | 'contactSelection'>('main');
   const [selectedGroup, setSelectedGroup] = useState<any>(null);
+  const [showSearch, setShowSearch] = useState(false);
+  const { user } = useAuth();
 
   // Group details modal state
   const [showGroupDetails, setShowGroupDetails] = useState(false);
@@ -2385,6 +2795,16 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
   const isDeletingContactRef = useRef(false);
 
   const [tabIndex, setTabIndex] = useState(0);
+  const searchAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.spring(searchAnim, {
+      toValue: showSearch ? 1 : 0,
+      useNativeDriver: false,
+      friction: 8,
+      tension: 50,
+    }).start();
+  }, [showSearch]);
   const loadEmergencyContacts = useCallback(async () => {
     try {
       setLoading(true);
@@ -2566,11 +2986,15 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
   };
 
   const handleGroupPress = (group: any) => {
-    // Reset unread count locally for this group as soon as user opens it
+    // Capture unread count before we potentially clear it in state
+    const groupToOpen = { ...group };
+    setSelectedGroup(groupToOpen);
+    
+    // Reset unread count locally for this group
     setGroups((prev) =>
       prev.map((g) => (g._id === group._id ? { ...g, unreadCount: 0 } : g)),
     );
-    setSelectedGroup(group);
+    
     setCurrentScreen('chat');
     onChatStateChange?.(true);
   };
@@ -2579,10 +3003,43 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
     setCurrentScreen('main');
     setSelectedGroup(null);
     onChatStateChange?.(false);
-    // Refresh groups so unread counts and last message previews reflect
-    // messages marked as read on the server while viewing the chat.
     loadGroups();
   };
+
+  // Handle hardware back button
+  useEffect(() => {
+    const backAction = () => {
+      if (showGroupDetails) {
+        setShowGroupDetails(false);
+        return true;
+      }
+      if (showAddModal) {
+        setShowAddModal(false);
+        return true;
+      }
+      if (currentScreen === 'chat') {
+        handleBackToMain();
+        return true;
+      }
+      if (currentScreen === 'contactSelection') {
+        setCurrentScreen('main');
+        return true;
+      }
+      if (showSearch) {
+        setShowSearch(false);
+        setSearchQuery('');
+        return true;
+      }
+      if (selectionMode) {
+        clearSelection();
+        return true;
+      }
+      return false;
+    };
+
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+    return () => backHandler.remove();
+  }, [showGroupDetails, showAddModal, currentScreen, showSearch, selectionMode, searchQuery, handleBackToMain]);
 
   // Selection helpers for groups
   const toggleGroupSelection = (groupId: string) => {
@@ -2747,6 +3204,7 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
     return (
       <>
         <GroupChatScreen
+          key={selectedGroup._id}
           group={selectedGroup}
           onBack={handleBackToMain}
           onOpenGroupDetails={() => openGroupDetails(selectedGroup)}
@@ -2787,7 +3245,18 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
             </TouchableOpacity>
           </View>
         ) : (
-          <Text style={styles.headerTitle}>Trust Circle</Text>
+          <View style={styles.headerRow}>
+            <Text style={styles.headerTitle}>Trust Circle</Text>
+            <TouchableOpacity 
+              onPress={() => {
+                setShowSearch(!showSearch);
+                if (showSearch) setSearchQuery('');
+              }}
+              style={styles.headerIconButton}
+            >
+              <Icon name={showSearch ? "close" : "magnify"} size={26} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
         )}
       </View>
 
@@ -2809,13 +3278,39 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
         </View>
       </View>
 
-      {/* Search bar below tabs, filters within active tab */}
-      <View style={styles.searchContainer}>
-        <Icon name="magnify" size={20} color={Colors.textLight} />
+      {/* Floating Search bar */}
+      <Animated.View
+        style={[
+          styles.searchContainer,
+          {
+            opacity: searchAnim,
+            zIndex: 2000,
+            transform: [
+              {
+                translateY: searchAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-20, 0],
+                }),
+              },
+            ],
+          }
+        ]}
+      >
+        <TouchableOpacity 
+          style={{ padding: 8, marginLeft: -8 }} 
+          onPress={() => {
+            setShowSearch(false);
+            setSearchQuery('');
+          }}
+        >
+          <Icon name="arrow-left" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+        <Icon name="magnify" size={20} color="rgba(255, 255, 255, 0.4)" />
         <TextInput
           style={styles.searchInput}
           placeholder={activeTab === 'groups' ? 'Search groups...' : 'Search emergency contacts...'}
           placeholderTextColor={Colors.textLight}
+          autoFocus={showSearch}
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
@@ -2824,7 +3319,7 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
             <Icon name="close-circle" size={20} color={Colors.textLight} />
           </TouchableOpacity>
         )}
-      </View>
+      </Animated.View>
 
       <SlideView currentIndex={tabIndex} onIndexChange={setTabIndex} style={styles.slideViewContainer}>
         {/* Groups Tab Content */}
@@ -3362,6 +3857,16 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     backgroundColor: '#09090B',
   },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  headerIconButton: {
+    padding: 8,
+    marginRight: -8,
+  },
   headerTitle: {
     fontSize: 24,
     fontWeight: '800',
@@ -3650,23 +4155,31 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   searchContainer: {
+    position: 'absolute',
+    top: 50,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    marginHorizontal: 20,
-    marginTop: 4,
-    marginBottom: 16,
+    backgroundColor: 'rgba(30, 30, 35, 0.98)',
+    marginHorizontal: 16,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 15,
+    elevation: 20,
+    zIndex: 1000,
   },
   searchInput: {
     flex: 1,
-    marginLeft: 10,
-    fontSize: 15,
+    marginLeft: 12,
+    fontSize: 16,
     color: '#FFFFFF',
+    fontWeight: '500',
   },
   slideViewContainer: {
     flex: 1,
@@ -4228,14 +4741,67 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   groupActionsContent: {
-    backgroundColor: '#18181B',
-    borderRadius: 20,
     padding: 20,
     marginHorizontal: 40,
     width: '80%',
     maxWidth: 340,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  groupActionsSection: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 16,
+    marginHorizontal: 16,
+    marginBottom: 40,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  groupDetailsActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  groupDetailsActionText: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 12,
+  },
+  avatarEditIcon: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: Colors.primary,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#000000',
+  },
+  groupNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  groupNameEditRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    marginTop: 8,
+  },
+  groupNameEditInput: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700',
+    paddingVertical: 8,
+    minWidth: 150,
+    textAlign: 'center',
   },
   groupActionsTitle: {
     fontSize: 16,
@@ -4822,10 +5388,49 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000000', // OLED black
   },
+  messagesContainerHidden: {
+    opacity: 0,
+  },
   messagesContent: {
     paddingTop: 10,
     paddingHorizontal: 15,
     paddingBottom: 20,
+  },
+  jumpToBottomFAB: {
+    position: 'absolute',
+    right: 20,
+    bottom: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#1F2937',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  jumpToBottomBadge: {
+    position: 'absolute',
+    top: -8,
+    backgroundColor: Colors.primary,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: '#1F2937',
+  },
+  jumpToBottomBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '900',
   },
   messageWrapper: {
     marginVertical: 4,
@@ -5034,56 +5639,116 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 2,
-    width: 260,
+    width: LOCATION_PREVIEW_WIDTH,
   },
   locationMapContainer: {
-    width: 260,
-    height: 180,
+    width: LOCATION_PREVIEW_WIDTH,
+    height: LOCATION_PREVIEW_HEIGHT,
     overflow: 'hidden',
     position: 'relative',
     backgroundColor: '#E5E7EB',
   },
   locationMap: {
-    width: 260,
-    height: 180,
+    width: LOCATION_PREVIEW_WIDTH,
+    height: LOCATION_PREVIEW_HEIGHT,
   },
-  // User profile photo as pin overlay (centered on map)
-  locationPinContainer: {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    width: 50,
-    height: 50,
-    marginLeft: -25,
-    marginTop: -25,
-    borderRadius: 25,
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
+  locationMapWebView: {
+    width: LOCATION_PREVIEW_WIDTH,
+    height: LOCATION_PREVIEW_HEIGHT,
+    backgroundColor: '#E5E7EB',
+  },
+  locationFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+  },
+  locationFallbackTitle: {
+    marginTop: 8,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  locationFallbackCoords: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#4B5563',
+    textAlign: 'center',
+  },
+  locationFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 6,
-    overflow: 'hidden',
   },
-  locationPinImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 25,
+  locationFooterBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
-  locationPinPlaceholder: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 25,
-    backgroundColor: Colors.primary,
+  locationFooterBadgeText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  locationFooterHint: {
+    fontSize: 12,
+    color: Colors.primary,
+    fontWeight: '600',
+  },
+  locationPinOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  locationPinText: {
+  minimalPinContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  minimalPinAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: Colors.primary,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    overflow: 'hidden',
+  },
+  minimalPinImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 19,
+  },
+  minimalPinText: {
     color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  minimalPinPointer: {
+    width: 0,
+    height: 0,
+    backgroundColor: 'transparent',
+    borderStyle: 'solid',
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderBottomWidth: 0,
+    borderTopWidth: 8,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: '#FFFFFF',
+    marginTop: -2,
   },
 
   messageInputContainer: {

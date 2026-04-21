@@ -26,7 +26,6 @@ export function getGeoapifyMapUrl(
     `&height=${height}` +
     `&center=lonlat:${lng},${lat}` +
     `&zoom=${zoom}` +
-    `&marker=lonlat:${lng},${lat};type:material;color:%23ff0000;size:medium;icon:pin` +
     `&apiKey=${GEOAPIFY_API_KEY}`;
 
   return url;

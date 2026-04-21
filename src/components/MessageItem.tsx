@@ -11,6 +11,7 @@ import {
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import { Colors } from '../constants';
+import { getGeoapifyMapUrl } from '../services/geoapifyMapService';
 
 const hapticOptions = {
   enableVibrateFallback: true,
@@ -41,6 +42,7 @@ const MessageItem = React.memo<MessageItemProps>(({
   playingAudioId,
 }) => {
   const [imageLoaded, setImageLoaded] = React.useState(false);
+  const [mapLoading, setMapLoading] = React.useState(true);
 
   const formatTime = (timestamp: string) => {
     return new Date(timestamp).toLocaleTimeString('en-US', {
@@ -134,18 +136,21 @@ const MessageItem = React.memo<MessageItemProps>(({
     const { latitude, longitude } = message.location;
 
     const openInMaps = () => {
-      const url = `https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=16/${latitude}/${longitude}`;
+      // Use Google Maps deep link for navigation and better UX
+      const url = Platform.select({
+        ios: `maps:0,0?q=${latitude},${longitude}`,
+        android: `geo:0,0?q=${latitude},${longitude}(${message.sender?.name || 'Location'})`,
+        default: `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`,
+      });
+      
       Linking.openURL(url).catch((err) => {
-        console.error('Failed to open OpenStreetMap:', err);
+        console.error('Failed to open Maps:', err);
+        // Fallback to web URL
+        Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`);
       });
     };
 
-    const mapUrl =
-      `https://staticmap.openstreetmap.de/staticmap.php?center=${latitude},${longitude}` +
-      `&zoom=15&size=260x180&markers=${latitude},${longitude},red-pushpin`;
-
-    const senderName = message.sender?.name || 'User';
-    const senderInitials = senderName.charAt(0).toUpperCase();
+    const mapUrl = getGeoapifyMapUrl(latitude, longitude, 260, 180, 15);
 
     return (
       <TouchableOpacity
@@ -153,15 +158,35 @@ const MessageItem = React.memo<MessageItemProps>(({
         onPress={openInMaps}
         style={styles.locationCard}
       >
-        <Image
-          source={{ uri: mapUrl }}
-          style={styles.locationMap}
-          resizeMode="cover"
-        />
-        <View style={styles.locationPinContainer}>
-          <View style={styles.locationPinPlaceholder}>
-            <Text style={styles.locationPinText}>{senderInitials}</Text>
-          </View>
+        <View style={styles.locationMapContainer}>
+          {mapLoading && (
+            <View style={styles.locationLoadingOverlay}>
+              <ActivityIndicator size="small" color={Colors.primary} />
+              <Text style={styles.locationLoadingText}>Loading location...</Text>
+            </View>
+          )}
+          <Image
+            source={{ uri: mapUrl }}
+            style={[styles.locationMap, mapLoading && { opacity: 0 }]}
+            resizeMode="cover"
+            onLoad={() => setMapLoading(false)}
+          />
+          {!mapLoading && (
+            <View style={styles.locationPinOverlay}>
+              <View style={styles.minimalPinContainer}>
+                <View style={styles.minimalPinAvatar}>
+                  <Text style={styles.minimalPinText}>
+                    {(message.sender?.name || 'U').charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+                <View style={styles.minimalPinPointer} />
+              </View>
+            </View>
+          )}
+        </View>
+        <View style={styles.locationFooter}>
+          <Icon name="google-maps" size={16} color={Colors.textSecondary} />
+          <Text style={styles.locationFooterText}>View in Google Maps</Text>
         </View>
       </TouchableOpacity>
     );
@@ -374,41 +399,96 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   locationCard: {
-    borderRadius: 12,
+    borderRadius: 16,
     overflow: 'hidden',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.surface,
     width: 260,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  locationMapContainer: {
+    width: 260,
+    height: 180,
+    backgroundColor: '#1F2937',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   locationMap: {
     width: 260,
     height: 180,
   },
-  locationPinContainer: {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    width: 50,
-    height: 50,
-    marginLeft: -25,
-    marginTop: -25,
-    borderRadius: 25,
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
-    backgroundColor: '#FFFFFF',
-    overflow: 'hidden',
-  },
-  locationPinPlaceholder: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 25,
-    backgroundColor: Colors.primary,
+  locationLoadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  locationPinText: {
+  locationLoadingText: {
     color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 10,
+    marginTop: 8,
+    fontWeight: '600',
+  },
+  locationPinOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    pointerEvents: 'none',
+  },
+  locationFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  locationFooterText: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginLeft: 6,
+    fontWeight: '500',
+  },
+  minimalPinContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  minimalPinAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: Colors.primary,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+  },
+  minimalPinText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  minimalPinPointer: {
+    width: 0,
+    height: 0,
+    backgroundColor: 'transparent',
+    borderStyle: 'solid',
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderBottomWidth: 0,
+    borderTopWidth: 8,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: '#FFFFFF',
+    marginTop: -2,
   },
 });
 
