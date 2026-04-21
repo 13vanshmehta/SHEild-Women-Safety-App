@@ -38,7 +38,6 @@ import { connectSocket } from '../services/socketService';
 import locationService from '../services/locationService';
 import { requestPermissionWithRationale, PermissionStatus } from '../services/permissionService';
 import { getGeoapifyMapUrl } from '../services/geoapifyMapService';
-import { GEOAPIFY_API_KEY } from '../constants/api';
 import { useCustomAlert } from '../components/CustomAlert';
 import { useToast } from '../components/Toast';
 
@@ -1753,14 +1752,11 @@ const GroupChatScreen: React.FC<{
                                 }
 
                                 const openInMaps = () => {
-                                  const url = Platform.select({
-                                    ios: `maps://maps.apple.com/?q=${lat},${lng}`,
-                                    android: `geo:${lat},${lng}?q=${lat},${lng}`,
-                                  }) || `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+                                  const url = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=16/${lat}/${lng}`;
                                   Linking.openURL(url).catch(() => { });
                                 };
 
-                                const mapUrl = `https://maps.geoapify.com/v1/staticmap?style=osm-bright&width=260&height=160&center=lonlat:${lng},${lat}&zoom=15&apiKey=${GEOAPIFY_API_KEY}`;
+                                const mapUrl = `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=15&size=260x160&markers=${lat},${lng},red-pushpin`;
                                 const senderName = message.sender?.name || 'User';
                                 const senderInitials = senderName.charAt(0).toUpperCase();
 

@@ -3,20 +3,22 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   ActivityIndicator,
   Alert,
   Linking,
   TouchableOpacity,
-  RefreshControl,
+  Animated,
+  Easing,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import MapView, { Marker, UrlTile } from 'react-native-maps';
+import { WebView } from 'react-native-webview';
 import { Colors } from '../constants';
 import Geolocation from 'react-native-geolocation-service';
 import locationService from '../services/locationService';
 import userLocationService from '../services/userLocationService';
+import emergencyContactService, { EmergencyContact } from '../services/emergencyContactService';
 import { useAuth } from '../contexts/AuthContext';
 
 // Using CartoDB Voyager tiles - mobile-friendly, free, and open source
@@ -34,6 +36,7 @@ interface UserLocation {
   firstName: string;
   lastName: string;
   email: string;
+  phoneNumber?: string | null;
   profilePicture: string | null;
   latitude: number;
   longitude: number;
@@ -41,79 +44,107 @@ interface UserLocation {
   isOnline: boolean;
 }
 
+interface EmergencyContactLocation {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  matchedUserId: string;
+  matchedBy: 'email' | 'phone';
+}
+
 // --- COMPONENT DEFINITIONS (Outside main component) ---
 const MapViewComponent: React.FC<{
   coordinates: Coordinates | null;
-  mapRef: React.RefObject<MapView | null>;
   otherUsers: UserLocation[];
-  currentUserId: string;
-}> = ({ coordinates, mapRef, otherUsers, currentUserId }) => {
+  emergencyContactLocations: EmergencyContactLocation[];
+  onInteractionChange: (isInteracting: boolean) => void;
+}> = ({ coordinates, otherUsers, emergencyContactLocations, onInteractionChange }) => {
   if (!coordinates) return null;
-  const { latitude, longitude } = coordinates;
+  const mapDataJson = JSON.stringify({
+    current: coordinates,
+    otherUsers,
+    emergencyContactLocations,
+  });
 
-  // Using CartoDB tile server - mobile-friendly and doesn't require User-Agent
-  // Alternative to OpenStreetMap's main server which blocks mobile apps
-  const tileUrl = 'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png';
+  const mapHtml = [
+    '<!DOCTYPE html>',
+    '<html>',
+    '<head>',
+    '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />',
+    '<style>',
+    'html, body, #map { height: 100%; width: 100%; margin: 0; padding: 0; background: #111827; }',
+    '.leaflet-container { background: #111827; }',
+    '.marker-wrap { display: flex; align-items: center; justify-content: center; }',
+    '.marker-dot { width: 18px; height: 18px; border-radius: 999px; border: 2px solid #fff; box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.18); background: #2563eb; }',
+    '.marker-dot.other { background: #8b5cf6; box-shadow: 0 0 0 6px rgba(139, 92, 246, 0.16); }',
+    '.marker-dot.emergency { background: #ef4444; box-shadow: 0 0 0 6px rgba(239, 68, 68, 0.16); }',
+    '.marker-label { margin-top: 4px; padding: 2px 6px; border-radius: 999px; font-size: 10px; line-height: 12px; color: #fff; background: rgba(17, 24, 39, 0.82); white-space: nowrap; }',
+    '.self-marker { width: 20px; height: 20px; border-radius: 999px; background: #2563eb; border: 3px solid #fff; box-shadow: 0 0 0 10px rgba(37, 99, 235, 0.18); }',
+    '</style>',
+    '<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />',
+    '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>',
+    '</head>',
+    '<body>',
+    '<div id="map"></div>',
+    '<script>',
+    'const mapData = ' + mapDataJson + ';',
+    "const map = L.map('map', { zoomControl: false, attributionControl: true });",
+    "L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);",
+    'let interactionTimer = null;',
+    "function notifyInteraction(active) { if (window.ReactNativeWebView) { window.ReactNativeWebView.postMessage(active ? 'MAP_INTERACTION_START' : 'MAP_INTERACTION_END'); } }",
+    'function startInteraction() { if (interactionTimer) { clearTimeout(interactionTimer); interactionTimer = null; } notifyInteraction(true); }',
+    'function stopInteractionSoon() { if (interactionTimer) { clearTimeout(interactionTimer); } interactionTimer = setTimeout(function () { notifyInteraction(false); }, 180); }',
+    "function createMarkerHtml(className, label) { return '<div class=\"marker-wrap\">' + '<div style=\"display:flex;flex-direction:column;align-items:center;transform:translateY(-6px);\">' + '<div class=\"marker-dot ' + className + '\"></div>' + (label ? '<div class=\"marker-label\">' + label + '</div>' : '') + '</div>' + '</div>'; }",
+    "function createSelfHtml() { return '<div class=\"self-marker\"></div>'; }",
+    "function addMarker(lat, lng, html, popupText) { const icon = L.divIcon({ className: '', html: html, iconSize: [28, 40], iconAnchor: [14, 30], popupAnchor: [0, -28] }); const marker = L.marker([lat, lng], { icon: icon }).addTo(map); if (popupText) { marker.bindPopup(popupText); } return marker; }",
+    'const points = [];',
+    'const current = mapData.current;',
+    'points.push([current.latitude, current.longitude]);',
+    "addMarker(current.latitude, current.longitude, createSelfHtml(), '<b>Your Location</b><br/>' + current.latitude.toFixed(6) + ', ' + current.longitude.toFixed(6));",
+    'mapData.otherUsers.forEach(function (locationUser) {',
+    '  points.push([locationUser.latitude, locationUser.longitude]);',
+    "  addMarker(locationUser.latitude, locationUser.longitude, createMarkerHtml('other', (locationUser.firstName || '').slice(0, 1).toUpperCase()), '<b>' + (locationUser.firstName || 'User') + ' ' + (locationUser.lastName || '') + '</b><br/>' + (locationUser.isOnline ? 'Online' : 'Last seen: ' + new Date(locationUser.lastUpdated).toLocaleString()));",
+    '});',
+    'mapData.emergencyContactLocations.forEach(function (contactLocation) {',
+    '  points.push([contactLocation.latitude, contactLocation.longitude]);',
+    "  addMarker(contactLocation.latitude, contactLocation.longitude, createMarkerHtml('emergency', '!'), '<b>' + contactLocation.name + ' (Emergency Contact)</b><br/>Shared from app location (' + contactLocation.matchedBy + ')');",
+    '});',
+    'if (points.length > 1) { map.fitBounds(points, { padding: [36, 36] }); } else { map.setView([current.latitude, current.longitude], 15); }',
+    "['dragstart', 'zoomstart', 'movestart'].forEach(function (eventName) { map.on(eventName, startInteraction); });",
+    "['dragend', 'zoomend', 'moveend'].forEach(function (eventName) { map.on(eventName, stopInteractionSoon); });",
+    "var mapElement = document.getElementById('map');",
+    "mapElement.addEventListener('touchstart', startInteraction, { passive: true });",
+    "mapElement.addEventListener('touchend', stopInteractionSoon, { passive: true });",
+    "mapElement.addEventListener('mousedown', startInteraction);",
+    "mapElement.addEventListener('mouseup', stopInteractionSoon);",
+    '</script>',
+    '</body>',
+    '</html>',
+  ].join('');
 
   return (
-    <MapView
-      ref={mapRef}
+    <WebView
+      originWhitelist={['*']}
+      source={{ html: mapHtml }}
       style={styles.map}
-      initialRegion={{
-        latitude,
-        longitude,
-        latitudeDelta: 0.05,
-        longitudeDelta: 0.05,
+      javaScriptEnabled={true}
+      domStorageEnabled={true}
+      scrollEnabled={false}
+      showsVerticalScrollIndicator={false}
+      showsHorizontalScrollIndicator={false}
+      onLoadEnd={() => onInteractionChange(false)}
+      onMessage={(event) => {
+        const message = event.nativeEvent.data;
+        if (message === 'MAP_INTERACTION_START') {
+          onInteractionChange(true);
+        } else if (message === 'MAP_INTERACTION_END') {
+          onInteractionChange(false);
+        }
       }}
-      showsUserLocation={true}
-      showsMyLocationButton={false}
-      showsCompass={true}
-      showsBuildings={true}
-      showsTraffic={false}
-      loadingEnabled={true}
-      pitchEnabled={false}
-      rotateEnabled={true}
-      scrollEnabled={true}
-      zoomEnabled={true}
-    >
-      {/* CartoDB Voyager Tile Layer - Mobile-friendly, free, no API key needed */}
-      <UrlTile
-        urlTemplate={tileUrl}
-        maximumZ={19}
-        minimumZ={1}
-        flipY={false}
-        shouldReplaceMapContent={true}
-        tileSize={256}
-      />
-
-      {/* Current User Location Marker */}
-      <Marker
-        coordinate={{ latitude, longitude }}
-        title="Your Location"
-        description={`${latitude.toFixed(6)}, ${longitude.toFixed(6)}`}
-      >
-        <View style={styles.customMarker}>
-          <Icon name="account-circle" size={40} color={Colors.primary} />
-        </View>
-      </Marker>
-
-      {/* Other Users Location Markers */}
-      {otherUsers.map((user) => (
-        <Marker
-          key={user.userId}
-          coordinate={{ latitude: user.latitude, longitude: user.longitude }}
-          title={`${user.firstName} ${user.lastName}`}
-          description={user.isOnline ? 'Online' : 'Last seen: ' + new Date(user.lastUpdated).toLocaleString()}
-        >
-          <View style={styles.otherUserMarker}>
-            <View style={[styles.otherUserMarkerInner, !user.isOnline && styles.offlineMarker]}>
-              <Icon name="account" size={24} color="#fff" />
-            </View>
-            {user.isOnline && <View style={styles.onlineIndicator} />}
-          </View>
-        </Marker>
-      ))}
-    </MapView>
+      startInLoadingState={true}
+      renderLoading={() => <View style={styles.mapLoadingOverlay} />}
+    />
   );
 };
 
@@ -139,9 +170,115 @@ const TrackMeScreen: React.FC = () => {
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [_isMapInteracting, setIsMapInteracting] = useState<boolean>(false);
+  const [showDetailsToggle, setShowDetailsToggle] = useState<boolean>(false);
+  const [showDetailsPopup, setShowDetailsPopup] = useState<boolean>(false);
   const [otherUsers, setOtherUsers] = useState<UserLocation[]>([]);
-  const [loadingUsers, setLoadingUsers] = useState<boolean>(false);
-  const mapRef = React.useRef<MapView>(null);
+  const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContact[]>([]);
+  const screenFadeAnim = React.useRef(new Animated.Value(0)).current;
+  const screenTranslateAnim = React.useRef(new Animated.Value(14)).current;
+  const popupOpacityAnim = React.useRef(new Animated.Value(0)).current;
+  const popupScaleAnim = React.useRef(new Animated.Value(0.92)).current;
+
+  const openDetailsPopup = useCallback(() => {
+    setShowDetailsPopup(true);
+    setShowDetailsToggle(true);
+
+    Animated.parallel([
+      Animated.timing(popupOpacityAnim, {
+        toValue: 1,
+        duration: 180,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.spring(popupScaleAnim, {
+        toValue: 1,
+        damping: 16,
+        stiffness: 210,
+        mass: 0.9,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [popupOpacityAnim, popupScaleAnim]);
+
+  const closeDetailsPopup = useCallback(() => {
+    Animated.parallel([
+      Animated.timing(popupOpacityAnim, {
+        toValue: 0,
+        duration: 160,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(popupScaleAnim, {
+        toValue: 0.92,
+        duration: 160,
+        easing: Easing.inOut(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setShowDetailsPopup(false);
+      setShowDetailsToggle(false);
+    });
+  }, [popupOpacityAnim, popupScaleAnim]);
+
+  const normalizePhone = useCallback((value?: string | null) => {
+    if (!value) return '';
+    return value.replace(/\D/g, '');
+  }, []);
+
+  const emergencyContactLocations = React.useMemo<EmergencyContactLocation[]>(() => {
+    if (otherUsers.length === 0 || emergencyContacts.length === 0) return [];
+
+    const results: EmergencyContactLocation[] = [];
+    const seenUserIds = new Set<string>();
+
+    for (const contact of emergencyContacts) {
+      const contactEmail = (contact.email || '').trim().toLowerCase();
+      const contactPhone = normalizePhone(contact.phoneNumber);
+
+      const matchedUser = otherUsers.find((locationUser) => {
+        if (seenUserIds.has(locationUser.userId)) return false;
+
+        const userEmail = (locationUser.email || '').trim().toLowerCase();
+        const userPhone = normalizePhone(locationUser.phoneNumber);
+
+        if (contactEmail && userEmail && contactEmail === userEmail) {
+          return true;
+        }
+
+        if (contactPhone && userPhone && contactPhone === userPhone) {
+          return true;
+        }
+
+        return false;
+      });
+
+      if (matchedUser) {
+        seenUserIds.add(matchedUser.userId);
+        const matchedBy: 'email' | 'phone' =
+          contactEmail && matchedUser.email && contactEmail === matchedUser.email.trim().toLowerCase()
+            ? 'email'
+            : 'phone';
+
+        results.push({
+          id: contact._id || `${matchedUser.userId}-${contact.name}`,
+          name: contact.name,
+          latitude: matchedUser.latitude,
+          longitude: matchedUser.longitude,
+          matchedUserId: matchedUser.userId,
+          matchedBy,
+        });
+      }
+    }
+
+    return results;
+  }, [otherUsers, emergencyContacts, normalizePhone]);
+
+  const nonEmergencyOtherUsers = React.useMemo(() => {
+    if (emergencyContactLocations.length === 0) return otherUsers;
+    const emergencyUserIds = new Set(emergencyContactLocations.map((c) => c.matchedUserId));
+    return otherUsers.filter((locationUser) => !emergencyUserIds.has(locationUser.userId));
+  }, [otherUsers, emergencyContactLocations]);
 
   const fetchAddress = useCallback(async (lat: number, lon: number) => {
     try {
@@ -170,7 +307,6 @@ const TrackMeScreen: React.FC = () => {
 
   const fetchOtherUsersLocations = useCallback(async () => {
     try {
-      setLoadingUsers(true);
       const locations = await userLocationService.getVisibleLocations();
 
       // Filter out current user
@@ -182,10 +318,34 @@ const TrackMeScreen: React.FC = () => {
       console.log(`📍 Loaded ${filteredLocations.length} other user locations`);
     } catch (err) {
       console.error('Error fetching other users locations:', err);
-    } finally {
-      setLoadingUsers(false);
     }
   }, [user?.id]);
+
+  const fetchEmergencyContacts = useCallback(async () => {
+    try {
+      const response = await emergencyContactService.getEmergencyContacts({ page: 1, limit: 200 });
+
+      if (!response?.success || !response.data) {
+        setEmergencyContacts([]);
+        return;
+      }
+
+      if (Array.isArray(response.data)) {
+        setEmergencyContacts(response.data);
+        return;
+      }
+
+      if ('contacts' in response.data && Array.isArray(response.data.contacts)) {
+        setEmergencyContacts(response.data.contacts);
+        return;
+      }
+
+      setEmergencyContacts([]);
+    } catch (err) {
+      console.error('Error fetching emergency contacts for Track Me:', err);
+      setEmergencyContacts([]);
+    }
+  }, []);
 
   const getCurrentLocation = useCallback(async () => {
     try {
@@ -259,25 +419,35 @@ const TrackMeScreen: React.FC = () => {
     setRefreshing(true);
     await Promise.all([
       getCurrentLocation(),
-      fetchOtherUsersLocations()
+      fetchOtherUsersLocations(),
+      fetchEmergencyContacts(),
     ]);
     setRefreshing(false);
-  }, [getCurrentLocation, fetchOtherUsersLocations]);
+  }, [getCurrentLocation, fetchOtherUsersLocations, fetchEmergencyContacts]);
 
   const recenterMap = useCallback(() => {
-    if (coordinates && mapRef.current) {
-      mapRef.current.animateToRegion({
-        latitude: coordinates.latitude,
-        longitude: coordinates.longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      }, 1000);
-    }
-  }, [coordinates]);
+    getCurrentLocation();
+  }, [getCurrentLocation]);
 
   useEffect(() => {
     getCurrentLocation();
     fetchOtherUsersLocations();
+    fetchEmergencyContacts();
+
+    Animated.parallel([
+      Animated.timing(screenFadeAnim, {
+        toValue: 1,
+        duration: 360,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(screenTranslateAnim, {
+        toValue: 0,
+        duration: 420,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
 
     // Refresh other users' locations every 30 seconds
     const interval = setInterval(() => {
@@ -285,29 +455,19 @@ const TrackMeScreen: React.FC = () => {
     }, 30000);
 
     return () => clearInterval(interval);
-  }, [getCurrentLocation, fetchOtherUsersLocations]);
+  }, [getCurrentLocation, fetchOtherUsersLocations, fetchEmergencyContacts, screenFadeAnim, screenTranslateAnim]);
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={Colors.primary}
-            colors={[Colors.primary]}
-          />
-        }
+      <Animated.View
+        style={[
+          styles.screenAnimWrap,
+          {
+            opacity: screenFadeAnim,
+            transform: [{ translateY: screenTranslateAnim }],
+          },
+        ]}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <Icon name="crosshairs-gps" size={48} color={Colors.primary} />
-          <Text style={styles.title}>Track Me</Text>
-          <Text style={styles.subtitle}>Your live location tracker</Text>
-        </View>
-
-        {/* Map Container */}
         <View style={styles.mapContainer}>
           {loading && <LoadingSpinner />}
           {error && !loading && <ErrorView error={error} />}
@@ -315,89 +475,144 @@ const TrackMeScreen: React.FC = () => {
             <>
               <MapViewComponent
                 coordinates={coordinates}
-                mapRef={mapRef}
-                otherUsers={otherUsers}
-                currentUserId={user?.id || ''}
+                otherUsers={nonEmergencyOtherUsers}
+                emergencyContactLocations={emergencyContactLocations}
+                onInteractionChange={setIsMapInteracting}
               />
+              <View style={styles.mapTopOverlay}>
+                <View style={styles.liveBadge}>
+                  <View style={styles.liveDot} />
+                  <Text style={styles.liveBadgeText}>LIVE</Text>
+                </View>
+                <View style={styles.overlayStatPill}>
+                  <Text style={styles.overlayStatNumber}>{nonEmergencyOtherUsers.length}</Text>
+                  <Text style={styles.overlayStatText}>Visible</Text>
+                </View>
+                <View style={[styles.overlayStatPill, styles.overlayStatPillEmergency]}>
+                  <Text style={styles.overlayStatNumber}>{emergencyContactLocations.length}</Text>
+                  <Text style={styles.overlayStatText}>Emergency</Text>
+                </View>
+              </View>
+
+              <View style={styles.interactionHint}>
+                <Icon name="gesture-pinch" size={14} color="#0f172a" />
+                <Text style={styles.interactionHintText}>Pinch/drag map without screen scroll</Text>
+              </View>
+
               <TouchableOpacity
                 style={styles.recenterButton}
                 onPress={recenterMap}
               >
                 <Icon name="crosshairs-gps" size={24} color={Colors.primary} />
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.openMapsFloatingButton}
-                onPress={() => {
-                  const url = `https://maps.google.com/?q=${coordinates.latitude},${coordinates.longitude}`;
-                  Linking.openURL(url);
-                }}
-              >
-                <Icon name="google-maps" size={20} color="#fff" />
-                <Text style={styles.openMapsFloatingText}>Open in Google Maps</Text>
-              </TouchableOpacity>
             </>
           )}
-        </View>
 
-        {/* Retry Button - shown on error */}
-        {error && !loading && (
-          <TouchableOpacity
-            style={styles.retryButton}
-            onPress={getCurrentLocation}
-          >
-            <Icon name="refresh" size={20} color="#fff" style={styles.retryIcon} />
-            <Text style={styles.retryText}>Retry Location</Text>
-          </TouchableOpacity>
-        )}
-
-        {/* Location Details */}
-        <View style={styles.detailsContainer}>
-          {loading ? (
-            <View style={styles.loadingDetailsContainer}>
-              <ActivityIndicator size="small" color={Colors.primary} />
-              <Text style={styles.loadingDetailsText}>Loading location details...</Text>
+          <View style={styles.headerBar}>
+            <View>
+              <Text style={styles.title}>Track Me</Text>
+              <Text style={styles.subtitle}>Live location intelligence</Text>
             </View>
-          ) : error ? (
-            <Text style={styles.errorDetailsText}>Could not load location details.</Text>
-          ) : (
-            <>
-              {/* Current Coordinates */}
-              <View style={styles.detailRow}>
-                <View style={styles.iconCircle}>
-                  <Icon name="map" size={24} color={Colors.primary} />
-                </View>
-                <View style={styles.detailContent}>
-                  <Text style={styles.detailTitle}>GPS Coordinates</Text>
-                  <Text style={styles.detailText}>
-                    {coordinates?.latitude.toFixed(6) ?? 'N/A'}, {coordinates?.longitude.toFixed(6) ?? 'N/A'}
-                  </Text>
-                </View>
-              </View>
+            <TouchableOpacity
+              style={styles.headerToggleButton}
+              onPress={() => {
+                if (showDetailsPopup) {
+                  closeDetailsPopup();
+                } else {
+                  openDetailsPopup();
+                }
+              }}
+            >
+              <Icon name={showDetailsToggle ? 'close' : 'tune-variant'} size={18} color={Colors.primary} />
+            </TouchableOpacity>
+          </View>
 
-              {/* Current Address */}
-              <View style={styles.detailRow}>
-                <View style={[styles.iconCircle, styles.iconCirclePurple]}>
-                  <Icon name="map-marker" size={24} color="#a855f7" />
-                </View>
-                <View style={styles.detailContent}>
-                  <Text style={styles.detailTitle}>Current Address</Text>
-                  <Text style={styles.detailText}>
-                    {address || 'Fetching address...'}
-                  </Text>
-                </View>
-              </View>
+          <TouchableOpacity style={styles.floatingRefreshButton} onPress={onRefresh}>
+            {refreshing ? (
+              <ActivityIndicator size="small" color={Colors.primary} />
+            ) : (
+              <Icon name="refresh" size={20} color={Colors.primary} />
+            )}
+          </TouchableOpacity>
 
-              {/* Accuracy Info */}
-              <View style={styles.infoBox}>
-                <Icon name="information" size={16} color={Colors.textSecondary} />
-                <Text style={styles.infoText}>
-                  Pull down to refresh your location
-                </Text>
-              </View>
-            </>
+          {error && !loading && (
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={getCurrentLocation}
+            >
+              <Icon name="refresh" size={20} color="#fff" style={styles.retryIcon} />
+              <Text style={styles.retryText}>Retry Location</Text>
+            </TouchableOpacity>
           )}
         </View>
-      </ScrollView>
+
+        {showDetailsPopup && (
+          <View style={styles.popupLayer}>
+            <Pressable style={styles.popupBackdrop} onPress={closeDetailsPopup} />
+            <Animated.View
+              style={[
+                styles.detailsPopup,
+                {
+                  opacity: popupOpacityAnim,
+                  transform: [{ scale: popupScaleAnim }],
+                },
+              ]}
+            >
+              <View style={styles.detailsDropdownHeader}>
+                <Text style={styles.detailsDropdownTitle}>Track Details</Text>
+                <TouchableOpacity style={styles.dropdownRefreshButton} onPress={onRefresh}>
+                  <Icon name="refresh" size={16} color={Colors.primary} />
+                  <Text style={styles.dropdownRefreshText}>Refresh</Text>
+                </TouchableOpacity>
+              </View>
+
+              {loading ? (
+                <View style={styles.loadingDetailsContainer}>
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                  <Text style={styles.loadingDetailsText}>Loading location details...</Text>
+                </View>
+              ) : error ? (
+                <Text style={styles.errorDetailsText}>Could not load location details.</Text>
+              ) : (
+                <>
+                  <View style={styles.detailRow}>
+                    <View style={styles.iconCircle}>
+                      <Icon name="map" size={20} color={Colors.primary} />
+                    </View>
+                    <View style={styles.detailContent}>
+                      <Text style={styles.detailTitle}>GPS Coordinates</Text>
+                      <Text style={styles.detailText}>
+                        {coordinates?.latitude.toFixed(6) ?? 'N/A'}, {coordinates?.longitude.toFixed(6) ?? 'N/A'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.detailRow}>
+                    <View style={[styles.iconCircle, styles.iconCirclePurple]}>
+                      <Icon name="map-marker" size={20} color="#a855f7" />
+                    </View>
+                    <View style={styles.detailContent}>
+                      <Text style={styles.detailTitle}>Current Address</Text>
+                      <Text style={styles.detailText}>{address || 'Fetching address...'}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.footerMetaRow}>
+                    <View style={styles.metaChip}>
+                      <Icon name="information-outline" size={14} color="#475569" />
+                      <Text style={styles.metaChipText}>Pull to refresh</Text>
+                    </View>
+                    <View style={styles.metaChip}>
+                      <Icon name="shield-account" size={14} color="#ef4444" />
+                      <Text style={styles.metaChipText}>Emergency linked: {emergencyContactLocations.length}</Text>
+                    </View>
+                  </View>
+                </>
+              )}
+            </Animated.View>
+          </View>
+        )}
+      </Animated.View>
     </SafeAreaView>
   );
 };
@@ -405,86 +620,219 @@ const TrackMeScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: '#0f172a',
   },
-  scrollContent: {
-    padding: 16,
-    gap: 20,
-    paddingBottom: 140, // Increased to clear bottom navigation bar
+  screenAnimWrap: {
+    flex: 1,
   },
-  header: {
+  headerBar: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    right: 12,
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+  },
+  headerToggleButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#ffffff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  popupLayer: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+    paddingTop: 72,
+    paddingHorizontal: 12,
+  },
+  popupBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(15, 23, 42, 0.2)',
+  },
+  detailsPopup: {
+    width: '92%',
+    maxWidth: 360,
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 18,
+    elevation: 12,
+  },
+  detailsDropdownHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  detailsDropdownTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0f172a',
+    letterSpacing: 0.2,
+  },
+  dropdownRefreshButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: '#eff6ff',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+  },
+  dropdownRefreshText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.primary,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: Colors.text,
-    textAlign: 'center',
-    marginTop: 8,
+    fontSize: 25,
+    fontWeight: '800',
+    color: '#0f172a',
   },
   subtitle: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    marginTop: 4,
+    fontSize: 13,
+    color: '#64748b',
+    marginTop: 2,
   },
   mapContainer: {
-    width: '100%',
-    height: 350,
-    backgroundColor: '#1e293b',
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#334155',
+    flex: 1,
+    backgroundColor: '#0f172a',
     position: 'relative',
   },
+  mapTopOverlay: {
+    position: 'absolute',
+    top: 88,
+    left: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  liveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(15,23,42,0.85)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+  },
+  liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#22c55e',
+  },
+  liveBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#ecfeff',
+    letterSpacing: 0.6,
+  },
+  overlayStatPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  overlayStatPillEmergency: {
+    backgroundColor: 'rgba(254,242,242,0.95)',
+  },
+  overlayStatNumber: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  overlayStatText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  interactionHint: {
+    position: 'absolute',
+    left: 12,
+    bottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(241,245,249,0.92)',
+  },
+  interactionHintText: {
+    fontSize: 11,
+    color: '#0f172a',
+    fontWeight: '700',
+  },
   map: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#111827',
+  },
+  mapLoadingOverlay: {
     ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#111827',
   },
   recenterButton: {
     position: 'absolute',
-    top: 16,
-    right: 16,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    top: 86,
+    right: 14,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     backgroundColor: '#fff',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#dbeafe',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 6,
   },
-  openMapsFloatingButton: {
+  floatingRefreshButton: {
     position: 'absolute',
-    bottom: 16,
-    right: 16,
-    flexDirection: 'row',
+    bottom: 90,
+    right: 14,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 24,
-    gap: 6,
+    borderWidth: 1,
+    borderColor: '#dbeafe',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  openMapsFloatingText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '600',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 6,
   },
   loadingContainer: {
     flex: 1,
@@ -517,6 +865,10 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   retryButton: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 24,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -533,22 +885,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
-  },
-  detailsContainer: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    gap: 20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
   },
   loadingDetailsContainer: {
     flexDirection: 'row',
@@ -568,12 +904,12 @@ const styles = StyleSheet.create({
   detailRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 16,
+    gap: 12,
   },
   iconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: 'rgba(239, 68, 68, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -586,63 +922,37 @@ const styles = StyleSheet.create({
     paddingTop: 2,
   },
   detailTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '700',
     color: '#1f2937',
-    marginBottom: 6,
+    marginBottom: 2,
   },
   detailText: {
-    fontSize: 14,
-    color: '#4b5563',
-    lineHeight: 20,
-  },
-  infoBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(59, 130, 246, 0.08)',
-    padding: 12,
-    borderRadius: 8,
-    gap: 8,
-    marginTop: 4,
-  },
-  infoText: {
-    flex: 1,
     fontSize: 13,
-    color: '#6b7280',
+    color: '#4b5563',
     lineHeight: 18,
   },
-  customMarker: {
+  footerMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  metaChip: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
-  otherUserMarker: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  otherUserMarkerInner: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#8B5CF6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#fff',
-  },
-  offlineMarker: {
-    backgroundColor: '#9CA3AF',
-    opacity: 0.7,
-  },
-  onlineIndicator: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#10B981',
-    borderWidth: 2,
-    borderColor: '#fff',
+  metaChipText: {
+    fontSize: 11,
+    color: '#475569',
+    fontWeight: '600',
   },
 });
 

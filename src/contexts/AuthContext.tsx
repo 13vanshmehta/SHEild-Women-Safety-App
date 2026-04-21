@@ -61,7 +61,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           if (data.success) {
             setToken(storedToken);
             setUser(data.data.user);
-            
+
             // Start location tracking for existing session
             console.log('🌍 Resuming location tracking for existing session...');
             setTimeout(() => {

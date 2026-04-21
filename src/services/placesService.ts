@@ -342,13 +342,10 @@ class PlacesService {
     destinationLng: number,
     destinationName?: string
   ) {
-    // Use a universal HTTPS URL so it works on devices without a geo: handler.
-    // This will open Google Maps if installed, otherwise fall back to the browser.
-    const baseUrl = 'https://www.google.com/maps/dir/?api=1';
-    const destination = `${destinationLat},${destinationLng}`;
-    const url = `${baseUrl}&destination=${encodeURIComponent(destination)}`;
+    // Open the destination in OpenStreetMap so there is no Google Maps dependency.
+    const mapUrl = `https://www.openstreetmap.org/?mlat=${destinationLat}&mlon=${destinationLng}#map=16/${destinationLat}/${destinationLng}`;
 
-    Linking.openURL(url).catch((err) => {
+    Linking.openURL(mapUrl).catch((err) => {
       console.error('Error opening maps:', err);
       // Avoid showing Alert here because it can fire when no Activity is attached.
     });

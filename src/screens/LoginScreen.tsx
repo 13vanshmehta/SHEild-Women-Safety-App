@@ -122,7 +122,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNavigateToS
         // Get user details from Google
         await getUserInfo(userInfo.data.serverAuthCode || userInfo.data.idToken);
 
-        // Send the ID token to your backend
         const response = await authService.googleAuthMobile(userInfo.data.idToken);
 
         if (response.success) {

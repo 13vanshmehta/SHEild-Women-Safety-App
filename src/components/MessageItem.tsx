@@ -6,14 +6,11 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Platform,
   Linking,
-  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import { Colors } from '../constants';
-import { GEOAPIFY_API_KEY } from '../constants/api';
 
 const hapticOptions = {
   enableVibrateFallback: true,
@@ -135,25 +132,17 @@ const MessageItem = React.memo<MessageItemProps>(({
     if (!message.location) return null;
 
     const { latitude, longitude } = message.location;
-    
-    const openInMaps = () => {
-      const url = Platform.select({
-        ios: `maps://maps.apple.com/?q=${latitude},${longitude}`,
-        android: `geo:${latitude},${longitude}?q=${latitude},${longitude}`,
-      }) || `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
 
-      Linking.openURL(url).catch(() => {
-        Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`);
+    const openInMaps = () => {
+      const url = `https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=16/${latitude}/${longitude}`;
+      Linking.openURL(url).catch((err) => {
+        console.error('Failed to open OpenStreetMap:', err);
       });
     };
 
-    const mapUrl = `https://maps.geoapify.com/v1/staticmap?` +
-      `style=osm-bright` +
-      `&width=260` +
-      `&height=180` +
-      `&center=lonlat:${longitude},${latitude}` +
-      `&zoom=15` +
-      `&apiKey=${GEOAPIFY_API_KEY}`;
+    const mapUrl =
+      `https://staticmap.openstreetmap.de/staticmap.php?center=${latitude},${longitude}` +
+      `&zoom=15&size=260x180&markers=${latitude},${longitude},red-pushpin`;
 
     const senderName = message.sender?.name || 'User';
     const senderInitials = senderName.charAt(0).toUpperCase();
