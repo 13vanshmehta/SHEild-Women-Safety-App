@@ -58,13 +58,10 @@ router.post('/register', [
         const otp = user.generateEmailVerifyOtp();
         await user.save();
 
-        // Send verification OTP email
-        try {
-            await sendOTPEmail(user.email, otp);
-        } catch (emailError) {
-            console.error('Verification email failed:', emailError);
-            // User still created, registration succeeds
-        }
+        // Fire-and-forget: UI responds instantly, email sends in background
+        sendOTPEmail(user.email, otp).catch(err =>
+            console.error('[OTP] Register send failed:', err.message)
+        );
 
         res.status(201).json({
             success: true,
@@ -213,12 +210,10 @@ router.post('/resend-otp', [
         const otp = user.generateEmailVerifyOtp();
         await user.save();
 
-        // Send OTP email
-        try {
-            await sendOTPEmail(user.email, otp);
-        } catch (emailError) {
-            console.error('Resend OTP email failed:', emailError);
-        }
+        // Fire-and-forget: UI responds instantly, email sends in background
+        sendOTPEmail(user.email, otp).catch(err =>
+            console.error('[OTP] Resend send failed:', err.message)
+        );
 
         res.json({ 
             success: true, 
@@ -284,11 +279,10 @@ router.post('/login', [
             // Generate and send new OTP
             const otp = user.generateEmailVerifyOtp();
             await user.save();
-            try {
-                await sendOTPEmail(user.email, otp);
-            } catch (emailError) {
-                console.error('Verification email failed:', emailError);
-            }
+            // Fire-and-forget: respond instantly, send OTP in background
+            sendOTPEmail(user.email, otp).catch(err =>
+                console.error('[OTP] Login resend failed:', err.message)
+            );
             return res.status(403).json({
                 success: false,
                 code: 'EMAIL_NOT_VERIFIED',

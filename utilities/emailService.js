@@ -1,22 +1,129 @@
 /**
- * SHEild - Email Utility
- * Ported from SocialX working pattern.
- * No internal try/catch — errors propagate to the caller (auth.js).
+ * SHEild - Email Utility with Multiple Provider Support
+ * Supports: Gmail, SendGrid, Mailgun, AWS SES, Resend
+ * Optimized for Render deployment
  */
 
 const nodemailer = require('nodemailer');
 
-// Create transporter — with short timeout so failures are fast, not 60s hangs
+/**
+ * Create email transporter based on configured provider
+ * Supports: gmail, sendgrid, mailgun, ses, resend
+ */
 const createTransporter = () => {
+    const emailProvider = (process.env.EMAIL_PROVIDER || 'gmail').toLowerCase();
+    
+    try {
+        switch (emailProvider) {
+            case 'sendgrid':
+                return createSendGridTransporter();
+            case 'mailgun':
+                return createMailgunTransporter();
+            case 'ses':
+                return createSESTransporter();
+            case 'resend':
+                return createResendTransporter();
+            case 'gmail':
+            default:
+                return createGmailTransporter();
+        }
+    } catch (error) {
+        console.error('Error creating email transporter:', error);
+        throw error;
+    }
+};
+
+/**
+ * Gmail Transporter (requires app-specific password for 2FA)
+ * Recommended: Use Gmail App Password, not regular password
+ */
+const createGmailTransporter = () => {
     return nodemailer.createTransport({
-        service: process.env.EMAIL_SERVICE || 'gmail',
+        service: 'gmail',
         auth: {
             user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASS,
+            pass: process.env.EMAIL_PASS, // Use app-specific password for 2FA
         },
-        connectionTimeout: 10000,  // fail after 10s, not 60s
-        greetingTimeout: 10000,
-        socketTimeout: 10000,
+        connectionTimeout: 5000,
+        greetingTimeout: 5000,
+        socketTimeout: 5000,
+    });
+};
+
+/**
+ * SendGrid Transporter (Works great with Render, free tier available)
+ * Setup: Create API key in SendGrid → set EMAIL_PROVIDER=sendgrid + EMAIL_PASS=api_key
+ */
+const createSendGridTransporter = () => {
+    return nodemailer.createTransport({
+        host: 'smtp.sendgrid.net',
+        port: 587,
+        secure: false,
+        auth: {
+            user: 'apikey',
+            pass: process.env.EMAIL_PASS, // SendGrid API key
+        },
+        connectionTimeout: 5000,
+        greetingTimeout: 5000,
+        socketTimeout: 5000,
+    });
+};
+
+/**
+ * Mailgun Transporter (Another reliable option for Render)
+ * Setup: Create Mailgun account → set EMAIL_PROVIDER=mailgun + EMAIL_PASS=api_key
+ */
+const createMailgunTransporter = () => {
+    const domain = process.env.MAILGUN_DOMAIN || 'sandboxXXX.mailgun.org';
+    return nodemailer.createTransport({
+        host: `smtp.mailgun.org`,
+        port: 587,
+        secure: false,
+        auth: {
+            user: `postmaster@${domain}`,
+            pass: process.env.EMAIL_PASS, // Mailgun API key
+        },
+        connectionTimeout: 5000,
+        greetingTimeout: 5000,
+        socketTimeout: 5000,
+    });
+};
+
+/**
+ * AWS SES Transporter
+ * Setup: Configure AWS credentials → set EMAIL_PROVIDER=ses
+ */
+const createSESTransporter = () => {
+    return nodemailer.createTransport({
+        host: 'email-smtp.' + (process.env.AWS_REGION || 'us-east-1') + '.amazonaws.com',
+        port: 587,
+        secure: false,
+        auth: {
+            user: process.env.AWS_ACCESS_KEY_ID,
+            pass: process.env.AWS_SECRET_ACCESS_KEY,
+        },
+        connectionTimeout: 5000,
+        greetingTimeout: 5000,
+        socketTimeout: 5000,
+    });
+};
+
+/**
+ * Resend Transporter (Modern email service, great for Render)
+ * Setup: Create account at resend.com → set EMAIL_PROVIDER=resend + EMAIL_PASS=api_key
+ */
+const createResendTransporter = () => {
+    return nodemailer.createTransport({
+        host: 'smtp.resend.com',
+        port: 465,
+        secure: true,
+        auth: {
+            user: 'resend',
+            pass: process.env.EMAIL_PASS, // Resend API key
+        },
+        connectionTimeout: 5000,
+        greetingTimeout: 5000,
+        socketTimeout: 5000,
     });
 };
 
@@ -27,7 +134,7 @@ const sendOTPEmail = async (email, otp) => {
     const transporter = createTransporter();
 
     const mailOptions = {
-        from: process.env.EMAIL_FROM || `SHEild <${process.env.EMAIL_USER}>`,
+        from: process.env.EMAIL_FROM || 'noreply@sheildapp.com',
         to: email,
         subject: 'SHEild — Verify Your Email',
         html: `
@@ -77,7 +184,7 @@ const sendWelcomeEmail = async (email, firstName) => {
     const transporter = createTransporter();
 
     const mailOptions = {
-        from: process.env.EMAIL_FROM || `SHEild <${process.env.EMAIL_USER}>`,
+        from: process.env.EMAIL_FROM || 'noreply@sheildapp.com',
         to: email,
         subject: 'Welcome to SHEild! 🛡️',
         html: `
