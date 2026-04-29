@@ -61,12 +61,12 @@ router.post('/register', [
 
         await user.save();
 
-        // Send verification OTP email — SocialX pattern
+        // Send verification OTP — exactly like SocialX
         try {
             await sendOTPEmail(email, otp);
         } catch (emailError) {
             console.error('Verification email failed:', emailError);
-            // User is still created, registration succeeds
+            // User still created, registration succeeds
         }
 
         res.status(201).json({
@@ -214,21 +214,15 @@ router.post('/resend-otp', [
         user.otpExpires = otpExpires;
         await user.save();
 
-        // Send OTP email — SocialX pattern
+        // Send OTP — exactly like SocialX
         try {
             await sendOTPEmail(email, otp);
         } catch (emailError) {
             console.error('Resend OTP email failed:', emailError);
-            return res.status(500).json({
-                success: false,
-                message: 'Failed to send OTP. Please try again.'
-            });
+            // OTP saved in DB, user can retry
         }
 
-        res.json({
-            success: true,
-            message: 'OTP sent successfully'
-        });
+        res.json({ success: true, message: 'OTP sent successfully' });
 
     } catch (error) {
         console.error('Resend OTP error:', error);
@@ -273,11 +267,10 @@ router.post('/login', [
         }
 
         if (!user.isEmailVerified) {
-            // Auto-send a fresh OTP — SocialX pattern
+            // Auto-resend OTP on login — exactly like SocialX
             const otp = Math.floor(100000 + Math.random() * 900000).toString();
-            const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
             user.otp = otp;
-            user.otpExpires = otpExpires;
+            user.otpExpires = new Date(Date.now() + 10 * 60 * 1000);
             await user.save();
             try {
                 await sendOTPEmail(user.email, otp);

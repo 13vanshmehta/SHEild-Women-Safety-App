@@ -6,7 +6,7 @@
 
 const nodemailer = require('nodemailer');
 
-// Create transporter — exact SocialX pattern
+// Create transporter — with short timeout so failures are fast, not 60s hangs
 const createTransporter = () => {
     return nodemailer.createTransport({
         service: process.env.EMAIL_SERVICE || 'gmail',
@@ -14,6 +14,9 @@ const createTransporter = () => {
             user: process.env.EMAIL_USER,
             pass: process.env.EMAIL_PASS,
         },
+        connectionTimeout: 10000,  // fail after 10s, not 60s
+        greetingTimeout: 10000,
+        socketTimeout: 10000,
     });
 };
 
