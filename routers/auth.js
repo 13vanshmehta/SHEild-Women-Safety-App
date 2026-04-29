@@ -61,14 +61,17 @@ router.post('/register', [
 
         await user.save();
 
-        // Send OTP email (Truly non-blocking: Fire and forget)
-        sendOTPEmail(email, otp).catch(emailError => {
-            console.error('Background OTP email failed to send:', emailError.message);
-        });
+        // Send verification OTP email — SocialX pattern
+        try {
+            await sendOTPEmail(email, otp);
+        } catch (emailError) {
+            console.error('Verification email failed:', emailError);
+            // User is still created, registration succeeds
+        }
 
         res.status(201).json({
             success: true,
-            message: 'User registered successfully. Please verify your email with the OTP sent.',
+            message: 'Account created! Please verify your email with the OTP sent.',
             data: {
                 userId: user._id,
                 email: user.email,
@@ -211,10 +214,13 @@ router.post('/resend-otp', [
         user.otpExpires = otpExpires;
         await user.save();
 
-        // Send OTP email (Truly non-blocking)
-        sendOTPEmail(email, otp).catch(emailError => {
-            console.error('Background Resend OTP email failed:', emailError.message);
-        });
+        // Send OTP email — SocialX pattern
+        try {
+            await sendOTPEmail(email, otp);
+        } catch (emailError) {
+            console.error('Resend OTP email failed:', emailError);
+            // OTP is saved, user can try again
+        }
 
         res.json({
             success: true,
