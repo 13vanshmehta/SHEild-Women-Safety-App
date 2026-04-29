@@ -62,7 +62,8 @@ const registerUser = async (req, res) => {
             data: {
                 userId: user._id,
                 email: user.email,
-                isEmailVerified: user.isEmailVerified
+                isEmailVerified: user.isEmailVerified,
+                createdAt: user.createdAt
             }
         });
 
@@ -146,7 +147,8 @@ const verifyOTP = async (req, res) => {
                     email: user.email,
                     isEmailVerified: user.isEmailVerified,
                     profilePicture: user.profilePicture,
-                    phoneNumber: user.phoneNumber
+                    phoneNumber: user.phoneNumber,
+                    createdAt: user.createdAt
                 }
             }
         });
@@ -270,7 +272,8 @@ const loginUser = async (req, res) => {
                     email: user.email,
                     isEmailVerified: user.isEmailVerified,
                     profilePicture: user.profilePicture,
-                    phoneNumber: user.phoneNumber
+                    phoneNumber: user.phoneNumber,
+                    createdAt: user.createdAt
                 }
             }
         });
@@ -368,6 +371,7 @@ const updateUserProfile = async (req, res) => {
                     profilePicture: user.profilePicture,
                     phoneNumber: user.phoneNumber,
                     loginType: user.loginType,
+                    createdAt: user.createdAt,
                     updatedAt: user.updatedAt
                 }
             }
