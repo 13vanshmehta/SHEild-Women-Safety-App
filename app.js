@@ -77,6 +77,16 @@ app.get('/onboarding', healthCheck);
 
 server.listen(port, () => {
     console.log(`Server is running on port ${port}`);
+    
+    // Self-ping to keep backend alive (especially for Render free tier)
+    setInterval(() => {
+        http.get(`http://localhost:${port}/onboarding`, (res) => {
+            res.on('data', () => {});
+        }).on('error', (err) => {
+            // Silently handle error
+        });
+    }, 60000); // 1 minute
 });
 
 module.exports = app;
+
