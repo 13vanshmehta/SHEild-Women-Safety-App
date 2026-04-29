@@ -3,14 +3,10 @@ const nodemailer = require('nodemailer');
 // Create transporter
 const createTransporter = () => {
     return nodemailer.createTransport({
-        service: 'gmail',
+        service: process.env.EMAIL_SERVICE || 'gmail',
         auth: {
             user: process.env.EMAIL_USER,
             pass: process.env.EMAIL_PASS
-        },
-        tls: {
-            // Do not fail on invalid certs - helpful for cloud environments
-            rejectUnauthorized: false
         }
     });
 };
@@ -30,7 +26,7 @@ const sendOTPEmail = async (email, otp) => {
         const transporter = createTransporter();
 
         const mailOptions = {
-            from: process.env.EMAIL_USER,
+            from: process.env.EMAIL_FROM || `SHEild <${process.env.EMAIL_USER}>`,
             to: email,
             subject: 'SHEild - Email Verification OTP',
             html: `
