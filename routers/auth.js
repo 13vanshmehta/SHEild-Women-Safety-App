@@ -219,7 +219,10 @@ router.post('/resend-otp', [
             await sendOTPEmail(email, otp);
         } catch (emailError) {
             console.error('Resend OTP email failed:', emailError);
-            // OTP is saved, user can try again
+            return res.status(500).json({
+                success: false,
+                message: 'Failed to send OTP. Please try again.'
+            });
         }
 
         res.json({
@@ -270,14 +273,24 @@ router.post('/login', [
         }
 
         if (!user.isEmailVerified) {
-            return res.status(401).json({
+            // Auto-send a fresh OTP — SocialX pattern
+            const otp = Math.floor(100000 + Math.random() * 900000).toString();
+            const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+            user.otp = otp;
+            user.otpExpires = otpExpires;
+            await user.save();
+            try {
+                await sendOTPEmail(user.email, otp);
+            } catch (emailError) {
+                console.error('Verification email failed:', emailError);
+            }
+            return res.status(403).json({
                 success: false,
                 needsVerification: true,
-                message: 'Please verify your email to continue',
-                data: {
-                    isEmailVerified: false,
-                    email: user.email
-                }
+                code: 'EMAIL_NOT_VERIFIED',
+                message: 'Email not verified. A new OTP has been sent to your email.',
+                email: user.email,
+                data: { isEmailVerified: false, email: user.email }
             });
         }
 
