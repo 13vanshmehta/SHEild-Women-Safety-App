@@ -7,6 +7,8 @@ import OTPVerificationScreen from './OTPVerificationScreen';
 import { useAuth } from '../contexts/AuthContext';
 
 type AuthScreen = 'login' | 'signup' | 'forgot-password' | 'reset-password' | 'otp-verification';
+// Tracks whether the user came to OTP from signup or from a failed login attempt
+type OTPSource = 'signup' | 'login';
 
 interface AuthNavigatorProps {
   onAuthSuccess: () => void;
@@ -16,33 +18,38 @@ const AuthNavigator: React.FC<AuthNavigatorProps> = ({ onAuthSuccess }) => {
   const [currentScreen, setCurrentScreen] = useState<AuthScreen>('login');
   const [resetEmail, setResetEmail] = useState('');
   const [pendingEmail, setPendingEmail] = useState<string>('');
+  const [otpSource, setOtpSource] = useState<OTPSource>('signup');
   const { login } = useAuth();
 
+  // --- Login flow ---
   const handleLoginSuccess = () => {
     onAuthSuccess();
   };
 
-  const handleSignupSuccess = (email: string) => {
+  // Called by LoginScreen when the user has an unverified account
+  const handleUnverifiedUser = (email: string) => {
     setPendingEmail(email);
+    setOtpSource('login'); // came from login, so "go back" = login screen
     setCurrentScreen('otp-verification');
   };
 
+  // --- Signup flow ---
+  const handleSignupSuccess = (email: string) => {
+    setPendingEmail(email);
+    setOtpSource('signup'); // came from signup, so "go back" = signup screen
+    setCurrentScreen('otp-verification');
+  };
+
+  // --- OTP success ---
   const handleOTPVerificationSuccess = async (token: string, user: any) => {
     await login(token, user);
     onAuthSuccess();
   };
 
-  const handleNavigateToSignup = () => {
-    setCurrentScreen('signup');
-  };
-
-  const handleNavigateToLogin = () => {
-    setCurrentScreen('login');
-  };
-
-  const handleNavigateToForgotPassword = () => {
-    setCurrentScreen('forgot-password');
-  };
+  // --- Navigation helpers ---
+  const handleNavigateToSignup = () => setCurrentScreen('signup');
+  const handleNavigateToLogin = () => setCurrentScreen('login');
+  const handleNavigateToForgotPassword = () => setCurrentScreen('forgot-password');
 
   const handleNavigateToResetPassword = (email: string) => {
     setResetEmail(email);
@@ -59,12 +66,13 @@ const AuthNavigator: React.FC<AuthNavigatorProps> = ({ onAuthSuccess }) => {
     setResetEmail('');
   };
 
+  // Smart back: go to the screen they came from
   const handleGoBackFromOTP = () => {
-    setCurrentScreen('signup');
-  };
-
-  const handleResendOTP = () => {
-    // This will be handled by the OTP screen itself
+    if (otpSource === 'login') {
+      setCurrentScreen('login');
+    } else {
+      setCurrentScreen('signup');
+    }
   };
 
   const renderCurrentScreen = () => {
@@ -75,6 +83,7 @@ const AuthNavigator: React.FC<AuthNavigatorProps> = ({ onAuthSuccess }) => {
             onLoginSuccess={handleLoginSuccess}
             onNavigateToSignup={handleNavigateToSignup}
             onNavigateToForgotPassword={handleNavigateToForgotPassword}
+            onUnverifiedUser={handleUnverifiedUser}
           />
         );
       case 'signup':
@@ -90,7 +99,7 @@ const AuthNavigator: React.FC<AuthNavigatorProps> = ({ onAuthSuccess }) => {
           <OTPVerificationScreen
             email={pendingEmail}
             onVerificationSuccess={handleOTPVerificationSuccess}
-            onResendOTP={handleResendOTP}
+            onResendOTP={() => {}}
             onGoBack={handleGoBackFromOTP}
           />
         );
@@ -115,6 +124,7 @@ const AuthNavigator: React.FC<AuthNavigatorProps> = ({ onAuthSuccess }) => {
             onLoginSuccess={handleLoginSuccess}
             onNavigateToSignup={handleNavigateToSignup}
             onNavigateToForgotPassword={handleNavigateToForgotPassword}
+            onUnverifiedUser={handleUnverifiedUser}
           />
         );
     }

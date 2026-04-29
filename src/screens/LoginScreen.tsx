@@ -20,14 +20,16 @@ import { useAuth } from '../contexts/AuthContext';
 import { authService } from '../services/authService';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import Config from 'react-native-config';
+import { API_CONFIG } from '../constants/api';
 
 interface LoginScreenProps {
   onLoginSuccess: () => void;
   onNavigateToSignup: () => void;
   onNavigateToForgotPassword: () => void;
+  onUnverifiedUser?: (email: string) => void;
 }
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNavigateToSignup, onNavigateToForgotPassword }) => {
+const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNavigateToSignup, onNavigateToForgotPassword, onUnverifiedUser }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
@@ -71,9 +73,21 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNavigateToS
         await login(token, user);
         onLoginSuccess();
       } else {
-        // Check if email needs verification
-        if (data.data && !data.data.isEmailVerified) {
-          Alert.alert('Email Not Verified', data.message || 'Please verify your email first.');
+        // If email is not verified, redirect to OTP screen and send a fresh OTP
+        if (data.needsVerification || (data.data && data.data.isEmailVerified === false)) {
+          if (onUnverifiedUser) {
+            // Auto-send a new OTP so they can verify right now
+            try {
+              await fetch(`${API_CONFIG.BASE_URL}/api/auth/resend-otp`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email }),
+              });
+            } catch (_) {}
+            onUnverifiedUser(email);
+          } else {
+            Alert.alert('Email Not Verified', 'Please verify your email first.');
+          }
         } else {
           Alert.alert('Error', data.message || 'Login failed. Please try again.');
         }
@@ -224,8 +238,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNavigateToS
                   <Icon name="google" size={24} color="#4285F4" />
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.socialButton} onPress={handleAppleLogin}>
-                  <Icon name="apple" size={24} color="#000000" />
+                <TouchableOpacity style={[styles.socialButton, styles.appleButton]} onPress={handleAppleLogin}>
+                  <Icon name="apple" size={24} color="#FFFFFF" />
                 </TouchableOpacity>
               </View>
             </View>
@@ -366,6 +380,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 3,
+  },
+  appleButton: {
+    backgroundColor: '#1C1C1E',
+    borderColor: '#3A3A3C',
   },
   socialButtonDisabled: {
     opacity: 0.5,
