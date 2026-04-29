@@ -266,7 +266,8 @@ router.post('/login', [
         if (!user.isEmailVerified) {
             return res.status(401).json({
                 success: false,
-                message: 'Please verify your email first',
+                needsVerification: true,
+                message: 'Please verify your email to continue',
                 data: {
                     isEmailVerified: false,
                     email: user.email

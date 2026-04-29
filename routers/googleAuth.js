@@ -13,56 +13,56 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
         callbackURL: process.env.GOOGLE_CALLBACK_URL || "/api/auth/google/callback"
     }, async (accessToken, refreshToken, profile, done) => {
-    try {
-        // Check if user already exists with this Google ID
-        let user = await User.findOne({ googleId: profile.id });
-        
-        if (user) {
-            return done(null, user);
-        }
-
-        // Check if user exists with same email but different login type
-        user = await User.findOne({ email: profile.emails[0].value });
-        
-        if (user) {
-            // Update existing user to include Google ID
-            user.googleId = profile.id;
-            user.loginType = 'google';
-            user.profilePicture = profile.photos[0]?.value || null;
-            await user.save();
-            return done(null, user);
-        }
-
-        // Create new user
-        const nameParts = profile.displayName.split(' ');
-        const firstName = nameParts[0] || '';
-        const lastName = nameParts.slice(1).join(' ') || '';
-
-        user = new User({
-            firstName,
-            lastName,
-            email: profile.emails[0].value,
-            googleId: profile.id,
-            loginType: 'google',
-            profilePicture: profile.photos[0]?.value || null,
-            isEmailVerified: true // Google emails are pre-verified
-        });
-
-        await user.save();
-
-        // Send welcome email
         try {
-            await sendWelcomeEmail(user.email, user.firstName);
-        } catch (emailError) {
-            console.error('Failed to send welcome email:', emailError);
-            // Don't fail the registration if email fails
-        }
+            // Check if user already exists with this Google ID
+            let user = await User.findOne({ googleId: profile.id });
 
-        return done(null, user);
-    } catch (error) {
-        console.error('Google OAuth error:', error);
-        return done(error, null);
-    }
+            if (user) {
+                return done(null, user);
+            }
+
+            // Check if user exists with same email but different login type
+            user = await User.findOne({ email: profile.emails[0].value });
+
+            if (user) {
+                // Update existing user to include Google ID
+                user.googleId = profile.id;
+                user.loginType = 'google';
+                user.profilePicture = profile.photos[0]?.value || null;
+                await user.save();
+                return done(null, user);
+            }
+
+            // Create new user
+            const nameParts = profile.displayName.split(' ');
+            const firstName = nameParts[0] || '';
+            const lastName = nameParts.slice(1).join(' ') || '';
+
+            user = new User({
+                firstName,
+                lastName,
+                email: profile.emails[0].value,
+                googleId: profile.id,
+                loginType: 'google',
+                profilePicture: profile.photos[0]?.value || null,
+                isEmailVerified: true // Google emails are pre-verified
+            });
+
+            await user.save();
+
+            // Send welcome email
+            try {
+                await sendWelcomeEmail(user.email, user.firstName);
+            } catch (emailError) {
+                console.error('Failed to send welcome email:', emailError);
+                // Don't fail the registration if email fails
+            }
+
+            return done(null, user);
+        } catch (error) {
+            console.error('Google OAuth error:', error);
+            return done(error, null);
+        }
     }));
 } else {
     console.log('Google OAuth not configured');
@@ -88,14 +88,14 @@ router.get('/google', passport.authenticate('google', {
     scope: ['profile', 'email']
 }));
 
-router.get('/google/callback', 
+router.get('/google/callback',
     passport.authenticate('google', { failureRedirect: '/api/auth/google/failure' }),
     (req, res) => {
         try {
             // Generate JWT token
             const jwt = require('jsonwebtoken');
             const token = jwt.sign({ userId: req.user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-            
+
             // Redirect to frontend with token
             const frontendUrl = process.env.FRONTEND_URL;
             res.redirect(`${frontendUrl}/auth/callback?token=${token}&success=true`);
@@ -179,11 +179,11 @@ router.post('/google/mobile', async (req, res) => {
 
         // Check if user already exists
         let user = await User.findOne({ googleId });
-        
+
         if (!user) {
             // Check if user exists with same email
             user = await User.findOne({ email });
-            
+
             if (user) {
                 // Update existing user
                 user.googleId = googleId;
@@ -241,7 +241,7 @@ router.post('/google/mobile', async (req, res) => {
 
     } catch (error) {
         console.error('Google mobile auth error:', error);
-        
+
         // Provide detailed error message
         let errorMessage = 'Google authentication failed';
         if (error.message) {
@@ -249,7 +249,7 @@ router.post('/google/mobile', async (req, res) => {
         } else if (error.code) {
             errorMessage = `Error: ${error.code}`;
         }
-        
+
         res.status(500).json({
             success: false,
             message: errorMessage,
@@ -300,7 +300,7 @@ router.post('/google/register', async (req, res) => {
 
         // Check if user already exists with this Google ID
         let existingUser = await User.findOne({ googleId });
-        
+
         if (existingUser) {
             return res.status(400).json({
                 success: false,
@@ -311,7 +311,7 @@ router.post('/google/register', async (req, res) => {
 
         // Check if user exists with same email
         existingUser = await User.findOne({ email });
-        
+
         if (existingUser) {
             return res.status(400).json({
                 success: false,
@@ -369,7 +369,7 @@ router.post('/google/register', async (req, res) => {
 
     } catch (error) {
         console.error('Google registration error:', error);
-        
+
         // Provide detailed error message
         let errorMessage = 'Google registration failed';
         if (error.message) {
@@ -377,7 +377,7 @@ router.post('/google/register', async (req, res) => {
         } else if (error.code) {
             errorMessage = `Error: ${error.code}`;
         }
-        
+
         res.status(500).json({
             success: false,
             message: errorMessage,
