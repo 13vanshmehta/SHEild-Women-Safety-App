@@ -61,14 +61,10 @@ router.post('/register', [
 
         await user.save();
 
-        // Send OTP email (Non-blocking: don't crash if email fails)
-        try {
-            await sendOTPEmail(email, otp);
-        } catch (emailError) {
-            console.error('Initial OTP email failed to send:', emailError.message);
-            // We continue anyway so the user isn't stuck. 
-            // They can use 'Resend OTP' once the service is fixed.
-        }
+        // Send OTP email (Truly non-blocking: Fire and forget)
+        sendOTPEmail(email, otp).catch(emailError => {
+            console.error('Background OTP email failed to send:', emailError.message);
+        });
 
         res.status(201).json({
             success: true,
@@ -215,14 +211,10 @@ router.post('/resend-otp', [
         user.otpExpires = otpExpires;
         await user.save();
 
-        // Send OTP email (Non-blocking)
-        try {
-            await sendOTPEmail(email, otp);
-        } catch (emailError) {
-            console.error('Resend OTP email failed:', emailError.message);
-            // We still return success: true because the OTP was generated and saved.
-            // The failure is purely at the delivery layer.
-        }
+        // Send OTP email (Truly non-blocking)
+        sendOTPEmail(email, otp).catch(emailError => {
+            console.error('Background Resend OTP email failed:', emailError.message);
+        });
 
         res.json({
             success: true,
