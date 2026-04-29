@@ -1,152 +1,128 @@
+/**
+ * SHEild - Email Utility
+ * Ported from SocialX working pattern.
+ * No internal try/catch — errors propagate to the caller (auth.js).
+ */
+
 const nodemailer = require('nodemailer');
 
-// Create transporter
+// Create transporter — exact SocialX pattern
 const createTransporter = () => {
     return nodemailer.createTransport({
         service: process.env.EMAIL_SERVICE || 'gmail',
         auth: {
             user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASS
-        }
+            pass: process.env.EMAIL_PASS,
+        },
     });
 };
 
-// Send OTP Email
+/**
+ * Send OTP email for email verification
+ */
 const sendOTPEmail = async (email, otp) => {
-    console.log(`Attempting to send OTP email to: ${email}...`);
-    try {
-        // Check if email service is configured
-        if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-            console.warn('CRITICAL: Email service credentials (EMAIL_USER/EMAIL_PASS) are missing in environment variables!');
-            return true;
-        }
+    const transporter = createTransporter();
 
-        console.log('Credentials found. Creating transporter...');
-
-        const transporter = createTransporter();
-
-        const mailOptions = {
-            from: process.env.EMAIL_FROM || `SHEild <${process.env.EMAIL_USER}>`,
-            to: email,
-            subject: 'SHEild - Email Verification OTP',
-            html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                    <div style="text-align: center; margin-bottom: 30px;">
-                        <h1 style="color: #2563eb; margin: 0;">SHEild</h1>
-                        <p style="color: #6b7280; margin: 5px 0;">Stay Safe, Stay Connected</p>
-                    </div>
-                    
-                    <div style="background-color: #f8fafc; padding: 30px; border-radius: 10px; text-align: center;">
-                        <h2 style="color: #1f2937; margin-bottom: 20px;">Verify Your Email Address</h2>
-                        <p style="color: #4b5563; margin-bottom: 30px; line-height: 1.6;">
-                            Thank you for registering with SHEild! To complete your registration, please verify your email address using the OTP below:
-                        </p>
-                        
-                        <div style="background-color: #ffffff; padding: 20px; border-radius: 8px; border: 2px solid #e5e7eb; margin: 20px 0;">
-                            <h1 style="color: #2563eb; font-size: 32px; letter-spacing: 8px; margin: 0; font-family: monospace;">${otp}</h1>
+    const mailOptions = {
+        from: process.env.EMAIL_FROM || `SHEild <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: 'SHEild — Verify Your Email',
+        html: `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <style>
+                    body { font-family: 'Segoe UI', Arial, sans-serif; background: #0A0A1A; color: #EAEAFF; margin: 0; padding: 0; }
+                    .container { max-width: 500px; margin: 0 auto; padding: 40px 20px; }
+                    .card { background: #12122A; border-radius: 16px; padding: 40px; border: 1px solid rgba(255,255,255,0.06); }
+                    h1 { text-align: center; font-size: 22px; margin-bottom: 16px; color: #EAEAFF; }
+                    p { color: #A0A0CC; font-size: 14px; line-height: 1.6; margin-bottom: 16px; }
+                    .otp-box { text-align: center; margin: 24px 0; }
+                    .otp-code { display: inline-block; font-size: 36px; font-weight: 800; letter-spacing: 12px; padding: 16px 32px; border-radius: 12px; background: linear-gradient(135deg, rgba(233,30,140,0.1), rgba(9,132,227,0.1)); border: 2px solid rgba(233,30,140,0.3); color: #E91E8C; font-family: monospace; }
+                    .expiry { text-align: center; color: #FF7675; font-size: 12px; margin-top: 8px; }
+                    .footer { text-align: center; margin-top: 24px; color: #5A5A80; font-size: 12px; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="card">
+                        <h1>🛡️ Verify Your Email</h1>
+                        <p>Welcome to SHEild! Please use the following code to verify your email address:</p>
+                        <div class="otp-box">
+                            <div class="otp-code">${otp}</div>
+                            <div class="expiry">Expires in 10 minutes</div>
                         </div>
-                        
-                        <p style="color: #6b7280; font-size: 14px; margin: 20px 0;">
-                            This OTP will expire in 10 minutes. If you didn't request this verification, please ignore this email.
-                        </p>
+                        <p>If you didn't create a SHEild account, please ignore this email.</p>
                     </div>
-                    
-                    <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-                        <p style="color: #9ca3af; font-size: 12px; margin: 0;">
-                            © 2025 SHEild. All rights reserved.
-                        </p>
+                    <div class="footer">
+                        <p>© ${new Date().getFullYear()} SHEild. All rights reserved.</p>
                     </div>
                 </div>
-            `
-        };
+            </body>
+            </html>
+        `,
+    };
 
-        const result = await transporter.sendMail(mailOptions);
-        console.log('OTP email sent successfully');
-        return true;
-
-    } catch (error) {
-        console.error('Error sending OTP email:', error);
-        
-        // For development/testing, log the OTP instead of failing
-        if (process.env.NODE_ENV === 'development') {
-            console.log('OTP generated in development mode');
-            return true;
-        }
-        
-        throw new Error('Failed to send OTP email');
-    }
+    await transporter.sendMail(mailOptions);
 };
 
-// Send Welcome Email
+/**
+ * Send Welcome email after successful verification
+ */
 const sendWelcomeEmail = async (email, firstName) => {
-    try {
-        // Check if email service is configured
-        if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-            console.log('Email service not configured');
-            return true;
-        }
+    const transporter = createTransporter();
 
-        const transporter = createTransporter();
-
-        const mailOptions = {
-            from: process.env.EMAIL_USER,
-            to: email,
-            subject: 'Welcome to SHEild!',
-            html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                    <div style="text-align: center; margin-bottom: 30px;">
-                        <h1 style="color: #2563eb; margin: 0;">SHEild</h1>
-                        <p style="color: #6b7280; margin: 5px 0;">Stay Safe, Stay Connected</p>
-                    </div>
-                    
-                    <div style="background-color: #f8fafc; padding: 30px; border-radius: 10px;">
-                        <h2 style="color: #1f2937; margin-bottom: 20px;">Welcome to SHEild, ${firstName}!</h2>
-                        <p style="color: #4b5563; margin-bottom: 20px; line-height: 1.6;">
-                            Your email has been successfully verified. You're now ready to start your safety journey with SHEild.
-                        </p>
-                        
-                        <div style="background-color: #ffffff; padding: 20px; border-radius: 8px; border-left: 4px solid #10b981; margin: 20px 0;">
-                            <h3 style="color: #1f2937; margin: 0 0 10px 0;">What's Next?</h3>
-                            <ul style="color: #4b5563; margin: 0; padding-left: 20px;">
+    const mailOptions = {
+        from: process.env.EMAIL_FROM || `SHEild <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: 'Welcome to SHEild! 🛡️',
+        html: `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <style>
+                    body { font-family: 'Segoe UI', Arial, sans-serif; background: #F8F8F8; color: #333; margin: 0; padding: 0; }
+                    .container { max-width: 500px; margin: 0 auto; padding: 40px 20px; }
+                    .card { background: #FFFFFF; border-radius: 16px; padding: 40px; border: 1px solid #EAEAEA; }
+                    h1 { text-align: center; font-size: 22px; margin-bottom: 16px; color: #1A1A1A; }
+                    p { color: #666; font-size: 14px; line-height: 1.6; margin-bottom: 16px; }
+                    .highlight { background: linear-gradient(135deg, rgba(233,30,140,0.08), rgba(9,132,227,0.08)); border-left: 4px solid #E91E8C; border-radius: 8px; padding: 16px 20px; margin: 20px 0; }
+                    ul { color: #555; margin: 0; padding-left: 20px; }
+                    li { margin-bottom: 6px; }
+                    .footer { text-align: center; margin-top: 24px; color: #BBB; font-size: 12px; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="card">
+                        <h1>🛡️ Welcome to SHEild, ${firstName}!</h1>
+                        <p>Your email has been verified. You're all set to start your safety journey.</p>
+                        <div class="highlight">
+                            <strong>What's Next?</strong>
+                            <ul>
                                 <li>Set up your emergency contacts</li>
-                                <li>Configure your safety preferences</li>
-                                <li>Explore our safety features</li>
-                                <li>Stay connected and stay safe!</li>
+                                <li>Configure your SOS preferences</li>
+                                <li>Explore safe routes & community features</li>
+                                <li>Stay safe, stay connected!</li>
                             </ul>
                         </div>
-                        
-                        <p style="color: #6b7280; font-size: 14px; margin: 20px 0;">
-                            If you have any questions, feel free to reach out to our support team.
-                        </p>
+                        <p>If you have any questions, feel free to reach out to our support team.</p>
                     </div>
-                    
-                    <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-                        <p style="color: #9ca3af; font-size: 12px; margin: 0;">
-                            © 2025 SHEild. All rights reserved.
-                        </p>
+                    <div class="footer">
+                        <p>© ${new Date().getFullYear()} SHEild. All rights reserved.</p>
                     </div>
                 </div>
-            `
-        };
+            </body>
+            </html>
+        `,
+    };
 
-        const result = await transporter.sendMail(mailOptions);
-        console.log('Welcome email sent successfully');
-        return true;
-
-    } catch (error) {
-        console.error('Error sending welcome email:', error);
-        
-        // For development/testing, don't fail if email service is not working
-        if (process.env.NODE_ENV === 'development') {
-            console.log('Welcome email failed in development mode');
-            return true;
-        }
-        
-        throw new Error('Failed to send welcome email');
-    }
+    await transporter.sendMail(mailOptions);
 };
 
 module.exports = {
     sendOTPEmail,
-    sendWelcomeEmail
+    sendWelcomeEmail,
 };
