@@ -64,11 +64,23 @@ class ApiService {
         headers,
         body: body ? JSON.stringify(body) : undefined,
       });
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      const responseText = await response.text();
+      let responseData;
+      try {
+        responseData = JSON.parse(responseText);
+      } catch (e) {
+        if (!response.ok) {
+          console.error(`Non-JSON error response from ${url} (Status ${response.status}):`, responseText);
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        // If it's a success but not JSON (e.g. plain text)
+        return responseText;
       }
-      return await response.json();
+
+      if (!response.ok) {
+        throw new Error(responseData.message || `HTTP error! status: ${response.status}`);
+      }
+      return responseData;
     } catch (error) {
       console.error('POST request failed:', error);
       throw error;

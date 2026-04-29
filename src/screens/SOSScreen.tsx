@@ -66,24 +66,26 @@ const SOSScreen: React.FC = () => {
   const { showToast, ToastComponent } = useToast();
 
   useEffect(() => {
-    checkEmergencyContacts();
-    collectDeviceInfo();
-    requestLocationPermission();
-
-    // Load saved voice state and restore if it was enabled
-    loadVoiceState();
+    // Small delay to ensure Activity is attached before requesting permissions
+    const initTimeout = setTimeout(() => {
+      checkEmergencyContacts();
+      collectDeviceInfo();
+      requestLocationPermission();
+      // Load saved voice state and restore if it was enabled
+      loadVoiceState();
+    }, 1000);
 
     // Handle app state changes (background/foreground)
     const subscription = AppState.addEventListener('change', handleAppStateChange);
 
-    // Cleanup - DON'T stop voice service on unmount to keep it running across tabs
+    // Cleanup
     return () => {
+      clearTimeout(initTimeout);
       subscription.remove();
-      // Voice service continues running even when component unmounts
-      // Only stop when user explicitly clicks "Stop Listening"
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
 
   const handleAppStateChange = (nextAppState: any) => {
 
@@ -799,23 +801,33 @@ const SOSScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.headerBar}>
+        <View>
+          <Text style={styles.headerTitle}>Emergency Center</Text>
+          <View style={styles.statusBadgeRow}>
+            <View style={[styles.statusDot, { backgroundColor: emergencyContactCount >= 2 ? Colors.success : Colors.warning }]} />
+            <Text style={styles.headerSubtitle}>
+              {emergencyContactCount} Contacts Connected
+            </Text>
+          </View>
+        </View>
+        <TouchableOpacity 
+          style={styles.headerToggleButton}
+          onPress={getCurrentLocation}
+        >
+          <Icon name="refresh" size={18} color="#FFFFFF" />
+        </TouchableOpacity>
+      </View>
+
+
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         bounces={true}
       >
         <View style={styles.mainContent}>
-          {/* Header & Status Row */}
-          <View style={styles.header}>
-            <View style={styles.headerTop}>
-              <Text style={styles.headerTitle}>Emergency Center</Text>
-              <View style={styles.statusBadge}>
-                <View style={[styles.statusDot, { backgroundColor: emergencyContactCount >= 2 ? Colors.success : Colors.warning }]} />
-                <Text style={styles.statusBadgeText}>
-                  {emergencyContactCount} Contacts
-                </Text>
-              </View>
-            </View>
+
 
             {/* Quick Status Bar */}
             <View style={styles.statusBar}>
@@ -834,9 +846,9 @@ const SOSScreen: React.FC = () => {
                 <Text style={styles.statusItemText}>{location ? 'GPS Fixed' : 'GPS Locating'}</Text>
               </View>
             </View>
-          </View>
 
           {/* Main SOS Trigger Area */}
+
           <View style={styles.sosHeroSection}>
             <Animated.View style={[styles.sosPulsarContainer, { transform: [{ scale: scaleAnim }] }]}>
               <View style={styles.sosPulsarInner} />
@@ -990,7 +1002,48 @@ const SOSScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: '#000000',
+  },
+  headerBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginHorizontal: 16,
+    marginTop: Platform.OS === 'ios' ? 8 : 16,
+    marginBottom: 8,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.2,
+  },
+  statusBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontWeight: '500',
+    marginLeft: 6,
+  },
+  headerToggleButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   scrollContent: {
     flexGrow: 1,

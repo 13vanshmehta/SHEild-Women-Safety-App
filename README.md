@@ -1,176 +1,125 @@
-# SHEild Frontend
+# 🛡️ SHEild Frontend
+> **Empowering Safety through Technology**
 
-React Native mobile application for SHEild, a women safety platform that combines emergency SOS activation, trusted contacts, group communication, location sharing, safe-place discovery, and voice-triggered safety monitoring.
+SHEild is a premium React Native mobile application designed for women's safety. It combines real-time SOS activation, voice-triggered monitoring, trusted circle communication, and live location sharing into a seamless, high-performance experience.
 
-## Purpose
+---
 
-The frontend is the user-facing mobile client. It handles onboarding, authentication, emergency workflows, real-time group messaging, location visibility, and device capability access such as contacts, geolocation, audio, voice recognition, and haptics.
+## ✨ Features
+- 🚨 **One-Tap SOS**: Instant alert system for emergency situations.
+- 🗣️ **Voice Safety Mode**: Hands-free SOS activation via keyword detection.
+- 📍 **Trust Circle**: Live location sharing with trusted contacts.
+- 💬 **Safe Chat**: Real-time group messaging with location and media support.
+- 🔍 **Safe Spots**: Discovery of nearby safe locations using Map services.
+- 💎 **Premium UI**: iOS-inspired glassmorphism design for a modern feel.
 
-## Technology Stack
+---
 
-| Area | Technology |
-| --- | --- |
-| Framework | React Native 0.82, React 19 |
-| Language | TypeScript |
-| State and persistence | React Context, AsyncStorage |
-| Networking | Fetch API, centralized API service |
-| Real-time transport | Socket.IO client |
-| Maps and location | React Native Maps, Geolocation Service, Geoapify static maps |
-| Native capabilities | Contacts, Call Log, Device Info, Image Picker, Audio Toolkit, Voice Recognition, Background Actions |
-| Testing | Jest, React Test Renderer |
-| Platforms | Android and iOS |
+## 🛠️ Technology Stack
+- **Framework**: React Native 0.82 (New Architecture / Fabric)
+- **State**: React Context API & AsyncStorage
+- **Real-time**: Socket.IO for instant communication
+- **Maps**: React Native Maps & Geoapify
+- **Native**: Background Services, Voice Recognition, Haptics, and Secure Storage
 
-## Main Capabilities
+---
 
-- Splash and onboarding flow for first-time users.
-- Email/password authentication with OTP verification.
-- Google authentication support through backend endpoints.
-- JWT-based session storage with `AsyncStorage`.
-- Profile viewing, updating, logout, and account deletion.
-- Emergency contact management and bulk import from the phone contact book.
-- SOS activation from manual button and voice keyword detection.
-- Current location capture and periodic location update during active SOS.
-- Network/device status awareness for emergency metadata.
-- Group creation, join-code based joining, member management, pinning, favorites, and settings.
-- Real-time group chat with text, image, audio, and location messages.
-- Track Me screen for shared live locations and emergency contact context.
-- Safe Spots screen backed by place/map services.
+## 🚀 Getting Started
 
-## Directory Structure
+Follow these steps to get the project running on your local machine.
 
-```text
-frontend/
-├── App.tsx                         # App root, AuthProvider, main navigator mount
-├── index.js                        # React Native entry point
-├── src/
-│   ├── assets/images/              # App logo and onboarding/home imagery
-│   ├── components/                 # Shared UI and navigation components
-│   ├── constants/                  # API, app, and color constants
-│   ├── contexts/                   # AuthContext and persisted auth state
-│   ├── screens/                    # App screens and feature flows
-│   ├── services/                   # API, auth, location, socket, voice, media, contacts
-│   └── types/                      # Type declarations and shims
-├── android/                        # Android native project
-├── ios/                            # iOS native project
-└── __tests__/                      # Jest tests
-```
+### 1. Prerequisites
+- **Node.js**: v20+
+- **Android Studio**: Latest version with SDK 34/35.
+- **Java**: JDK 17+
+- **CocoaPods**: (For iOS developers)
 
-## Important Screens
-
-| Screen | Responsibility |
-| --- | --- |
-| `SplashScreen` | Starts app health check and transitions into onboarding/authenticated flow. |
-| `OnboardingFlow` | Introduces core app safety features. |
-| `AuthNavigator` | Coordinates login, signup, OTP, forgot password, and reset password screens. |
-| `MainAppScreen` | Hosts authenticated application tabs. |
-| `HomeScreen` | Main dashboard and quick access surface. |
-| `SOSScreen` | Manual SOS, voice safety mode, location capture, and SOS location updates. |
-| `GroupsScreen` | Emergency contacts, groups, real-time messaging, media, and location messages. |
-| `TrackMeScreen` | Shared user location visualization. |
-| `SafeSpotsScreen` | Nearby safe place discovery. |
-| `ProfileScreen` | User profile and account actions. |
-
-## Service Layer
-
-| Service | Role |
-| --- | --- |
-| `apiService.ts` | Central HTTP wrapper, JSON requests, multipart upload, auth headers, health checks. |
-| `authService.ts` | Register, login, OTP verification, Google auth, profile, logout, account deletion. |
-| `socketService.ts` | Authenticated Socket.IO connection reuse and disconnect handling. |
-| `emergencyContactService.ts` | CRUD and bulk import for emergency contacts. |
-| `contactService.ts` | Native phone contact permission and contact reading. |
-| `locationService.ts` | Device geolocation permission and current position utilities. |
-| `userLocationService.ts` | Backend location update, visible locations, sharing settings, online status, reverse geocoding, and live update subscription. |
-| `voiceSafetyService.ts` | Background voice recognition, keyword monitoring, auto-restart, and SOS callback execution. |
-| `voiceStateService.ts` | Persistence for voice safety state. |
-| `audioService.ts` | Audio recording/playback support for group messages. |
-| `mediaCacheService.ts` | Local media caching helpers. |
-| `geoapifyMapService.ts` | Static map URL generation for shared locations. |
-| `placesService.ts` | Nearby place lookup support. |
-| `permissionService.ts` | Platform permission helpers. |
-| `recentContactService.ts` | Recent contact persistence. |
-
-## Backend Integration
-
-The mobile app reads its backend base URL from `src/constants/api.ts`.
-
-```ts
-BASE_URL: 'http://192.168.29.17:8000'
-```
-
-Main backend integrations:
-
-| Feature | Backend route family |
-| --- | --- |
-| Email auth, OTP, profile | `/api/auth/*` |
-| Google auth | `/api/auth/google/*` |
-| Emergency contacts | `/api/emergency-contacts/*` |
-| Groups and messages | `/api/groups/*` |
-| SOS alerts | `/api/sos/*` |
-| Location sharing | `/api/location/*` |
-| Health check | `/onbaording` |
-
-Socket.IO is connected to the same base URL and authenticates with the stored JWT.
-
-## Environment Configuration
-
-The app uses `react-native-config`. A local `.env` file can provide:
-
-```env
-GEOAPIFY_API_KEY=your_geoapify_key
-```
-
-The current code contains a fallback Geoapify key in `src/constants/api.ts`. For production, keep API keys outside source control and inject them through environment configuration.
-
-## Setup
-
-Install dependencies:
-
-```sh
+### 2. Installation
+Clone the repository and install dependencies:
+```bash
+git clone https://github.com/your-username/sheild-app.git
+cd sheild-app/frontend
 npm install
 ```
 
-Start Metro:
+### 3. Environment Setup
+The app uses environment variables for API configuration.
+1. Create a `.env` file in the `frontend/` root.
+2. Copy the contents from `.env.example` and fill in your values:
+```env
+API_BASE_URL=http://your-local-ip:8000
+GEOAPIFY_API_KEY=your_key_here
+```
 
-```sh
+### 4. Firebase Configuration
+To enable notifications and authentication:
+1. Go to the [Firebase Console](https://console.firebase.google.com/).
+2. Create a new project named `SHEild`.
+3. Add an Android App with package name `com.sheild`.
+4. Download the `google-services.json` and place it in:
+   `frontend/android/app/google-services.json`
+
+---
+
+## 📱 Running the App
+
+### Development Mode
+Start the Metro bundler:
+```bash
 npm start
 ```
-
 Run on Android:
-
-```sh
+```bash
 npm run android
 ```
-
 Run on iOS:
-
-```sh
-bundle install
-bundle exec pod install --project-directory=ios
+```bash
+cd ios && pod install && cd ..
 npm run ios
 ```
 
-Run tests:
-
-```sh
-npm test
-```
-
-Build Android release artifacts:
-
-```sh
+### Release Build (APK)
+To generate a signed production APK:
+1. Ensure your keystore is in `android/app/`.
+2. Configure your credentials in `~/.gradle/gradle.properties` (Recommended) or edit `android/gradle.properties` temporarily.
+3. Run the build command:
+```bash
 npm run android:release
-npm run android:bundle
+```
+The APK will be generated at: `android/app/build/outputs/apk/release/app-release.apk`
+
+---
+
+## 📂 Project Structure
+```text
+frontend/
+├── src/
+│   ├── assets/        # Images, Fonts, Animations
+│   ├── components/    # Reusable UI components
+│   ├── constants/     # API paths and Theme tokens
+│   ├── contexts/      # Auth and Global State
+│   ├── screens/       # Main screen modules
+│   ├── services/      # API, Socket, and Native wrappers
+│   └── types/         # TypeScript definitions
+└── android/           # Native Android project
 ```
 
-## Runtime Requirements
+---
 
-- Node.js 20 or newer.
-- Android Studio and Android SDK for Android builds.
-- Xcode, Ruby Bundler, and CocoaPods for iOS builds.
-- A running backend service reachable from the device/emulator.
-- Location, contacts, microphone, and notification permissions enabled on the mobile device for full functionality.
+## 🛡️ Security Note
+**Never commit the following files to GitHub:**
+- `.env`
+- `*.keystore`
+- `google-services.json`
+- `gradle.properties` (containing actual passwords)
 
-## Notes for Research Documentation
+These files are already included in `.gitignore`.
 
-The frontend architecture diagram is maintained in [`../docs/architecture-diagrams.md`](../docs/architecture-diagrams.md). It separates the mobile app into presentation, state/session, service, native capability, backend integration, and external provider layers so it can be exported cleanly for papers or presentations.
+---
+
+## 🤝 Contributing
+Contributions are welcome! Please open an issue or submit a pull request for any improvements or bug fixes.
+
+## 📄 License
+This project is private. (c) 2026 SHEild Team.
+ion, and external provider layers so it can be exported cleanly for papers or presentations.

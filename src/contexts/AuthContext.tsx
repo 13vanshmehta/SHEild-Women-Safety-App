@@ -152,6 +152,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return () => keepAliveService.stop();
   }, []);
 
+  // Initialize notifications when authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      const { default: notificationService } = require('../services/notificationService');
+      
+      const setupNotifications = async () => {
+        const hasPermission = await notificationService.requestUserPermission();
+        if (hasPermission) {
+          await notificationService.getFcmToken();
+          const unsubscribe = notificationService.initListeners();
+          return unsubscribe;
+        }
+      };
+
+      const cleanupPromise = setupNotifications();
+      return () => {
+        cleanupPromise.then(unsubscribe => {
+          if (unsubscribe) unsubscribe();
+        });
+      };
+    }
+  }, [isAuthenticated]);
+
+
   const value: AuthContextType = {
     user,
     token,
