@@ -1,9 +1,8 @@
 const express = require('express');
-const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const User = require('../models/user');
-const { sendOTPEmail } = require('../utilities/emailService');
+const { sendOTPEmail, sendWelcomeEmail } = require('../utilities/emailService');
 const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
@@ -13,11 +12,14 @@ const generateToken = (userId) => {
     return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
 };
 
+// ==========================================
+// Register User
+// ==========================================
 router.post('/register', [
     body('firstName').notEmpty().withMessage('First name is required'),
     body('lastName').notEmpty().withMessage('Last name is required'),
     body('email').isEmail().withMessage('Valid email is required'),
-    body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+    body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
 ], async (req, res) => {
     try {
         const errors = validationResult(req);
@@ -32,38 +34,33 @@ router.post('/register', [
         const { firstName, lastName, email, password } = req.body;
 
         // Check if user already exists
-        const existingUser = await User.findOne({ email });
+        const existingUser = await User.findOne({ email: email.toLowerCase() });
         if (existingUser) {
-            return res.status(400).json({
+            return res.status(409).json({
                 success: false,
-                message: 'User already exists with this email'
+                message: 'An account with this email already exists.'
             });
         }
 
-        // Hash password
-        const saltRounds = 12;
-        const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-        // Generate OTP
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
-        const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
-        // Create user
+        // Create user with password (NOT verified yet)
         const user = new User({
-            firstName,
-            lastName,
-            email,
-            password: hashedPassword,
+            firstName: firstName.trim(),
+            lastName: lastName.trim(),
+            email: email.toLowerCase().trim(),
+            password,
             loginType: 'email',
-            otp,
-            otpExpires
+            isEmailVerified: false,
         });
 
         await user.save();
 
-        // Send verification OTP — exactly like SocialX
+        // Generate email verification OTP
+        const otp = user.generateEmailVerifyOtp();
+        await user.save();
+
+        // Send verification OTP email
         try {
-            await sendOTPEmail(email, otp);
+            await sendOTPEmail(user.email, otp);
         } catch (emailError) {
             console.error('Verification email failed:', emailError);
             // User still created, registration succeeds
@@ -81,14 +78,24 @@ router.post('/register', [
 
     } catch (error) {
         console.error('Registration error:', error);
+        
+        if (error.code === 11000) {
+            return res.status(409).json({
+                success: false,
+                message: 'An account with this email already exists.'
+            });
+        }
+
         res.status(500).json({
             success: false,
-            message: 'Internal server error'
+            message: 'Registration failed. Please try again.'
         });
     }
 });
 
-// Verify OTP
+// ==========================================
+// Verify Email OTP
+// ==========================================
 router.post('/verify-otp', [
     body('email').isEmail().withMessage('Valid email is required'),
     body('otp').isLength({ min: 6, max: 6 }).withMessage('OTP must be 6 digits'),
@@ -105,7 +112,7 @@ router.post('/verify-otp', [
 
         const { email, otp } = req.body;
 
-        const user = await User.findOne({ email });
+        const user = await User.findOne({ email: email.toLowerCase() });
         if (!user) {
             return res.status(404).json({
                 success: false,
@@ -120,33 +127,27 @@ router.post('/verify-otp', [
             });
         }
 
-        if (!user.otp || !user.otpExpires) {
+        // Verify OTP using the model method
+        if (!user.verifyEmailOtp(otp)) {
             return res.status(400).json({
                 success: false,
-                message: 'No OTP found. Please request a new one.'
+                message: 'Invalid or expired OTP'
             });
         }
 
-        if (user.otpExpires < new Date()) {
-            return res.status(400).json({
-                success: false,
-                message: 'OTP expired. Please request a new one.'
-            });
-        }
-
-        if (user.otp !== otp) {
-            return res.status(400).json({
-                success: false,
-                message: 'Invalid OTP'
-            });
-        }
-
-        // Verify email
+        // Mark email as verified and clear OTP
         user.isEmailVerified = true;
-        user.otp = null;
-        user.otpExpires = null;
+        user.clearEmailOtp();
         await user.save();
 
+        // Send welcome email
+        try {
+            await sendWelcomeEmail(user.email, user.firstName);
+        } catch (emailError) {
+            console.error('Welcome email failed:', emailError);
+        }
+
+        // Generate JWT token
         const token = generateToken(user._id);
 
         res.json({
@@ -170,12 +171,14 @@ router.post('/verify-otp', [
         console.error('OTP verification error:', error);
         res.status(500).json({
             success: false,
-            message: 'Internal server error'
+            message: 'Verification failed. Please try again.'
         });
     }
 });
 
-// Resend OTP
+// ==========================================
+// Resend Email Verification OTP
+// ==========================================
 router.post('/resend-otp', [
     body('email').isEmail().withMessage('Valid email is required'),
 ], async (req, res) => {
@@ -191,7 +194,7 @@ router.post('/resend-otp', [
 
         const { email } = req.body;
 
-        const user = await User.findOne({ email });
+        const user = await User.findOne({ email: email.toLowerCase() });
         if (!user) {
             return res.status(404).json({
                 success: false,
@@ -207,33 +210,34 @@ router.post('/resend-otp', [
         }
 
         // Generate new OTP
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
-        const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
-        user.otp = otp;
-        user.otpExpires = otpExpires;
+        const otp = user.generateEmailVerifyOtp();
         await user.save();
 
-        // Send OTP — exactly like SocialX
+        // Send OTP email
         try {
-            await sendOTPEmail(email, otp);
+            await sendOTPEmail(user.email, otp);
         } catch (emailError) {
             console.error('Resend OTP email failed:', emailError);
-            // OTP saved in DB, user can retry
         }
 
-        res.json({ success: true, message: 'OTP sent successfully' });
+        res.json({ 
+            success: true, 
+            message: 'OTP sent successfully',
+            data: { email: user.email }
+        });
 
     } catch (error) {
         console.error('Resend OTP error:', error);
         res.status(500).json({
             success: false,
-            message: 'Internal server error'
+            message: 'Failed to resend OTP. Please try again.'
         });
     }
 });
 
+// ==========================================
 // Login User
+// ==========================================
 router.post('/login', [
     body('email').isEmail().withMessage('Valid email is required'),
     body('password').notEmpty().withMessage('Password is required'),
@@ -250,27 +254,35 @@ router.post('/login', [
 
         const { email, password } = req.body;
 
-        const user = await User.findOne({ email, loginType: 'email' });
+        // Find user with password field
+        const user = await User.findOne({ email: email.toLowerCase(), loginType: 'email' }).select('+password');
         if (!user) {
             return res.status(401).json({
                 success: false,
-                message: 'Invalid credentials'
+                message: 'Invalid email or password.'
             });
         }
 
-        const isPasswordValid = await bcrypt.compare(password, user.password);
+        // Verify password
+        const isPasswordValid = await user.comparePassword(password);
         if (!isPasswordValid) {
             return res.status(401).json({
                 success: false,
-                message: 'Invalid credentials'
+                message: 'Invalid email or password.'
             });
         }
 
+        if (!user.isActive) {
+            return res.status(403).json({
+                success: false,
+                message: 'Your account has been deactivated.'
+            });
+        }
+
+        // Check if email is verified
         if (!user.isEmailVerified) {
-            // Auto-resend OTP on login — exactly like SocialX
-            const otp = Math.floor(100000 + Math.random() * 900000).toString();
-            user.otp = otp;
-            user.otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+            // Generate and send new OTP
+            const otp = user.generateEmailVerifyOtp();
             await user.save();
             try {
                 await sendOTPEmail(user.email, otp);
@@ -279,11 +291,12 @@ router.post('/login', [
             }
             return res.status(403).json({
                 success: false,
-                needsVerification: true,
                 code: 'EMAIL_NOT_VERIFIED',
                 message: 'Email not verified. A new OTP has been sent to your email.',
-                email: user.email,
-                data: { isEmailVerified: false, email: user.email }
+                data: { 
+                    email: user.email,
+                    isEmailVerified: false 
+                }
             });
         }
 
@@ -311,15 +324,17 @@ router.post('/login', [
         console.error('Login error:', error);
         res.status(500).json({
             success: false,
-            message: 'Internal server error'
+            message: 'Login failed. Please try again.'
         });
     }
 });
 
+// ==========================================
 // Get User Profile
+// ==========================================
 router.get('/profile', authenticateToken, async (req, res) => {
     try {
-        const user = await User.findById(req.user.userId).select('-password -otp -otpExpires');
+        const user = await User.findById(req.user.userId).select('-password -emailVerifyOtp -resetOtp');
         if (!user) {
             return res.status(404).json({
                 success: false,
@@ -338,6 +353,7 @@ router.get('/profile', authenticateToken, async (req, res) => {
                     isEmailVerified: user.isEmailVerified,
                     profilePicture: user.profilePicture,
                     phoneNumber: user.phoneNumber,
+                    dateOfBirth: user.dateOfBirth,
                     loginType: user.loginType,
                     createdAt: user.createdAt
                 }
@@ -348,16 +364,19 @@ router.get('/profile', authenticateToken, async (req, res) => {
         console.error('Get profile error:', error);
         res.status(500).json({
             success: false,
-            message: 'Internal server error'
+            message: 'Failed to fetch profile.'
         });
     }
 });
 
+// ==========================================
 // Update User Profile
+// ==========================================
 router.put('/profile', authenticateToken, [
     body('firstName').optional().notEmpty().withMessage('First name cannot be empty'),
     body('lastName').optional().notEmpty().withMessage('Last name cannot be empty'),
     body('phoneNumber').optional().isMobilePhone().withMessage('Invalid phone number'),
+    body('dateOfBirth').optional().isISO8601().withMessage('Invalid date format'),
 ], async (req, res) => {
     try {
         const errors = validationResult(req);
@@ -369,21 +388,20 @@ router.put('/profile', authenticateToken, [
             });
         }
 
-        const { firstName, lastName, phoneNumber } = req.body;
+        const { firstName, lastName, phoneNumber, dateOfBirth } = req.body;
         const updateData = {};
 
-        if (firstName) updateData.firstName = firstName;
-        if (lastName) updateData.lastName = lastName;
+        if (firstName) updateData.firstName = firstName.trim();
+        if (lastName) updateData.lastName = lastName.trim();
         if (phoneNumber) updateData.phoneNumber = phoneNumber;
+        if (dateOfBirth) updateData.dateOfBirth = dateOfBirth;
 
         updateData.updatedAt = new Date();
-
-        console.log('Updating user profile');
 
         const user = await User.findByIdAndUpdate(
             req.user.userId,
             updateData,
-            { new: true, select: '-password -otp -otpExpires' }
+            { new: true, select: '-password -emailVerifyOtp -resetOtp' }
         );
 
         if (!user) {
@@ -392,8 +410,6 @@ router.put('/profile', authenticateToken, [
                 message: 'User not found'
             });
         }
-
-        console.log('User updated successfully');
 
         res.json({
             success: true,
@@ -407,6 +423,7 @@ router.put('/profile', authenticateToken, [
                     isEmailVerified: user.isEmailVerified,
                     profilePicture: user.profilePicture,
                     phoneNumber: user.phoneNumber,
+                    dateOfBirth: user.dateOfBirth,
                     loginType: user.loginType,
                     updatedAt: user.updatedAt
                 }
@@ -417,17 +434,17 @@ router.put('/profile', authenticateToken, [
         console.error('Update profile error:', error);
         res.status(500).json({
             success: false,
-            message: 'Internal server error'
+            message: 'Failed to update profile.'
         });
     }
 });
 
-// Logout User - Expire JWT Token
+// ==========================================
+// Logout User
+// ==========================================
 router.post('/logout', authenticateToken, async (req, res) => {
     try {
-        // Since JWT tokens are stateless, we can't directly invalidate them
-        // In a production app, you might maintain a blacklist of tokens
-        // For now, we just confirm the logout
+        // JWT tokens are stateless, so logout is handled on the client side
         res.json({
             success: true,
             message: 'Logged out successfully'
@@ -437,12 +454,14 @@ router.post('/logout', authenticateToken, async (req, res) => {
         console.error('Logout error:', error);
         res.status(500).json({
             success: false,
-            message: 'Internal server error'
+            message: 'Logout failed.'
         });
     }
 });
 
+// ==========================================
 // Delete User Account
+// ==========================================
 router.delete('/profile', authenticateToken, async (req, res) => {
     try {
         const user = await User.findByIdAndDelete(req.user.userId);
@@ -462,12 +481,14 @@ router.delete('/profile', authenticateToken, async (req, res) => {
         console.error('Delete account error:', error);
         res.status(500).json({
             success: false,
-            message: 'Internal server error'
+            message: 'Failed to delete account.'
         });
     }
 });
 
+// ==========================================
 // Update FCM Token
+// ==========================================
 router.post('/fcm-token', authenticateToken, async (req, res) => {
     try {
         const { fcmToken } = req.body;
@@ -488,12 +509,14 @@ router.post('/fcm-token', authenticateToken, async (req, res) => {
         console.error('Update FCM Token error:', error);
         res.status(500).json({
             success: false,
-            message: 'Internal server error'
+            message: 'Failed to update FCM token.'
         });
     }
 });
 
+// ==========================================
 // Update Notification Settings
+// ==========================================
 router.put('/notification-settings', authenticateToken, async (req, res) => {
     try {
         const { settings } = req.body;
@@ -525,7 +548,7 @@ router.put('/notification-settings', authenticateToken, async (req, res) => {
         console.error('Update notification settings error:', error);
         res.status(500).json({
             success: false,
-            message: 'Internal server error'
+            message: 'Failed to update notification settings.'
         });
     }
 });
