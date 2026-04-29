@@ -88,9 +88,7 @@ class EmergencyContactService {
 
   async createEmergencyContact(contact: Omit<EmergencyContact, '_id' | 'createdAt' | 'updatedAt'>): Promise<EmergencyContactResponse> {
     try {
-      console.log('Creating emergency contact with data:', contact);
       const response = await apiService.post(this.baseUrl, contact);
-      console.log('API response:', response);
       
       // Backend returns { success: true, data: { ... }, message: '...' }
       if (response && response.success) {

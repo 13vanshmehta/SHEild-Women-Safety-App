@@ -116,6 +116,7 @@ coverage/
 # Temporary files
 tmp/
 temp/
+_diag_*.js
 
 # Build artifacts
 *.apk

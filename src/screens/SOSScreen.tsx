@@ -32,19 +32,16 @@ let Geolocation: any = null;
 try {
   NetInfo = require('@react-native-community/netinfo').default;
 } catch (e) {
-  console.warn('NetInfo not available:', e);
 }
 
 try {
   DeviceInfo = require('react-native-device-info').default;
 } catch (e) {
-  console.warn('DeviceInfo not available:', e);
 }
 
 try {
   Geolocation = require('react-native-geolocation-service').default;
 } catch (e) {
-  console.warn('Geolocation not available:', e);
 }
 
 const SOSScreen: React.FC = () => {
@@ -89,20 +86,15 @@ const SOSScreen: React.FC = () => {
   }, []);
 
   const handleAppStateChange = (nextAppState: any) => {
-    console.log('📱 App State Changed:', appState.current, '->', nextAppState);
 
     if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
       // App came to foreground
-      console.log('📱 App came to FOREGROUND');
       if (isVoiceListening) {
-        console.log('🎤 Voice listening was active, ensuring it continues...');
         // Voice service should continue, just log for monitoring
       }
     } else if (nextAppState.match(/inactive|background/)) {
       // App went to background
-      console.log('📱 App went to BACKGROUND');
       if (isVoiceListening) {
-        console.log('🎤 Voice listening active - will continue in background with audio mode');
         // Keep voice listening active in background
       }
     }
@@ -120,7 +112,6 @@ const SOSScreen: React.FC = () => {
     if (isVoiceListening && keywords.length > 0 && keywordsChanged) {
       // Stop and restart with new keywords
       const restartListening = async () => {
-        console.log('🔄 Restarting voice listening with new keywords:', keywords);
         await voiceSafetyService.stopListening();
 
         const started = await voiceSafetyService.startListening({
@@ -128,9 +119,6 @@ const SOSScreen: React.FC = () => {
           locale: 'en-US',
           silent: true, // Auto-restart on keyword change is silent
           onKeywordDetected: (keyword, fullText) => {
-            console.log('🚨 EMERGENCY KEYWORD DETECTED:', keyword);
-            console.log('🚨 Full text:', fullText);
-            console.log('🎤 SOS Triggered by Voice!');
             Vibration.vibrate(500);
             ReactNativeHapticFeedback.trigger('notificationError');
             triggerSOSAlert('voice_keyword');
@@ -181,7 +169,6 @@ const SOSScreen: React.FC = () => {
         const activeContacts = response.data.contacts.filter((c: any) => c.isActive);
         setEmergencyContactCount(activeContacts.length);
       } else {
-        console.log('No emergency contacts found');
         setEmergencyContactCount(0);
       }
     } catch (error) {
@@ -203,7 +190,6 @@ const SOSScreen: React.FC = () => {
           deviceModel = DeviceInfo.getModel();
           osVersion = DeviceInfo.getSystemVersion();
         } catch (e) {
-          console.warn('DeviceInfo error:', e);
         }
       }
 
@@ -233,7 +219,6 @@ const SOSScreen: React.FC = () => {
             }
           }
         } catch (e) {
-          console.warn('NetInfo error:', e);
         }
       }
 
@@ -276,12 +261,10 @@ const SOSScreen: React.FC = () => {
         if (Geolocation) {
           try {
             const authStatus = await Geolocation.requestAuthorization('whenInUse');
-            console.log('iOS Location authorization status:', authStatus);
 
             if (authStatus === 'granted' || authStatus === 'whenInUse') {
               getCurrentLocation();
             } else {
-              console.warn('Location permission denied:', authStatus);
               Alert.alert(
                 'Location Permission Required',
                 'Please enable location services in Settings to use SOS features.',
@@ -313,7 +296,6 @@ const SOSScreen: React.FC = () => {
 
   const getCurrentLocation = () => {
     if (!Geolocation) {
-      console.warn('Geolocation not available');
       Alert.alert(
         'Location Error',
         'Unable to access location services. Please check if location services are enabled in your device settings.'
@@ -329,7 +311,6 @@ const SOSScreen: React.FC = () => {
 
     Geolocation.getCurrentPosition(
       (position: any) => {
-        console.log('Location obtained successfully:', position.coords);
         setLocation({
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
@@ -449,22 +430,66 @@ const SOSScreen: React.FC = () => {
     scaleAnim.setValue(1);
 
     try {
-      // Get fresh location
-      getCurrentLocation();
-      await collectDeviceInfo();
-
-      console.log('📤 Sending SOS alert via:', triggerMode, {
-        location,
-        deviceInfo,
+      // Get fresh location (wrapped in a Promise so we can await it)
+      const freshLocation = await new Promise<{latitude: number; longitude: number; accuracy: number} | null>((resolve) => {
+        if (!Geolocation) {
+          resolve(location); // fall back to existing state
+          return;
+        }
+        Geolocation.getCurrentPosition(
+          (pos: any) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy }),
+          () => resolve(location), // on error fall back to existing state
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+        );
       });
 
+      // Collect fresh device info and capture the result directly
+      let freshDeviceInfo = {
+        batteryLevel: 0,
+        networkStatus: 'unknown',
+        deviceModel: Platform.OS === 'android' ? 'Android Device' : 'iOS Device',
+        osVersion: Platform.Version.toString(),
+      };
+      try {
+        if (DeviceInfo) {
+          const battery = await DeviceInfo.getBatteryLevel();
+          freshDeviceInfo.batteryLevel = Math.round(battery * 100);
+          freshDeviceInfo.deviceModel = DeviceInfo.getModel();
+          freshDeviceInfo.osVersion = DeviceInfo.getSystemVersion();
+        }
+        if (NetInfo) {
+          const netInfo = await NetInfo.fetch();
+          if (!netInfo.isConnected) {
+            freshDeviceInfo.networkStatus = 'offline';
+          } else {
+            const details = netInfo.details as any;
+            if (netInfo.type === 'wifi' && details?.strength) {
+              const s = details.strength;
+              freshDeviceInfo.networkStatus = s >= 70 ? 'strong' : s >= 40 ? 'moderate' : 'weak';
+            } else if (netInfo.type === 'cellular' && details?.cellularGeneration) {
+              const gen = details.cellularGeneration;
+              freshDeviceInfo.networkStatus = (gen === '5g' || gen === '4g') ? 'strong' : gen === '3g' ? 'moderate' : 'weak';
+            } else {
+              freshDeviceInfo.networkStatus = 'moderate';
+            }
+          }
+        }
+      } catch (e) {
+      }
+
+      // Update state too (for UI display)
+      setDeviceInfo(freshDeviceInfo);
+      if (freshLocation) setLocation(freshLocation);
+
+      const locationPayload = freshLocation || { latitude: 0, longitude: 0, address: 'Location unavailable' };
+
+
       const response = await apiService.post('/api/sos/trigger', {
-        location: location || { latitude: 0, longitude: 0, address: 'Location unavailable' },
-        deviceInfo,
+        location: locationPayload,
+        deviceInfo: freshDeviceInfo,
         triggerMode: triggerMode,
       });
 
-      console.log('📥 SOS response:', response);
 
       if (response.success) {
         // Show custom success modal instead of default alert
@@ -493,7 +518,6 @@ const SOSScreen: React.FC = () => {
 
   const startLocationMonitoring = (alertId: string) => {
     if (!NetInfo || !Geolocation) {
-      console.warn('Location monitoring not available - native modules not linked');
       return;
     }
 
@@ -511,7 +535,6 @@ const SOSScreen: React.FC = () => {
           if (!isConnected) {
             // Device went offline
             offlineStartTime = Date.now();
-            console.log('📴 Device went offline');
 
             // Get last known location and send offline notification
             Geolocation.getCurrentPosition(
@@ -537,7 +560,6 @@ const SOSScreen: React.FC = () => {
 
             // Only notify if device was offline for more than threshold
             if (offlineDuration >= OFFLINE_THRESHOLD) {
-              console.log(`📶 Device back online (was offline for ${Math.round(offlineDuration / 1000)}s)`);
 
               // Get current location and send online notification
               Geolocation.getCurrentPosition(
@@ -552,7 +574,6 @@ const SOSScreen: React.FC = () => {
                 { enableHighAccuracy: true, timeout: 10000, maximumAge: 10000 }
               );
             } else {
-              console.log(`📶 Device back online (brief disconnect, no notification)`);
             }
 
             offlineStartTime = null;
@@ -586,10 +607,8 @@ const SOSScreen: React.FC = () => {
       setTimeout(() => {
         unsubscribe();
         clearInterval(locationInterval);
-        console.log('🛑 Location monitoring stopped');
       }, 3600000);
 
-      console.log('✅ Location monitoring started');
     } catch (error) {
       console.error('Error starting location monitoring:', error);
     }
@@ -634,7 +653,6 @@ const SOSScreen: React.FC = () => {
         // Voice is already running, just sync UI state
         const savedState = await voiceStateService.loadState();
         if (savedState && savedState.keywords.length > 0) {
-          console.log('📂 Voice already listening, syncing UI state');
           setKeywords(savedState.keywords);
           setIsVoiceListening(true);
           startVoicePulseAnimation();
@@ -643,7 +661,6 @@ const SOSScreen: React.FC = () => {
         // Voice not running, check if it should auto-start
         const savedState = await voiceStateService.loadState();
         if (savedState && savedState.isEnabled && savedState.keywords.length > 0) {
-          console.log('📂 Restoring voice listening from saved state');
           setKeywords(savedState.keywords);
           // Auto-start voice listening with saved keywords (silent on mount)
           setTimeout(() => {
@@ -697,7 +714,6 @@ const SOSScreen: React.FC = () => {
             return;
           }
 
-          console.log('🎤 Microphone permission granted');
         } catch (err) {
           console.error('Error requesting microphone permission:', err);
           Alert.alert('Error', 'Failed to request microphone permission');
@@ -710,9 +726,6 @@ const SOSScreen: React.FC = () => {
         locale: 'en-US',
         silent: silent,
         onKeywordDetected: (keyword, fullText) => {
-          console.log('🚨 EMERGENCY KEYWORD DETECTED:', keyword);
-          console.log('🚨 Full text:', fullText);
-          console.log('🎤 SOS Triggered by Voice!');
           Vibration.vibrate(500);
           ReactNativeHapticFeedback.trigger('notificationError');
           triggerSOSAlert('voice_keyword');
@@ -762,7 +775,6 @@ const SOSScreen: React.FC = () => {
       voicePulseAnim.setValue(1);
       // Clear saved state when user manually stops
       await voiceStateService.clearState();
-      console.log('🛑 Voice listening stopped and state cleared');
     } catch (error) {
       console.error('Error stopping voice listening:', error);
     }

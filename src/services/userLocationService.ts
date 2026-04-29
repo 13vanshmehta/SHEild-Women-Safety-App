@@ -174,7 +174,6 @@ class UserLocationService {
    * Start automatic location updates (every 30 seconds when app is active)
    */
   async startLocationTracking(updateIntervalMs: number = 30000) {
-    console.log('🌍 Starting location tracking...');
     
     // Clear any existing interval
     this.stopLocationTracking();
@@ -182,7 +181,6 @@ class UserLocationService {
     // Setup socket connection for real-time updates
     try {
       this.socket = await connectSocket();
-      console.log('✅ Socket connected for location tracking');
     } catch (error) {
       console.error('❌ Failed to connect socket:', error);
     }
@@ -195,7 +193,6 @@ class UserLocationService {
       await this.updateCurrentLocation();
     }, updateIntervalMs);
 
-    console.log(`✅ Location tracking started (updating every ${updateIntervalMs / 1000}s)`);
   }
 
   /**
@@ -205,7 +202,6 @@ class UserLocationService {
     if (this.locationUpdateInterval) {
       clearInterval(this.locationUpdateInterval);
       this.locationUpdateInterval = null;
-      console.log('🛑 Location tracking stopped');
     }
   }
 
@@ -217,7 +213,6 @@ class UserLocationService {
       const location = await this.getCurrentLocation();
       
       if (!location) {
-        console.log('⚠️ Could not get current location');
         return;
       }
 
@@ -240,7 +235,6 @@ class UserLocationService {
 
       // Send to server
       await this.updateLocation(locationUpdate);
-      console.log('📍 Location updated:', { latitude, longitude });
 
     } catch (error) {
       console.error('❌ Error updating current location:', error);
@@ -252,12 +246,10 @@ class UserLocationService {
    */
   subscribeToLocationUpdates(callback: (location: UserLocationData) => void) {
     if (!this.socket) {
-      console.warn('Socket not connected. Call startLocationTracking first.');
       return;
     }
 
     this.socket.on('userLocationUpdated', (data: any) => {
-      console.log('📍 Received location update:', data);
       callback({
         userId: data.userId,
         firstName: data.firstName,

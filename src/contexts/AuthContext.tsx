@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG } from '../constants/api';
 import { authService } from '../services/authService';
 import userLocationService from '../services/userLocationService';
+import keepAliveService from '../services/keepAliveService';
 
 interface User {
   id: string;
@@ -13,6 +14,7 @@ interface User {
   profilePicture?: string;
   phoneNumber?: string;
   loginType: 'email' | 'google' | 'apple';
+  createdAt?: string;
 }
 
 interface AuthContextType {
@@ -63,7 +65,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setUser(data.data.user);
 
             // Start location tracking for existing session
-            console.log('🌍 Resuming location tracking for existing session...');
             setTimeout(() => {
               userLocationService.startLocationTracking(30000);
             }, 2000);
@@ -105,7 +106,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(newUser);
       
       // Start location tracking after successful login
-      console.log('🌍 Starting location tracking after login...');
       setTimeout(() => {
         userLocationService.startLocationTracking(30000); // Update every 30 seconds
       }, 2000); // Delay to ensure app is fully loaded
@@ -119,7 +119,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = async () => {
     try {
       // Stop location tracking
-      console.log('🛑 Stopping location tracking before logout...');
       userLocationService.stopLocationTracking();
       
       // Call backend to logout (expire JWT token)
@@ -146,9 +145,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     AsyncStorage.setItem('user_data', JSON.stringify(updatedUser));
   };
 
-  // Check auth status on mount
+  // Check auth status and start keep-alive on mount
   useEffect(() => {
     checkAuthStatus();
+    keepAliveService.start();
+    return () => keepAliveService.stop();
   }, []);
 
   const value: AuthContextType = {

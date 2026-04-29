@@ -58,7 +58,6 @@ class LocationService {
         // iOS permission handling - use Geolocation.requestAuthorization
         try {
           const authStatus = await Geolocation.requestAuthorization('whenInUse');
-          console.log('iOS Location authorization status:', authStatus);
           
           // Check if permission was granted
           // Possible values: 'granted', 'denied', 'disabled', 'restricted'

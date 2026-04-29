@@ -36,17 +36,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNavigateToS
 
   // Google Sign-In configuration
   useEffect(() => {
-    console.log('Configuring Google Sign-In with:', {
-      webClientId: Config.GOOGLE_WEB_CLIENT_ID,
-      iosClientId: Config.GOOGLE_IOS_CLIENT_ID,
-      platform: Platform.OS,
-    });
 
     GoogleSignin.configure({
       // For Android, we must use the Web Client ID (server client ID) 
       // This is required for ID token generation that will be verified on the backend
-      webClientId: Config.GOOGLE_WEB_CLIENT_ID || '387247252263-fggkf3drod1j2fn9ms7sa9gruep1cpg0.apps.googleusercontent.com',
-      iosClientId: Config.GOOGLE_IOS_CLIENT_ID || '387247252263-lvekppuc0mp48t8flckb4obphsra96h2.apps.googleusercontent.com',
+      webClientId: Config.GOOGLE_WEB_CLIENT_ID,
+      iosClientId: Config.GOOGLE_IOS_CLIENT_ID,
       offlineAccess: true,
       forceCodeForRefreshToken: true,
     });
@@ -85,43 +80,25 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNavigateToS
       }
     } catch (error) {
       Alert.alert('Error', 'Network error. Please check your connection and try again.');
-      console.log(error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleLogin = () => {
+    // Defer to next tick — on Android Fabric/Bridgeless the Activity may not
+    // be attached yet at the moment the button press fires.
+    setTimeout(() => _doGoogleLogin(), 0);
+  };
+
+  const _doGoogleLogin = async () => {
     try {
       setLoading(true);
 
-      // Check if Google Play Services are available
       await GoogleSignin.hasPlayServices();
-
-      // Sign in with Google
       const userInfo = await GoogleSignin.signIn();
 
-      console.log('Google Sign-In Response:', JSON.stringify(userInfo, null, 2));
-
       if (userInfo.data?.idToken) {
-        // Get user info from Google API (similar to the YouTube video approach)
-        const getUserInfo = async (accessToken: string) => {
-          try {
-            const response = await fetch('https://www.googleapis.com/userinfo/v2/me', {
-              headers: {
-                Authorization: `Bearer ${accessToken}`,
-              },
-            });
-            return await response.json();
-          } catch (error) {
-            console.error('Error fetching user info:', error);
-            throw error;
-          }
-        };
-
-        // Get user details from Google
-        await getUserInfo(userInfo.data.serverAuthCode || userInfo.data.idToken);
-
         const response = await authService.googleAuthMobile(userInfo.data.idToken);
 
         if (response.success) {
@@ -132,21 +109,18 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNavigateToS
           Alert.alert('Error', response.message || 'Google sign-in failed');
         }
       } else {
-        console.error('No ID token in response:', userInfo);
-        Alert.alert('Error', `Failed to get Google authentication token. Response: ${JSON.stringify(userInfo)}`);
+        Alert.alert('Error', 'Failed to get Google authentication token. Please try again.');
       }
     } catch (error: any) {
-      console.error('Google Sign-In Error:', error);
-
-      if (error.code === 'SIGN_IN_CANCELLED') {
-        // User cancelled the sign-in flow
-        console.log('User cancelled Google sign-in');
-      } else if (error.code === 'IN_PROGRESS') {
+      const code = error?.code;
+      if (code === 'SIGN_IN_CANCELLED' || code === -5) {
+        // User dismissed — no alert needed
+      } else if (code === 'IN_PROGRESS') {
         Alert.alert('Error', 'Sign-in is already in progress');
-      } else if (error.code === 'PLAY_SERVICES_NOT_AVAILABLE') {
-        Alert.alert('Error', 'Google Play Services not available');
+      } else if (code === 'PLAY_SERVICES_NOT_AVAILABLE') {
+        Alert.alert('Error', 'Google Play Services not available or outdated');
       } else {
-        Alert.alert('Error', 'Google sign-in failed. Please try again.');
+        Alert.alert('Google Sign-In Failed', 'Please try again or use email login.');
       }
     } finally {
       setLoading(false);

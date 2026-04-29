@@ -170,7 +170,6 @@ const HomeScreen: React.FC = () => {
           // Fetch safe spots and police stations
           await fetchPlaces(location);
         } else {
-          console.warn('Geoapify Places API key is not configured');
         }
       }
     } catch (error) {
@@ -295,13 +294,10 @@ const HomeScreen: React.FC = () => {
         handleSafeSpots();
         break;
       case '3':
-        console.log('Open Trust Circle');
         break;
       case '4':
-        console.log('Share Location');
         break;
       case '5':
-        console.log('View Safety Tips');
         break;
       default:
         break;

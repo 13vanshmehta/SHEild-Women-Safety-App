@@ -11,11 +11,16 @@ import {
   Dimensions,
   TextInput,
   Alert,
+  Linking,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAuth } from '../contexts/AuthContext';
 import { authService } from '../services/authService';
 import { Colors } from '../constants/colors';
+import { apiService } from '../services/apiService';
+import emergencyContactService from '../services/emergencyContactService';
+import placesService from '../services/placesService';
+import locationService from '../services/locationService';
 
 const { width } = Dimensions.get('window');
 
@@ -28,6 +33,73 @@ const ProfileScreen: React.FC = () => {
   const [showPhoneModal, setShowPhoneModal] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isUpdatingPhone, setIsUpdatingPhone] = useState(false);
+
+  // New state for dynamic stats and modals
+  const [safeZonesCount, setSafeZonesCount] = useState<number | string>('...');
+  const [trustCircleCount, setTrustCircleCount] = useState<number | string>('...');
+  const [daysSafe, setDaysSafe] = useState<number | string>('...');
+
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editFirstName, setEditFirstName] = useState('');
+  const [editLastName, setEditLastName] = useState('');
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+
+  React.useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        let groupsCount = 0;
+        let contactsCount = 0;
+        try {
+          const groupsRes = await apiService.get('/api/groups');
+          if (groupsRes.success && groupsRes.data) {
+            groupsCount = groupsRes.data.length;
+          }
+        } catch (err) {}
+
+        try {
+          const contactsRes = await emergencyContactService.getEmergencyContacts();
+          if (contactsRes?.success && contactsRes.data) {
+            if (Array.isArray(contactsRes.data)) {
+              contactsCount = contactsRes.data.length;
+            } else if (contactsRes.data.contacts) {
+              contactsCount = contactsRes.data.contacts.length;
+            }
+          }
+        } catch (err) {}
+        setTrustCircleCount(groupsCount + contactsCount);
+
+        try {
+          const loc = await locationService.getCurrentLocation();
+          if (loc) {
+            const spotsRes = await placesService.getSafeSpotsNearMe(loc, 2000);
+            if (spotsRes.success && spotsRes.data) {
+              setSafeZonesCount(spotsRes.data.length);
+            } else {
+              setSafeZonesCount(0);
+            }
+          } else {
+            setSafeZonesCount('-');
+          }
+        } catch (err) { setSafeZonesCount('-'); }
+      } catch (error) {
+        console.error('Error fetching stats:', error);
+      }
+    };
+
+    fetchStats();
+
+    if (user?.createdAt) {
+      const createdDate = new Date(user.createdAt);
+      const today = new Date();
+      const diffTime = Math.abs(today.getTime() - createdDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      setDaysSafe(diffDays);
+    } else {
+      setDaysSafe(1);
+    }
+  }, [user]);
 
   const handleDeleteAccount = () => {
     setShowDeleteModal(true);
@@ -68,8 +140,36 @@ const ProfileScreen: React.FC = () => {
   };
 
   const handleEditProfile = () => {
-    // You can add a custom modal for this too if needed
-    console.log('Edit profile feature coming soon');
+    setEditFirstName(user?.firstName || '');
+    setEditLastName(user?.lastName || '');
+    setShowEditModal(true);
+  };
+
+  const updateProfile = async () => {
+    if (!editFirstName.trim() || !editLastName.trim()) {
+      Alert.alert('Error', 'First and last name are required');
+      return;
+    }
+    try {
+      setIsUpdatingProfile(true);
+      if (token) {
+        const response = await authService.updateProfile(token, { 
+          firstName: editFirstName.trim(),
+          lastName: editLastName.trim()
+        });
+        if (response.success && response.data?.user) {
+          updateUser(response.data.user);
+          setShowEditModal(false);
+          Alert.alert('Success', 'Profile updated successfully');
+        } else {
+          Alert.alert('Error', response.message || 'Failed to update profile');
+        }
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to update profile');
+    } finally {
+      setIsUpdatingProfile(false);
+    }
   };
 
   const handlePhoneNumberEdit = () => {
@@ -99,13 +199,10 @@ const ProfileScreen: React.FC = () => {
       const fullPhoneNumber = `+91${phoneNumber}`;
 
       if (token) {
-        console.log('Updating phone number to:', fullPhoneNumber);
         const response = await authService.updateProfile(token, { phoneNumber: fullPhoneNumber });
-        console.log('Update response:', response);
 
         if (response.success && response.data?.user) {
           // Update the user context with the new data from backend
-          console.log('Updated user data:', response.data.user);
           updateUser(response.data.user);
           setShowPhoneModal(false);
           Alert.alert('Success', 'Phone number updated successfully');
@@ -147,15 +244,15 @@ const ProfileScreen: React.FC = () => {
           {/* Stats */}
           <View style={styles.statsContainer}>
             <View style={styles.statItem}>
-              <Text style={styles.statNumber}>12</Text>
+              <Text style={styles.statNumber}>{safeZonesCount}</Text>
               <Text style={styles.statLabel}>Safe Zones</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statNumber}>8</Text>
+              <Text style={styles.statNumber}>{trustCircleCount}</Text>
               <Text style={styles.statLabel}>Trust Circle</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statNumber}>156</Text>
+              <Text style={styles.statNumber}>{daysSafe}</Text>
               <Text style={styles.statLabel}>Days Safe</Text>
             </View>
           </View>
@@ -214,13 +311,13 @@ const ProfileScreen: React.FC = () => {
             <Icon name="chevron-right" size={24} color={Colors.textLight} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.settingItem}>
+          <TouchableOpacity style={styles.settingItem} onPress={() => setShowPrivacyModal(true)}>
             <Icon name="shield-check" size={24} color={Colors.success} />
             <Text style={styles.settingText}>Privacy & Security</Text>
             <Icon name="chevron-right" size={24} color={Colors.textLight} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.settingItem}>
+          <TouchableOpacity style={styles.settingItem} onPress={() => Linking.openURL('mailto:support@sheild.app?subject=Support Request')}>
             <Icon name="help-circle" size={24} color={Colors.info} />
             <Text style={styles.settingText}>Help & Support</Text>
             <Icon name="chevron-right" size={24} color={Colors.textLight} />
@@ -397,6 +494,112 @@ const ProfileScreen: React.FC = () => {
                 ) : (
                   <Text style={styles.confirmButtonText}>Update</Text>
                 )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Edit Profile Modal */}
+      <Modal
+        visible={showEditModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowEditModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <View style={[styles.modalIconContainer, { backgroundColor: Colors.primary + '20' }]}>
+                <Icon name="account-edit" size={32} color={Colors.primary} />
+              </View>
+              <Text style={styles.modalTitle}>Edit Profile</Text>
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>First Name</Text>
+              <TextInput
+                style={styles.textInput}
+                value={editFirstName}
+                onChangeText={setEditFirstName}
+                placeholder="Enter first name"
+                placeholderTextColor={Colors.textLight}
+              />
+            </View>
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Last Name</Text>
+              <TextInput
+                style={styles.textInput}
+                value={editLastName}
+                onChangeText={setEditLastName}
+                placeholder="Enter last name"
+                placeholderTextColor={Colors.textLight}
+              />
+            </View>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setShowEditModal(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalButton, styles.confirmButton]}
+                onPress={updateProfile}
+                disabled={isUpdatingProfile}
+              >
+                {isUpdatingProfile ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.confirmButtonText}>Save</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Privacy & Security Modal */}
+      <Modal
+        visible={showPrivacyModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowPrivacyModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <View style={[styles.modalIconContainer, { backgroundColor: Colors.success + '20' }]}>
+                <Icon name="shield-check" size={32} color={Colors.success} />
+              </View>
+              <Text style={styles.modalTitle}>Privacy & Security</Text>
+            </View>
+
+            <View style={styles.privacyInfoContainer}>
+              <View style={styles.privacyItem}>
+                <Icon name="lock" size={24} color={Colors.primary} />
+                <View style={styles.privacyTextContainer}>
+                  <Text style={styles.privacyItemTitle}>End-to-End Encryption</Text>
+                  <Text style={styles.privacyItemDesc}>Your location and messages are fully encrypted.</Text>
+                </View>
+              </View>
+              <View style={styles.privacyItem}>
+                <Icon name="map-marker-off" size={24} color={Colors.primary} />
+                <View style={styles.privacyTextContainer}>
+                  <Text style={styles.privacyItemTitle}>Location Privacy</Text>
+                  <Text style={styles.privacyItemDesc}>Your location is only shared with your Trust Circle when needed.</Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.confirmButton]}
+                onPress={() => setShowPrivacyModal(false)}
+              >
+                <Text style={styles.confirmButtonText}>Close</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -696,6 +899,53 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     fontSize: 16,
     color: Colors.text,
+  },
+  inputContainer: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    marginBottom: 8,
+    fontWeight: '500',
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: Colors.text,
+    backgroundColor: Colors.secondary,
+  },
+  privacyInfoContainer: {
+    marginBottom: 24,
+  },
+  privacyItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: Colors.secondary + '50',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  privacyTextContainer: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  privacyItemTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: Colors.text,
+    marginBottom: 4,
+  },
+  privacyItemDesc: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    lineHeight: 20,
   },
 });
 

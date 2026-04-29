@@ -52,18 +52,15 @@ class VoiceSafetyService {
    * Handle app state changes to maintain voice recognition in background
    */
   private handleAppStateChange(nextAppState: AppStateStatus) {
-    console.log('🎤 VoiceService: App State Changed:', this.currentAppState, '->', nextAppState);
 
     if (nextAppState === 'active') {
       // App came to foreground
       if (this.isListening && this.config) {
-        console.log('🎤 VoiceService: Syncing voice recognition in foreground');
         this.ensureListening();
       }
     } else if (nextAppState.match(/inactive|background/)) {
       // App went to background
       if (this.isListening && this.config) {
-        console.log('🎤 VoiceService: Entering background monitoring mode');
         this.startHeartbeat();
       }
     }
@@ -110,7 +107,6 @@ class VoiceSafetyService {
       // console.log('🎤 Voice Heartbeat - Recognized Status:', isRecognizing);
 
       if (!isRecognizing) {
-        console.log('🎤 VoiceService: Voice stopped abruptly, auto-restarting...');
         if (Platform.OS === 'android') {
           try { await Voice.destroy(); } catch (e: any) { } // Clean up any stuck native state
         }
@@ -133,14 +129,11 @@ class VoiceSafetyService {
 
     try {
       // Strategy 1: System Default (Safest for modern devices like S24 Ultra)
-      console.log(`🎤 Attempting Voice.start (${locale}) with SYSTEM DEFAULT engine...`);
       await Voice.start(locale, {
         EXTRA_PARTIAL_RESULTS: true,
         REQUEST_PERMISSIONS_AUTO: true
       });
-      console.log('🎤 ✅ System Default engine initialization requested');
     } catch (defaultError) {
-      console.warn('🎤 System default failed, trying forced GOOGLE strategy...', defaultError);
       try {
         // Strategy 2: Forced Google engine path (legacy/specific devices)
         await Voice.start(locale, {
@@ -148,7 +141,6 @@ class VoiceSafetyService {
           EXTRA_PARTIAL_RESULTS: true,
           REQUEST_PERMISSIONS_AUTO: true
         });
-        console.log('🎤 ✅ Forced Google engine initialization requested');
       } catch (googleError) {
         console.error('🎤 ❌ All voice engine strategies failed:', googleError);
         throw googleError;
@@ -165,7 +157,6 @@ class VoiceSafetyService {
     if (this.isInitialized) return true;
 
     try {
-      console.log('🎤 VoiceService: Starting initialization...');
 
       // Check if Voice module is available (properly linked)
       if (!Voice || typeof Voice.start !== 'function') {
@@ -173,11 +164,9 @@ class VoiceSafetyService {
         return false;
       }
 
-      console.log('🎤 Voice module loaded successfully');
 
       // On Android, we need to ensure Voice module is ready
       if (Platform.OS === 'android') {
-        console.log('🎤 Android: Cleaning up any existing instance...');
         // Try to destroy any existing instance first and wait a bit
         try {
           await Voice.destroy();
@@ -185,7 +174,6 @@ class VoiceSafetyService {
           await new Promise<void>(resolve => setTimeout(resolve, 200));
         } catch {
           // Ignore destroy errors on first init
-          console.log('🎤 No existing instance to destroy');
         }
       }
 
@@ -203,7 +191,6 @@ class VoiceSafetyService {
       };
 
       this.isInitialized = true;
-      console.log('🎤 VoiceService: Initialized successfully');
       return true;
     } catch (error) {
       console.error('Failed to initialize Voice:', error);
@@ -238,11 +225,9 @@ class VoiceSafetyService {
       }
 
       // Check if speech recognition is available
-      console.log('🎤 Checking speech recognition availability...');
 
       try {
         const availabilityResult = await Voice.isAvailable();
-        console.log('🎤 Voice.isAvailable() returned:', availabilityResult, 'Type:', typeof availabilityResult);
 
         // Handle both null/undefined and boolean responses
         const available = availabilityResult === true || availabilityResult === 1;
@@ -257,9 +242,7 @@ class VoiceSafetyService {
 
         // On Android, even if isAvailable returns false/null, we'll try to start anyway
         // because the actual availability is determined when we call start()
-        console.log('🎤 Proceeding with voice recognition setup...');
       } catch (availError) {
-        console.log('🎤 Voice.isAvailable() threw error:', availError);
         // Continue anyway - we'll let start() determine if it works
       }
 
@@ -272,7 +255,6 @@ class VoiceSafetyService {
         if (!config.silent) {
           // Audio feedback removed to fix crashes
         }
-        console.log('🎤 ✅ Voice engine started!');
       } catch (startError: any) {
         console.error('🎤 ❌ Voice.start() failed:');
         console.error('🎤 Error message:', startError?.message);
@@ -289,8 +271,6 @@ class VoiceSafetyService {
       // Start native foreground service to keep app alive in background
       this.startForegroundService();
 
-      console.log('🎤 Voice Safety Mode: Started listening for keywords:', config.keywords);
-      console.log('🎤 Background mode enabled - foreground service keeps app alive');
       return true;
     } catch (error: any) {
       console.error('🎤 ❌ Failed to start voice recognition:', error);
@@ -343,7 +323,6 @@ class VoiceSafetyService {
         this.detectedKeywords.clear(); // Clear detected keywords on stop
         // Stop native foreground service
         this.stopForegroundService();
-        console.log('🛑 Voice Safety Mode: Stopped listening');
       }
     } catch (error) {
       console.error('Error stopping voice recognition:', error);
@@ -403,10 +382,8 @@ class VoiceSafetyService {
         };
 
         await BackgroundJob.start(backgroundTask, options);
-        console.log('🔔 Foreground background-actions service started — JS thread will stay alive');
       }
     } catch (error) {
-      console.warn('⚠️ Error starting background-actions service:', error);
     }
   }
 
@@ -419,10 +396,8 @@ class VoiceSafetyService {
     try {
       if (BackgroundJob.isRunning()) {
         await BackgroundJob.stop();
-        console.log('🔕 Foreground background-actions service stopped');
       }
     } catch (error) {
-      console.warn('⚠️ Error stopping background-actions service:', error);
     }
   }
 
@@ -553,7 +528,6 @@ class VoiceSafetyService {
 
     // Skip keyword checking during SOS cooldown period
     if (this.sosCooldown) {
-      console.log('⏳ SOS cooldown active, skipping keyword check');
       return;
     }
 
@@ -564,11 +538,8 @@ class VoiceSafetyService {
     // Split into words for exact matching
     const words = normalizedText.split(/\s+/);
 
-    console.log('🔍 Checking text:', normalizedText);
     if (normalizedText !== lowerText) {
-      console.log('🔍 Raw text was:', lowerText);
     }
-    console.log('🔍 Looking for keywords:', this.config.keywords);
 
     for (const keyword of this.config.keywords) {
       const lowerKeyword = keyword.toLowerCase().trim();
@@ -584,8 +555,6 @@ class VoiceSafetyService {
         if (!this.detectedKeywords.has(lowerKeyword)) {
           this.detectedKeywords.add(lowerKeyword);
 
-          console.log('🚨 EMERGENCY KEYWORD DETECTED:', keyword);
-          console.log('🚨 Full text:', text);
 
           // Physical Feedback (Audio removed to fix crashes)
           Vibration.vibrate([0, 200, 100, 200]); // Pulse
@@ -600,7 +569,6 @@ class VoiceSafetyService {
           // Break out — only one SOS per detection cycle
           break;
         } else {
-          console.log('⏭️ Skipping duplicate detection for:', lowerKeyword);
         }
       }
     }
@@ -616,7 +584,6 @@ class VoiceSafetyService {
     if (this.sosCooldown) return; // Already in cooldown
 
     this.sosCooldown = true;
-    console.log('⏳ SOS cooldown started (7 seconds)... stopping engine explicitly to prevent lockup.');
 
     // Explicitly destroy the native engine during cooldown to ensure clean slate
     Voice.destroy().catch((e: any) => console.log('Error destroying voice during cooldown', e));
@@ -631,7 +598,6 @@ class VoiceSafetyService {
 
       // Clear all detected keywords so they can be detected again
       this.detectedKeywords.clear();
-      console.log('🔄 Cooldown over — cleared all detected keywords');
 
       this.sosCooldown = false;
 
@@ -640,7 +606,6 @@ class VoiceSafetyService {
         try {
           const isRecognizing = await Voice.isRecognizing();
           if (!isRecognizing) {
-            console.log('🚀 Cooldown finished: Kickstarting Voice Engine.');
             await this.startVoiceEngine(true);
           }
         } catch (e: any) {

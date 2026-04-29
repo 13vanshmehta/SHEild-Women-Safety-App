@@ -240,16 +240,9 @@ class PlacesService {
         bias
       )}&limit=${limit}&apiKey=${encodeURIComponent(this.apiKey)}`;
 
-      console.log('Geoapify request URL:', url);
-
       const response = await fetch(url);
       const data = await response.json();
 
-      console.log(
-        'Geoapify response summary:',
-        type,
-        Array.isArray(data?.features) ? data.features.length : 'no features'
-      );
 
       if (!data || !data.features || !Array.isArray(data.features)) {
         return null;

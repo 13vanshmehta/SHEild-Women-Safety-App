@@ -241,7 +241,7 @@ export const useCustomAlert = () => {
   });
 
   const isShowingRef = React.useRef(false);
-  const timeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showAlert = React.useCallback((
     title: string,
@@ -252,7 +252,6 @@ export const useCustomAlert = () => {
   ) => {
     // Prevent multiple alerts from showing at once
     if (isShowingRef.current) {
-      console.log('Alert already showing, ignoring duplicate call');
       return;
     }
 

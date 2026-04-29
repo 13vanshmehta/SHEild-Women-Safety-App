@@ -315,7 +315,6 @@ const TrackMeScreen: React.FC = () => {
       );
 
       setOtherUsers(filteredLocations);
-      console.log(`📍 Loaded ${filteredLocations.length} other user locations`);
     } catch (err) {
       console.error('Error fetching other users locations:', err);
     }

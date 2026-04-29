@@ -70,7 +70,7 @@ const LinkableText: React.FC<{
 
     // Remove trailing punctuation that's not part of the URL
     // Common punctuation at end of sentences: . , ! ? ) ] }
-    const trailingPunctuationPattern = /[.,!?)\]}>]+$/;
+    const trailingPunctuationPattern = /[.,!?)\]>]+$/;
     const trailingMatch = url.match(trailingPunctuationPattern);
     let trailingPunctuation = '';
 
@@ -303,12 +303,10 @@ const CreateGroupModal: React.FC<{
 
     try {
       setLoading(true);
-      console.log('Creating group with:', { name: groupName, description });
       const response = await apiService.post('/api/groups', {
         name: groupName.trim(),
         description: description.trim() || '',
       });
-      console.log('Group creation response:', response);
 
       if (response && response.success) {
         const joinCode = response.data?.joinCode;
@@ -420,11 +418,9 @@ const JoinGroupModal: React.FC<{
 
     try {
       setLoading(true);
-      console.log('Joining group with code:', joinCode.toUpperCase());
       const response = await apiService.post('/api/groups/join', {
         joinCode: joinCode.toUpperCase().replace(/[^A-Z0-9-]/g, ''),
       });
-      console.log('Join group response:', response);
 
       if (response && response.success) {
         setJoinCode('');
@@ -532,7 +528,6 @@ const ImageMessageBubble: React.FC<{
           return;
         }
       } catch (e) {
-        console.warn('Failed to check cache:', e);
       }
 
       // If no mediaData and no cache, this is an old message - show as unavailable
@@ -562,7 +557,6 @@ const ImageMessageBubble: React.FC<{
         try {
           await AsyncStorage.setItem(cacheKey, mediaData);
         } catch (e) {
-          console.warn('Failed to cache image:', e);
         }
 
         setImageUri(mediaData);
@@ -587,7 +581,6 @@ const ImageMessageBubble: React.FC<{
   };
 
   const handleImageError = (error: any) => {
-    console.log('📷 Image render error:', error?.nativeEvent?.error);
     setImageError(true);
   };
 
@@ -630,7 +623,6 @@ const ImageMessageBubble: React.FC<{
         setImageDimensions({ width: Math.round(displayWidth), height: Math.round(displayHeight) });
       },
       (error) => {
-        console.warn('Failed to get image dimensions:', error);
         // Fallback to default size
         setImageDimensions({ width: 250, height: 250 });
       }
@@ -839,16 +831,11 @@ const GroupChatScreen: React.FC<{
   const loadMessages = useCallback(async () => {
     try {
       setLoading(true);
-      console.log('📥 Loading messages for group:', group._id);
       const response = await apiService.get(`/api/groups/${group._id}/messages`);
-      console.log('📥 Messages response:', JSON.stringify(response, null, 2));
       if (response && response.success && response.data && Array.isArray(response.data.messages)) {
         setIsInitialScrollComplete(false);
-        console.log('📥 Setting', response.data.messages.length, 'messages to state');
-        console.log('📥 First 3 messages:', response.data.messages.slice(0, 3));
         setMessages(response.data.messages);
       } else {
-        console.log('📥 No messages in response, setting empty array');
         setIsInitialScrollComplete(true);
         setMessages([]);
       }
@@ -869,7 +856,6 @@ const GroupChatScreen: React.FC<{
 
     try {
       const socket = await connectSocket();
-      console.log('📤 Sending message:', { groupId: group._id, text, messageType: 'text' });
       socket.emit('sendGroupMessage', { groupId: group._id, text, messageType: 'text' });
     } catch (error) {
       console.error('Error sending message:', error);
@@ -903,7 +889,7 @@ const GroupChatScreen: React.FC<{
       android: `geo:0,0?q=${latitude},${longitude}(${label})`,
       default: `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`,
     });
-    
+
     Linking.openURL(url).catch((error) => {
       console.error('Failed to open location in maps:', error);
     });
@@ -937,33 +923,22 @@ const GroupChatScreen: React.FC<{
   // Normalize media URL so both absolute and relative paths work on device
   const resolveMediaUrl = (url: string | undefined | null): string | null => {
     if (!url) {
-      console.log('resolveMediaUrl: No URL provided');
       return null;
     }
     if (url.startsWith('http://') || url.startsWith('https://')) {
-      console.log('resolveMediaUrl: Already absolute URL:', url);
       return url;
     }
     // Treat as server-relative path (e.g. /uploads/...) and prefix API base URL
     const resolved = `${API_BASE_URL}${url}`;
-    console.log('resolveMediaUrl: Resolved relative URL:', url, '→', resolved);
     return resolved;
   };
 
   const uploadAndSendImage = async (asset: any) => {
     if (!asset.uri) {
-      console.log('❌ No asset URI provided');
       return;
     }
 
     try {
-      console.log('📦 Preparing image upload:', {
-        uri: asset.uri,
-        fileName: asset.fileName,
-        type: asset.type,
-        fileSize: asset.fileSize,
-      });
-
       // Compress large images before upload
       let fileUri = asset.uri;
       let fileSize = asset.fileSize || 0;
@@ -972,7 +947,6 @@ const GroupChatScreen: React.FC<{
       const maxSize = 500 * 1024; // 500KB
       const quality = fileSize > maxSize ? 0.7 : 0.8;
 
-      console.log(`📦 Image size: ${Math.round(fileSize / 1024)}KB, using quality: ${quality}`);
 
       const formData = new FormData();
       const fileName = asset.fileName || `photo-${Date.now()}.jpg`;
@@ -992,14 +966,7 @@ const GroupChatScreen: React.FC<{
         }
       }
 
-      console.log('📤 Upload details:', {
-        originalUri: asset.uri,
-        normalizedUri: fileUri,
-        fileName: fileName,
-        fileType: type,
-        platform: Platform.OS,
-        quality: quality,
-      });
+
 
       // @ts-ignore - React Native FormData accepts this format
       formData.append('file', {
@@ -1009,7 +976,6 @@ const GroupChatScreen: React.FC<{
       });
       formData.append('fileType', 'image');
 
-      console.log('📡 Uploading to:', `/api/groups/${group._id}/media`);
 
       // Add timeout handling
       const uploadPromise = apiService.upload(`/api/groups/${group._id}/media`, formData);
@@ -1018,17 +984,12 @@ const GroupChatScreen: React.FC<{
       );
 
       const uploadRes = await Promise.race([uploadPromise, timeoutPromise]) as any;
-      console.log('✅ Upload response:', uploadRes);
 
       // For images, use blob data; for audio, use URL
       const mediaUrl = uploadRes?.data?.mediaUrl;
       const mediaData = uploadRes?.data?.mediaData;
 
-      console.log('📦 Media response:', {
-        hasUrl: !!mediaUrl,
-        hasData: !!mediaData,
-        dataLength: mediaData?.length
-      });
+
 
       // Prefer blob data for images, fall back to URL
       const finalMediaUrl = mediaData || mediaUrl;
@@ -1039,14 +1000,12 @@ const GroupChatScreen: React.FC<{
       }
 
       const socket = await connectSocket();
-      console.log('📨 Sending image message via socket...');
       socket.emit('sendGroupMessage', {
         groupId: group._id,
         messageType: 'image',
         mediaUrl: finalMediaUrl,
         mediaData: mediaData, // Send blob data separately
       });
-      console.log('✅ Image message sent successfully');
     } catch (error: any) {
       console.error('❌ Error in uploadAndSendImage:', error);
       console.error('Error details:', {
@@ -1095,20 +1054,17 @@ const GroupChatScreen: React.FC<{
 
   const handleTakePhoto = async () => {
     try {
-      console.log('📷 Camera button pressed - platform:', Platform.OS);
 
       // On Android, request permissions first
       // On iOS, react-native-image-picker handles permissions automatically
       if (Platform.OS === 'android') {
         const hasPerm = await requestMediaPermissionsIfNeeded();
         if (!hasPerm) {
-          console.log('❌ Camera permission denied');
           showAlert('Permission Required', 'Please allow camera access to take photos.', undefined, 'camera', '#F59E0B');
           return;
         }
       }
 
-      console.log('✅ Launching camera...');
       const result = await launchCamera({
         mediaType: 'photo',
         quality: 0.7, // Reduced quality to decrease file size
@@ -1119,15 +1075,9 @@ const GroupChatScreen: React.FC<{
         includeBase64: false,
       });
 
-      console.log('📷 Camera result:', {
-        didCancel: result.didCancel,
-        errorCode: result.errorCode,
-        errorMessage: result.errorMessage,
-        assetsCount: result.assets?.length || 0,
-      });
+
 
       if (result.didCancel) {
-        console.log('📷 User cancelled camera');
         return;
       }
 
@@ -1149,11 +1099,9 @@ const GroupChatScreen: React.FC<{
       }
 
       if (!result.assets || result.assets.length === 0) {
-        console.log('📷 No image captured');
         return;
       }
 
-      console.log('📤 Uploading captured image...');
       await uploadAndSendImage(result.assets[0]);
     } catch (error: any) {
       console.error('Error capturing/sending image:', error);
@@ -1173,22 +1121,16 @@ const GroupChatScreen: React.FC<{
         socketInstance.emit('joinGroup', { groupId: group._id });
 
         const handleIncoming = (message: any) => {
-          console.log('📨 Received groupMessage:', message);
           if (!message || message.groupId !== group._id) {
-            console.log('📨 Ignoring message - wrong group or null');
             return;
           }
-          console.log('📨 Adding incoming message to state');
           setMessages((prev) => [...prev, message]);
         };
 
         const handleSent = (message: any) => {
-          console.log('📤 Received messageSent:', message);
           if (!message || message.groupId !== group._id) {
-            console.log('📤 Ignoring message - wrong group or null');
             return;
           }
-          console.log('📤 Adding sent message to state');
           setMessages((prev) => [...prev, message]);
         };
 
@@ -1263,7 +1205,7 @@ const GroupChatScreen: React.FC<{
   const messagesToRender = useMemo(() => {
     const normalized = searchQuery.trim().toLowerCase();
     let filtered = messages;
-    
+
     if (isSearchMode && normalized) {
       filtered = messages.filter((m: any) => {
         const text = (m.text || '').toLowerCase();
@@ -1300,9 +1242,7 @@ const GroupChatScreen: React.FC<{
       setTimeout(() => {
         try {
           if (targetIndex !== null && messages.length > targetIndex) {
-            console.log(
-              `📜 Opening chat at first unread message index ${targetIndex} (unreadCount: ${unreadCount})`,
-            );
+
             flatListRef.current?.scrollToIndex({
               index: targetIndex,
               animated: false,
@@ -1313,13 +1253,11 @@ const GroupChatScreen: React.FC<{
             isInitialScrollInProgressRef.current = false;
             setIsInitialScrollComplete(true);
           } else {
-            console.log('📜 All messages are read, waiting for content size to scroll to bottom');
             // We'll let onContentSizeChange handle the scroll to bottom
             // so we don't snap to the top while items are still rendering
             isNearBottomRef.current = true;
           }
         } catch (error) {
-          console.warn('Initial scroll attempt failed:', error);
           isInitialScrollInProgressRef.current = false;
           setIsInitialScrollComplete(true);
           flatListRef.current?.scrollToEnd({ animated: false });
@@ -1926,7 +1864,7 @@ const GroupChatScreen: React.FC<{
                             {!message.isOwn && (
                               <View style={styles.messageAvatar}>
                                 <Text style={styles.messageAvatarText}>
-                                  {message.sender.name.charAt(0).toUpperCase()}
+                                  {message.sender?.name?.charAt(0)?.toUpperCase() || '?'}
                                 </Text>
                               </View>
                             )}
@@ -1993,12 +1931,12 @@ const GroupChatScreen: React.FC<{
 
                                   return (
                                     <LocationMessagePreview
-                                    latitude={lat}
-                                    longitude={lng}
-                                    isLive={!!message.location?.isLive}
-                                    senderInitials={message.sender?.name?.charAt(0).toUpperCase()}
-                                    profileImage={resolveMediaUrl(message.sender?.profileImage)}
-                                  />
+                                      latitude={lat}
+                                      longitude={lng}
+                                      isLive={!!message.location?.isLive}
+                                      senderInitials={message.sender?.name?.charAt(0).toUpperCase()}
+                                      profileImage={resolveMediaUrl(message.sender?.profileImage) || undefined}
+                                    />
                                   );
                                 } catch { return null; }
                               })()
@@ -2052,22 +1990,22 @@ const GroupChatScreen: React.FC<{
                     );
                   }}
                 />
-              {showJumpToLatest && !loading ? (
-                <TouchableOpacity
-                  activeOpacity={0.9}
-                  style={styles.jumpToBottomFAB}
-                  onPress={jumpToLatest}
-                >
-                  <Icon name="chevron-down" size={24} color="#FFFFFF" />
-                  {pendingNewMessages > 0 && (
-                    <View style={styles.jumpToBottomBadge}>
-                      <Text style={styles.jumpToBottomBadgeText}>
-                        {pendingNewMessages > 99 ? '99+' : pendingNewMessages}
-                      </Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              ) : null}
+                {showJumpToLatest && !loading ? (
+                  <TouchableOpacity
+                    activeOpacity={0.9}
+                    style={styles.jumpToBottomFAB}
+                    onPress={jumpToLatest}
+                  >
+                    <Icon name="chevron-down" size={24} color="#FFFFFF" />
+                    {pendingNewMessages > 0 && (
+                      <View style={styles.jumpToBottomBadge}>
+                        <Text style={styles.jumpToBottomBadgeText}>
+                          {pendingNewMessages > 99 ? '99+' : pendingNewMessages}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ) : null}
               </>
             )}
           </View>
@@ -2168,9 +2106,10 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
   showToast,
   showAlert,
 }) => {
-  const [searchQuery, setSearchQuery] = useState('');
+  
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
   const [adding, setAdding] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Filter out contacts who are already members
   const availableContacts = emergencyContacts.filter(contact =>
@@ -2355,6 +2294,8 @@ interface GroupDetailsModalProps {
   emergencyContacts: EmergencyContact[];
   showToast: (message: string, type: 'success' | 'error') => void;
   showAlert: (title: string, message: string, buttons?: any[], icon?: string, iconColor?: string) => void;
+  loadGroups?: () => void;
+  onGroupUpdated?: () => void;
 }
 
 const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
@@ -2364,7 +2305,9 @@ const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
   onShareJoinCode,
   emergencyContacts,
   showToast,
-  showAlert
+  showAlert,
+  loadGroups,
+  onGroupUpdated: _onGroupUpdated
 }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -2378,7 +2321,7 @@ const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Check if current user is admin
-  const currentUserMember = useMemo(() => 
+  const currentUserMember = useMemo(() =>
     group?.members?.find((m: any) => m.user === user?.id || (m.phoneNumber === user?.phoneNumber && m.phoneNumber)),
     [group?.members, user]
   );
@@ -2473,7 +2416,7 @@ const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
         setGroup({ ...group, name: newName.trim() });
         showToast('Group name updated', 'success');
         setIsEditingName(false);
-        loadGroups();
+        loadGroups?.();
       }
     } catch (error: any) {
       showToast(error?.message || 'Failed to update name', 'error');
@@ -2498,7 +2441,7 @@ const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
               if (response && response.success) {
                 showToast('You left the group', 'success');
                 onClose();
-                loadGroups();
+                loadGroups?.();
               }
             } catch (error: any) {
               showToast(error?.message || 'Failed to leave group', 'error');
@@ -2529,7 +2472,7 @@ const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
               if (response && response.success) {
                 showToast('Group deleted', 'success');
                 onClose();
-                loadGroups();
+                loadGroups?.();
               }
             } catch (error: any) {
               showToast(error?.message || 'Failed to delete group', 'error');
@@ -2570,7 +2513,7 @@ const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
             <ScrollView contentContainerStyle={styles.groupDetailsScrollContent}>
               {/* Group avatar + basic info */}
               <View style={styles.groupDetailsHeaderInfo}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.groupDetailsAvatar}
                   onPress={() => showToast('Update image functionality coming soon', 'success')}
                 >
@@ -2581,7 +2524,7 @@ const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
                     <Icon name="camera" size={12} color="#FFFFFF" />
                   </View>
                 </TouchableOpacity>
-                
+
                 {isEditingName ? (
                   <View style={styles.groupNameEditRow}>
                     <TextInput
@@ -2602,13 +2545,13 @@ const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
                 ) : (
                   <View style={styles.groupNameRow}>
                     <Text style={styles.groupDetailsName}>{group.name}</Text>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       onPress={() => {
                         setNewName(group.name);
                         setIsEditingName(true);
                       }}
                     >
-                      <Icon name="pencil" size={16} color={Colors.textSecondary} style={{marginLeft: 8}} />
+                      <Icon name="pencil" size={16} color={Colors.textSecondary} style={{ marginLeft: 8 }} />
                     </TouchableOpacity>
                   </View>
                 )}
@@ -2697,25 +2640,25 @@ const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
 
               {/* Group Actions Section */}
               <View style={styles.groupActionsSection}>
-                <TouchableOpacity 
-                  style={styles.groupDetailsActionRow} 
+                <TouchableOpacity
+                  style={styles.groupDetailsActionRow}
                   onPress={handleLeaveGroup}
                   disabled={isLeaving || isDeleting}
                 >
                   <Icon name="logout" size={20} color="#EF4444" />
-                  <Text style={[styles.groupDetailsActionText, {color: '#EF4444'}]}>
+                  <Text style={[styles.groupDetailsActionText, { color: '#EF4444' }]}>
                     {isLeaving ? 'Leaving...' : 'Leave Group'}
                   </Text>
                 </TouchableOpacity>
 
                 {isUserAdmin && (
-                  <TouchableOpacity 
-                    style={[styles.groupDetailsActionRow, {borderBottomWidth: 0}]} 
+                  <TouchableOpacity
+                    style={[styles.groupDetailsActionRow, { borderBottomWidth: 0 }]}
                     onPress={handleDeleteGroup}
                     disabled={isLeaving || isDeleting}
                   >
                     <Icon name="delete" size={20} color="#EF4444" />
-                    <Text style={[styles.groupDetailsActionText, {color: '#EF4444'}]}>
+                    <Text style={[styles.groupDetailsActionText, { color: '#EF4444' }]}>
                       {isDeleting ? 'Deleting...' : 'Delete Group'}
                     </Text>
                   </TouchableOpacity>
@@ -2772,11 +2715,12 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [showJoinGroup, setShowJoinGroup] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  
   const [successModal, setSuccessModal] = useState<{ visible: boolean; title: string; message: string; joinCode?: string; groupName?: string }>({ visible: false, title: '', message: '' });
   const [activeTab, setActiveTab] = useState<'groups' | 'emergency'>('groups');
   const [currentScreen, setCurrentScreen] = useState<'main' | 'chat' | 'contactSelection'>('main');
   const [selectedGroup, setSelectedGroup] = useState<any>(null);
-  const [showSearch, setShowSearch] = useState(false);
+  const [showSpotlight, setShowSpotlight] = useState(false);
   const { user } = useAuth();
 
   // Group details modal state
@@ -2798,13 +2742,12 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
   const searchAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.spring(searchAnim, {
-      toValue: showSearch ? 1 : 0,
+    Animated.timing(searchAnim, {
+      toValue: showSpotlight ? 1 : 0,
+      duration: 300,
       useNativeDriver: false,
-      friction: 8,
-      tension: 50,
     }).start();
-  }, [showSearch]);
+  }, [showSpotlight, searchAnim]);
   const loadEmergencyContacts = useCallback(async () => {
     try {
       setLoading(true);
@@ -2849,14 +2792,11 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
 
   const loadGroups = useCallback(async () => {
     try {
-      console.log('Loading groups...');
       const response = await apiService.get('/api/groups');
-      console.log('Groups response:', response);
 
       if (response && response.success && response.data) {
         // Backend returns { success: true, data: { groups: [...], pagination: {...} } }
         const groupsList = response.data.groups || [];
-        console.log('Groups list:', groupsList);
         setGroups(Array.isArray(groupsList) ? groupsList : []);
       } else {
         setGroups([]);
@@ -2885,13 +2825,11 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
 
         // Listen for new messages in any group
         const handleGroupMessage = (message: any) => {
-          console.log('Received group message, refreshing groups list');
           // Refresh groups to update last message preview
           loadGroups();
         };
 
         const handleMessageSent = (message: any) => {
-          console.log('Message sent, refreshing groups list');
           // Refresh groups to update last message preview
           loadGroups();
         };
@@ -2989,12 +2927,12 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
     // Capture unread count before we potentially clear it in state
     const groupToOpen = { ...group };
     setSelectedGroup(groupToOpen);
-    
+
     // Reset unread count locally for this group
     setGroups((prev) =>
       prev.map((g) => (g._id === group._id ? { ...g, unreadCount: 0 } : g)),
     );
-    
+
     setCurrentScreen('chat');
     onChatStateChange?.(true);
   };
@@ -3025,8 +2963,8 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
         setCurrentScreen('main');
         return true;
       }
-      if (showSearch) {
-        setShowSearch(false);
+      if (showSpotlight) {
+        setShowSpotlight(false);
         setSearchQuery('');
         return true;
       }
@@ -3039,7 +2977,7 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
 
     const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
     return () => backHandler.remove();
-  }, [showGroupDetails, showAddModal, currentScreen, showSearch, selectionMode, searchQuery, handleBackToMain]);
+  }, [showGroupDetails, showAddModal, currentScreen, showSpotlight, selectionMode, searchQuery, handleBackToMain]);
 
   // Selection helpers for groups
   const toggleGroupSelection = (groupId: string) => {
@@ -3100,14 +3038,11 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
   };
 
   const handleContactSelected = async (contact: EmergencyContact) => {
-    console.log('handleContactSelected called with contact:', contact);
     setCurrentScreen('main');
-    console.log('Loading emergency contacts to refresh...');
 
     // Refresh the list after adding a contact
     try {
       await loadEmergencyContacts();
-      console.log('Emergency contacts refreshed successfully');
     } catch (error) {
       console.error('Error refreshing contacts:', error);
       // Silently fail - user can manually refresh if needed
@@ -3211,8 +3146,7 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
           showAlert={showAlert}
         />
         {showGroupDetails && groupDetailsId && (
-          <GroupDetailsModal
-            visible={showGroupDetails}
+          <GroupDetailsModal onGroupUpdated={loadGroups} loadGroups={loadGroups} visible={showGroupDetails}
             groupId={groupDetailsId}
             onClose={() => setShowGroupDetails(false)}
             onShareJoinCode={shareGroupCode}
@@ -3230,35 +3164,243 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
   return (
     <View style={styles.screenWrapper}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={styles.headerBar}>
         {selectionMode ? (
-          <View style={styles.selectionHeaderRow}>
+          <>
             <TouchableOpacity onPress={clearSelection} style={styles.selectionHeaderIconButton}>
-              <Icon name="close" size={22} color={Colors.text} />
+              <Icon name="close" size={20} color="#FFFFFF" />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>{selectedGroupIds.length} selected</Text>
+            <View>
+              <Text style={styles.headerTitle}>{selectedGroupIds.length} selected</Text>
+              <Text style={styles.headerSubtitle}>Select groups to delete</Text>
+            </View>
             <TouchableOpacity
               onPress={confirmDeleteSelectedGroups}
               style={styles.selectionHeaderIconButton}
             >
-              <Icon name="delete" size={22} color="#EF4444" />
+              <Icon name="delete" size={20} color="#EF4444" />
             </TouchableOpacity>
-          </View>
+          </>
         ) : (
-          <View style={styles.headerRow}>
-            <Text style={styles.headerTitle}>Trust Circle</Text>
-            <TouchableOpacity 
+          <>
+            <View>
+              <Text style={styles.headerTitle}>Trust Circle</Text>
+              <Text style={styles.headerSubtitle}>Your connected network</Text>
+            </View>
+            <TouchableOpacity
               onPress={() => {
-                setShowSearch(!showSearch);
-                if (showSearch) setSearchQuery('');
+                setShowSpotlight(!showSpotlight);
+                if (showSpotlight) setSearchQuery('');
               }}
-              style={styles.headerIconButton}
+              style={styles.headerToggleButton}
             >
-              <Icon name={showSearch ? "close" : "magnify"} size={26} color="#FFFFFF" />
+              <Icon name={showSpotlight ? "close" : "magnify"} size={20} color="#FFFFFF" />
             </TouchableOpacity>
-          </View>
+          </>
         )}
       </View>
+
+      {/* Premium Toggled Search Window */}
+      <Modal
+        visible={showSpotlight}
+        transparent
+        animationType="none" // We use our own Animated.View for slide
+        onRequestClose={() => {
+          setShowSpotlight(false);
+          setSearchQuery('');
+        }}
+      >
+        <View style={styles.premiumSearchOverlay}>
+          <TouchableOpacity
+            style={styles.premiumSearchBackdrop}
+            activeOpacity={1}
+            onPress={() => {
+              setShowSpotlight(false);
+              setSearchQuery('');
+            }}
+          />
+
+          <Animated.View
+            style={[
+              styles.premiumSearchWindow,
+              {
+                opacity: searchAnim,
+                transform: [
+                  {
+                    translateY: searchAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [-150, 0], // Slide down from top
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <SafeAreaView edges={['top']}>
+              <View style={styles.premiumSearchHeader}>
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowSpotlight(false);
+                    setSearchQuery('');
+                  }}
+                  style={styles.premiumSearchBackButton}
+                >
+                  <Icon name="arrow-left" size={24} color={Colors.text} />
+                </TouchableOpacity>
+                <Text style={styles.premiumSearchTitle}>Search Trust Circle</Text>
+              </View>
+
+              <View style={styles.premiumSearchInputContainer}>
+                <View style={styles.premiumSearchInputWrapper}>
+                  <TextInput
+                    style={styles.premiumSearchInput}
+                    placeholder="Search groups, contacts..."
+                    placeholderTextColor="rgba(255, 255, 255, 0.4)"
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    autoFocus
+                    returnKeyType="search"
+                  />
+                  {searchQuery.length > 0 ? (
+                    <TouchableOpacity
+                      onPress={() => setSearchQuery('')}
+                      style={styles.premiumSearchIconBtn}
+                      activeOpacity={0.7}
+                    >
+                      <Icon name="close-circle" size={20} color="rgba(255, 255, 255, 0.6)" />
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={styles.premiumSearchIconBtn}>
+                      <Icon name="microphone" size={22} color="#FFFFFF" />
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              {!searchQuery && (
+                <View style={styles.premiumRecentSection}>
+                  <Text style={styles.premiumRecentTitle}>QUICK FILTERS</Text>
+                  <View style={styles.premiumRecentPills}>
+                    <TouchableOpacity 
+                      style={styles.premiumRecentPill} 
+                      onPress={() => { 
+                        handleTabSwitch('groups'); 
+                        setShowSpotlight(false); 
+                      }}
+                    >
+                      <Icon name="account-group" size={16} color={Colors.textLight} style={styles.premiumPillIcon} />
+                      <Text style={styles.premiumPillText}>Groups</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={styles.premiumRecentPill} 
+                      onPress={() => { 
+                        handleTabSwitch('emergency'); 
+                        setShowSpotlight(false); 
+                      }}
+                    >
+                      <Icon name="shield-account" size={16} color={Colors.textLight} style={styles.premiumPillIcon} />
+                      <Text style={styles.premiumPillText}>Emergency Contacts</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
+              {searchQuery.length > 0 && (() => {
+                const q = searchQuery.trim().toLowerCase();
+                const matchedGroups = groups.filter(g =>
+                  (g.name || '').toLowerCase().includes(q) ||
+                  (g.lastMessagePreview || '').toLowerCase().includes(q)
+                );
+                const matchedContacts = emergencyContacts.filter(c =>
+                  (c.name || '').toLowerCase().includes(q) ||
+                  (c.phoneNumber || '').toLowerCase().includes(q) ||
+                  (c.relationship || '').toLowerCase().includes(q)
+                );
+                const totalMatches = matchedGroups.length + matchedContacts.length;
+
+                return (
+                  <ScrollView
+                    style={styles.premiumInlineResults}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                  >
+                    {totalMatches === 0 ? (
+                      <View style={styles.premiumNoResults}>
+                        <Icon name="magnify-close" size={36} color="rgba(255,255,255,0.15)" />
+                        <Text style={styles.premiumNoResultsText}>No results for "{searchQuery}"</Text>
+                      </View>
+                    ) : (
+                      <>
+                        {matchedGroups.length > 0 && (
+                          <View>
+                            <Text style={styles.premiumResultSectionLabel}>GROUPS</Text>
+                            {matchedGroups.map(g => {
+                              const avatarColors = ['#546E7A','#5C6BC0','#7E57C2','#42A5F5','#26A69A','#66BB6A','#FFA726','#EF5350'];
+                              const avatarColor = avatarColors[(g.name?.charCodeAt(0) || 0) % avatarColors.length];
+                              return (
+                                <TouchableOpacity
+                                  key={g._id}
+                                  style={styles.premiumResultItem}
+                                  onPress={() => {
+                                    setShowSpotlight(false);
+                                    setSearchQuery('');
+                                    handleGroupPress(g);
+                                  }}
+                                >
+                                  <View style={[styles.premiumResultAvatar, { backgroundColor: avatarColor }]}>
+                                    <Text style={styles.premiumResultAvatarText}>
+                                      {(g.name || 'GP').substring(0, 2).toUpperCase()}
+                                    </Text>
+                                  </View>
+                                  <View style={styles.premiumResultInfo}>
+                                    <Text style={styles.premiumResultName} numberOfLines={1}>{g.name}</Text>
+                                    <Text style={styles.premiumResultSub} numberOfLines={1}>
+                                      {g.lastMessagePreview || g.description || 'Trust Circle Group'}
+                                    </Text>
+                                  </View>
+                                  <Icon name="chevron-right" size={18} color="rgba(255,255,255,0.25)" />
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </View>
+                        )}
+
+                        {matchedContacts.length > 0 && (
+                          <View>
+                            <Text style={styles.premiumResultSectionLabel}>EMERGENCY CONTACTS</Text>
+                            {matchedContacts.map(c => (
+                              <TouchableOpacity
+                                key={c._id}
+                                style={styles.premiumResultItem}
+                                onPress={() => {
+                                  setShowSpotlight(false);
+                                  setSearchQuery('');
+                                  handleTabSwitch('emergency');
+                                }}
+                              >
+                                <View style={[styles.premiumResultAvatar, { backgroundColor: Colors.error + 'CC' }]}>
+                                  <Icon name="account-circle" size={22} color="#FFFFFF" />
+                                </View>
+                                <View style={styles.premiumResultInfo}>
+                                  <Text style={styles.premiumResultName} numberOfLines={1}>{c.name}</Text>
+                                  <Text style={styles.premiumResultSub} numberOfLines={1}>
+                                    {c.relationship ? `${c.relationship} · ` : ''}{c.phoneNumber}
+                                  </Text>
+                                </View>
+                                <Icon name="chevron-right" size={18} color="rgba(255,255,255,0.25)" />
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        )}
+                      </>
+                    )}
+                  </ScrollView>
+                );
+              })()}
+            </SafeAreaView>
+          </Animated.View>
+        </View>
+      </Modal>
 
       {/* Segmented tabs - Groups / Emergency */}
       <View style={styles.tabContainer}>
@@ -3278,48 +3420,7 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
         </View>
       </View>
 
-      {/* Floating Search bar */}
-      <Animated.View
-        style={[
-          styles.searchContainer,
-          {
-            opacity: searchAnim,
-            zIndex: 2000,
-            transform: [
-              {
-                translateY: searchAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [-20, 0],
-                }),
-              },
-            ],
-          }
-        ]}
-      >
-        <TouchableOpacity 
-          style={{ padding: 8, marginLeft: -8 }} 
-          onPress={() => {
-            setShowSearch(false);
-            setSearchQuery('');
-          }}
-        >
-          <Icon name="arrow-left" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-        <Icon name="magnify" size={20} color="rgba(255, 255, 255, 0.4)" />
-        <TextInput
-          style={styles.searchInput}
-          placeholder={activeTab === 'groups' ? 'Search groups...' : 'Search emergency contacts...'}
-          placeholderTextColor={Colors.textLight}
-          autoFocus={showSearch}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')}>
-            <Icon name="close-circle" size={20} color={Colors.textLight} />
-          </TouchableOpacity>
-        )}
-      </Animated.View>
+      
 
       <SlideView currentIndex={tabIndex} onIndexChange={setTabIndex} style={styles.slideViewContainer}>
         {/* Groups Tab Content */}
@@ -3570,10 +3671,20 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
           visible={groupActionsVisible}
           transparent
           animationType="fade"
-          onRequestClose={() => setGroupActionsVisible(false)}
+          onRequestClose={() => {
+            setGroupActionsVisible(false);
+            setActionGroup(null);
+          }}
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.groupActionsContent}>
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => {
+              setGroupActionsVisible(false);
+              setActionGroup(null);
+            }}
+          >
+            <View style={styles.groupActionsContent} onStartShouldSetResponder={() => true}>
               <Text style={styles.groupActionsTitle}>{actionGroup.name}</Text>
 
               <TouchableOpacity
@@ -3629,8 +3740,18 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
                 <Icon name="check-circle" size={20} color={Colors.text} />
                 <Text style={styles.groupActionsItemText}>Select Group</Text>
               </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => {
+                  setGroupActionsVisible(false);
+                  setActionGroup(null);
+                }}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
             </View>
-          </View>
+          </TouchableOpacity>
         </Modal>
       )}
 
@@ -3661,7 +3782,6 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
                 onPress={() => {
                   // Prevent multiple presses
                   if (isDeletingContactRef.current) {
-                    console.log('Already processing delete, ignoring');
                     return;
                   }
 
@@ -3735,8 +3855,7 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
 
       {/* Group details modal when opened from main screen */}
       {showGroupDetails && groupDetailsId && (
-        <GroupDetailsModal
-          visible={showGroupDetails}
+        <GroupDetailsModal onGroupUpdated={loadGroups} loadGroups={loadGroups} visible={showGroupDetails}
           groupId={groupDetailsId}
           onClose={() => setShowGroupDetails(false)}
           onShareJoinCode={shareGroupCode}
@@ -3847,16 +3966,6 @@ const GroupsScreen: React.FC<{ onChatStateChange?: (isOpen: boolean) => void }> 
 };
 
 const styles = StyleSheet.create({
-  screenWrapper: {
-    flex: 1,
-    backgroundColor: '#09090B',
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 12,
-    backgroundColor: '#09090B',
-  },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -3867,292 +3976,133 @@ const styles = StyleSheet.create({
     padding: 8,
     marginRight: -8,
   },
+  screenWrapper: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
+  container: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
+  headerBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginHorizontal: 16,
+    marginTop: Platform.OS === 'ios' ? 8 : 16,
+    marginBottom: 8,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  headerToggleButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800',
     color: '#FFFFFF',
-    letterSpacing: -0.5,
+    letterSpacing: 0.2,
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginTop: 2,
+    fontWeight: '500',
   },
   selectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    width: '100%',
   },
   selectionHeaderIconButton: {
-    padding: 8,
+    padding: 4,
   },
   tabContainer: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingBottom: 12,
+    backgroundColor: '#000000',
   },
   tabBackground: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 16,
     padding: 4,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: 'rgba(255, 255, 255, 0.15)',
   },
   tab: {
     flex: 1,
     paddingVertical: 10,
+    borderRadius: 12,
     alignItems: 'center',
-    borderRadius: 10,
   },
   activeTab: {
     backgroundColor: Colors.primary,
     shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
   },
   tabText: {
     fontSize: 14,
     fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.4)',
+    color: 'rgba(255, 255, 255, 0.5)',
   },
   activeTabText: {
     color: '#FFFFFF',
     fontWeight: '700',
   },
-  searchContainer: {
+  searchBarContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: '#000000',
+    gap: 8,
+    overflow: 'hidden',
+  },
+  searchInputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    marginHorizontal: 16,
-    marginBottom: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
     borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 16,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    height: 48,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  searchIcon: {
+    marginRight: 10,
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
     color: '#FFFFFF',
-    marginLeft: 10,
+    fontWeight: '500',
     paddingVertical: 0,
   },
-  scrollView: {
-    flex: 1,
+  clearSearchButton: {
+    padding: 8,
+    marginLeft: 8,
   },
-  scrollContent: {
-    paddingBottom: 100,
-  },
-  groupListContainer: {
-    paddingTop: 8,
-  },
-  groupListItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  groupAvatarContainer: {
-    marginRight: 15,
-  },
-  groupAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    elevation: 3,
-  },
-  groupAvatarText: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  groupCheckboxOverlay: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    backgroundColor: '#09090B',
-    borderRadius: 12,
-    padding: 2,
-  },
-  groupInfo: {
-    flex: 1,
-  },
-  groupHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  groupName: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    flex: 1,
-  },
-  groupRightColumn: {
-    alignItems: 'flex-end',
-  },
-  groupTime: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.4)',
-    fontWeight: '500',
-  },
-  groupSubtitle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  groupLastMessageRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  groupLastMessageIcon: {
-    marginRight: 4,
-  },
-  groupLastMessage: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.5)',
-    flex: 1,
-  },
-  unreadBadge: {
-    backgroundColor: Colors.primary,
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 6,
-    marginTop: 4,
-  },
-  unreadText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#18181B',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    padding: 24,
-    paddingBottom: 40,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  modalOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    padding: 18,
-    borderRadius: 18,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  modalOptionText: {
-    flex: 1,
-    marginLeft: 15,
-  },
-  modalOptionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  modalOptionSubtitle: {
+  searchResultCount: {
     fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.5)',
-    marginTop: 2,
-  },
-  modalCancelButton: {
-    marginTop: 8,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  modalCancelText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: 'rgba(255, 255, 255, 0.5)',
-  },
-  screenWrapper: {
-    flex: 1,
-    backgroundColor: '#09090B',
-  },
-  container: {
-    flex: 1,
-    backgroundColor: '#09090B',
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 8,
-    backgroundColor: '#09090B',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
-  },
-  selectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  selectionHeaderIconButton: {
-    padding: 4,
-  },
-  tabContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-    backgroundColor: '#09090B',
-  },
-  tabBackground: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 16,
-    padding: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  activeTab: {
-    backgroundColor: Colors.primary,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  tabText: {
-    fontSize: 14,
+    color: Colors.textLight,
     fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.5)',
-  },
-  activeTabText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
+    paddingHorizontal: 4,
+    marginTop: 4,
   },
   searchContainer: {
     position: 'absolute',
@@ -4168,18 +4118,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 15,
-    elevation: 20,
-    zIndex: 1000,
-  },
-  searchInput: {
-    flex: 1,
-    marginLeft: 12,
-    fontSize: 16,
-    color: '#FFFFFF',
-    fontWeight: '500',
   },
   slideViewContainer: {
     flex: 1,
@@ -4485,7 +4423,6 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     lineHeight: 20,
   },
-  // New Modal Styles
   createGroupModalContent: {
     backgroundColor: '#09090B',
     flex: 1,
@@ -4854,8 +4791,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textSecondary,
   },
-
-  // Message actions modal styles
   messageActionsContent: {
     backgroundColor: '#18181B',
     borderRadius: 20,
@@ -4895,8 +4830,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.text,
   },
-
-  // Edit message modal styles
   editMessageContent: {
     backgroundColor: '#18181B',
     borderRadius: 20,
@@ -4953,8 +4886,6 @@ const styles = StyleSheet.create({
     color: Colors.background,
     fontWeight: '600',
   },
-
-  // Forward modal styles
   forwardModalContent: {
     backgroundColor: Colors.background,
     borderRadius: 18,
@@ -5006,7 +4937,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginVertical: 16,
   },
-
   modalCancelButton: {
     backgroundColor: Colors.secondary,
     paddingVertical: 15,
@@ -5110,9 +5040,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     elevation: 5,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
   },
   toastSuccess: {
     backgroundColor: '#10B981',
@@ -5233,7 +5160,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  // Chat Screen Styles - Reference design
   chatOuterWrapper: {
     flex: 1,
     backgroundColor: '#000000', // OLED black
@@ -5341,11 +5267,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 8,
-    minWidth: 200,
   },
   chatMenuItem: {
     flexDirection: 'row',
@@ -5407,12 +5328,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   jumpToBottomBadge: {
     position: 'absolute',
@@ -5499,10 +5414,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(100, 100, 255, 0.3)', // Subtle border
     shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 2,
   },
   otherMessageBubble: {
     backgroundColor: 'rgba(255, 255, 255, 0.08)', // Translucent white for glassmorphism
@@ -5511,10 +5422,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)', // Subtle border
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
   },
   messageText: {
     fontSize: 15,
@@ -5553,7 +5460,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#E5E7EB',
   },
-  // Audio message styles - Reference design
   audioMessageContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -5590,7 +5496,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 2,
   },
-  // Recording indicator styles
   recordingButton: {
     backgroundColor: Colors.error + '20',
   },
@@ -5603,8 +5508,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginRight: 8,
   },
-
-
   imageViewerOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.9)',
@@ -5628,18 +5531,11 @@ const styles = StyleSheet.create({
     zIndex: 10,
     padding: 8,
   },
-
-  // Location card styles - Square shape
   locationCard: {
     borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: '#FFFFFF',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
-    width: LOCATION_PREVIEW_WIDTH,
   },
   locationMapContainer: {
     width: LOCATION_PREVIEW_WIDTH,
@@ -5721,10 +5617,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     elevation: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
-    overflow: 'hidden',
   },
   minimalPinImage: {
     width: '100%',
@@ -5750,7 +5642,6 @@ const styles = StyleSheet.create({
     borderTopColor: '#FFFFFF',
     marginTop: -2,
   },
-
   messageInputContainer: {
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -5787,10 +5678,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 6,
   },
   sendButtonDisabled: {
     opacity: 0.5,
@@ -5801,8 +5688,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 8,
   },
-
-  // Date separator
   dateSeparator: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -5823,8 +5708,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
-
-  // Group details modal styles
   groupDetailsOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -5999,7 +5882,6 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     marginLeft: 4,
   },
-  // Add Member Modal Styles
   addMemberModalContent: {
     width: '100%',
     height: '90%',
@@ -6009,10 +5891,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
   },
   addMemberModalHeader: {
     flexDirection: 'row',
@@ -6091,7 +5969,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 14,
-    backgroundColor: '#09090B',
+    backgroundColor: '#000000',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.05)',
   },
@@ -6154,6 +6032,199 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
     zIndex: 99,
+  },
+  premiumSearchOverlay: {
+    flex: 1,
+    justifyContent: 'flex-start',
+  },
+  premiumSearchBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+  },
+  premiumSearchWindow: {
+    backgroundColor: 'rgba(24, 24, 27, 0.95)',
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderTopWidth: 0,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 15 },
+    shadowOpacity: 0.6,
+    shadowRadius: 20,
+    elevation: 15,
+    paddingBottom: 28,
+  },
+  premiumSearchHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 10 : 30,
+    paddingBottom: 20,
+  },
+  premiumSearchBackButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    marginRight: 12,
+  },
+  premiumSearchTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  premiumSearchInputContainer: {
+    paddingHorizontal: 24,
+    marginBottom: 20,
+  },
+  premiumSearchInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 16,
+    height: 56,
+  },
+  premiumSearchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#FFFFFF',
+    paddingVertical: 0,
+    letterSpacing: 0.2,
+  },
+  premiumSearchIconBtn: {
+    padding: 8,
+    marginLeft: 8,
+  },
+  premiumRecentSection: {
+    paddingHorizontal: 24,
+    paddingTop: 8,
+  },
+  premiumRecentTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: 'rgba(255, 255, 255, 0.4)',
+    letterSpacing: 1.5,
+    marginBottom: 16,
+  },
+  premiumRecentPills: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  premiumRecentPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 24,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    marginRight: 12,
+    marginBottom: 12,
+  },
+  premiumPillIcon: {
+    marginRight: 8,
+  },
+  premiumPillText: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '600',
+  },
+  premiumSearchResultsPreview: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 8,
+  },
+  premiumSearchCountBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 14,
+  },
+  premiumSearchCountText: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontWeight: '600',
+  },
+  premiumSearchViewAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.2)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  premiumSearchViewAllText: {
+    fontSize: 14,
+    color: Colors.primary,
+    fontWeight: '700',
+  },
+  // Inline results styles
+  premiumInlineResults: {
+    maxHeight: 380,
+    marginTop: 8,
+  },
+  premiumResultSectionLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: 'rgba(255, 255, 255, 0.35)',
+    letterSpacing: 1.5,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 6,
+  },
+  premiumResultItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  premiumResultAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+  premiumResultAvatarText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  premiumResultInfo: {
+    flex: 1,
+    marginRight: 8,
+  },
+  premiumResultName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  premiumResultSub: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.45)',
+    marginTop: 2,
+  },
+  premiumNoResults: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  premiumNoResultsText: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.35)',
+    marginTop: 10,
+    textAlign: 'center',
   },
 });
 

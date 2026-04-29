@@ -161,21 +161,14 @@ const ContactSelectionScreen: React.FC<ContactSelectionScreenProps> = ({
     if (!selectedContact) return;
 
     try {
-      console.log('========= ADDING CONTACT =========');
-      console.log('Contact selected:', selectedContact.displayName);
-      console.log('Phone numbers:', selectedContact.phoneNumbers);
 
       const emergencyContact = contactService.convertContactToEmergencyContact(selectedContact);
       emergencyContact.relationship = relationship; // Set the selected relationship
 
-      console.log('Converted emergency contact:', JSON.stringify(emergencyContact, null, 2));
 
-      console.log('Calling createEmergencyContact API...');
       const response = await emergencyContactService.createEmergencyContact(emergencyContact);
-      console.log('API Response received:', JSON.stringify(response, null, 2));
 
       if (response.success) {
-        console.log('Contact added successfully!');
 
         // Show success toast
         showToast('Emergency contact added successfully!', 'success');
@@ -190,7 +183,6 @@ const ContactSelectionScreen: React.FC<ContactSelectionScreenProps> = ({
         setSelectedContact(null);
         onBack?.();
       } else {
-        console.log('Response not successful');
         showToast(response.message || 'Failed to add emergency contact. Please try again.', 'error');
         setShowRelationshipPicker(false);
         setSelectedContact(null);

@@ -25,7 +25,6 @@ async function loadIndex(): Promise<MediaCacheIndex> {
     if (!raw) return {};
     return JSON.parse(raw) as MediaCacheIndex;
   } catch (e) {
-    console.warn('Failed to load media cache index', e);
     return {};
   }
 }
@@ -34,7 +33,6 @@ async function saveIndex(index: MediaCacheIndex): Promise<void> {
   try {
     await AsyncStorage.setItem(INDEX_KEY, JSON.stringify(index));
   } catch (e) {
-    console.warn('Failed to save media cache index', e);
   }
 }
 
@@ -71,7 +69,6 @@ export async function getOrDownloadMedia(url: string): Promise<string> {
     await saveIndex(index);
     return dst;
   } catch (e) {
-    console.warn('Failed to download media for cache, falling back to remote URL', e);
     return url;
   }
 }
@@ -90,7 +87,6 @@ export async function cleanupOldMedia(): Promise<void> {
             await RNFS.unlink(entry.path);
           }
         } catch (e) {
-          console.warn('Failed to remove old cached media', e);
         }
         delete index[url];
         changed = true;
@@ -101,6 +97,5 @@ export async function cleanupOldMedia(): Promise<void> {
       await saveIndex(index);
     }
   } catch (e) {
-    console.warn('cleanupOldMedia error', e);
   }
 }

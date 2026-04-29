@@ -1,97 +1,176 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# SHEild Frontend
 
-# Getting Started
+React Native mobile application for SHEild, a women safety platform that combines emergency SOS activation, trusted contacts, group communication, location sharing, safe-place discovery, and voice-triggered safety monitoring.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## Purpose
 
-## Step 1: Start Metro
+The frontend is the user-facing mobile client. It handles onboarding, authentication, emergency workflows, real-time group messaging, location visibility, and device capability access such as contacts, geolocation, audio, voice recognition, and haptics.
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+## Technology Stack
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+| Area | Technology |
+| --- | --- |
+| Framework | React Native 0.82, React 19 |
+| Language | TypeScript |
+| State and persistence | React Context, AsyncStorage |
+| Networking | Fetch API, centralized API service |
+| Real-time transport | Socket.IO client |
+| Maps and location | React Native Maps, Geolocation Service, Geoapify static maps |
+| Native capabilities | Contacts, Call Log, Device Info, Image Picker, Audio Toolkit, Voice Recognition, Background Actions |
+| Testing | Jest, React Test Renderer |
+| Platforms | Android and iOS |
+
+## Main Capabilities
+
+- Splash and onboarding flow for first-time users.
+- Email/password authentication with OTP verification.
+- Google authentication support through backend endpoints.
+- JWT-based session storage with `AsyncStorage`.
+- Profile viewing, updating, logout, and account deletion.
+- Emergency contact management and bulk import from the phone contact book.
+- SOS activation from manual button and voice keyword detection.
+- Current location capture and periodic location update during active SOS.
+- Network/device status awareness for emergency metadata.
+- Group creation, join-code based joining, member management, pinning, favorites, and settings.
+- Real-time group chat with text, image, audio, and location messages.
+- Track Me screen for shared live locations and emergency contact context.
+- Safe Spots screen backed by place/map services.
+
+## Directory Structure
+
+```text
+frontend/
+├── App.tsx                         # App root, AuthProvider, main navigator mount
+├── index.js                        # React Native entry point
+├── src/
+│   ├── assets/images/              # App logo and onboarding/home imagery
+│   ├── components/                 # Shared UI and navigation components
+│   ├── constants/                  # API, app, and color constants
+│   ├── contexts/                   # AuthContext and persisted auth state
+│   ├── screens/                    # App screens and feature flows
+│   ├── services/                   # API, auth, location, socket, voice, media, contacts
+│   └── types/                      # Type declarations and shims
+├── android/                        # Android native project
+├── ios/                            # iOS native project
+└── __tests__/                      # Jest tests
+```
+
+## Important Screens
+
+| Screen | Responsibility |
+| --- | --- |
+| `SplashScreen` | Starts app health check and transitions into onboarding/authenticated flow. |
+| `OnboardingFlow` | Introduces core app safety features. |
+| `AuthNavigator` | Coordinates login, signup, OTP, forgot password, and reset password screens. |
+| `MainAppScreen` | Hosts authenticated application tabs. |
+| `HomeScreen` | Main dashboard and quick access surface. |
+| `SOSScreen` | Manual SOS, voice safety mode, location capture, and SOS location updates. |
+| `GroupsScreen` | Emergency contacts, groups, real-time messaging, media, and location messages. |
+| `TrackMeScreen` | Shared user location visualization. |
+| `SafeSpotsScreen` | Nearby safe place discovery. |
+| `ProfileScreen` | User profile and account actions. |
+
+## Service Layer
+
+| Service | Role |
+| --- | --- |
+| `apiService.ts` | Central HTTP wrapper, JSON requests, multipart upload, auth headers, health checks. |
+| `authService.ts` | Register, login, OTP verification, Google auth, profile, logout, account deletion. |
+| `socketService.ts` | Authenticated Socket.IO connection reuse and disconnect handling. |
+| `emergencyContactService.ts` | CRUD and bulk import for emergency contacts. |
+| `contactService.ts` | Native phone contact permission and contact reading. |
+| `locationService.ts` | Device geolocation permission and current position utilities. |
+| `userLocationService.ts` | Backend location update, visible locations, sharing settings, online status, reverse geocoding, and live update subscription. |
+| `voiceSafetyService.ts` | Background voice recognition, keyword monitoring, auto-restart, and SOS callback execution. |
+| `voiceStateService.ts` | Persistence for voice safety state. |
+| `audioService.ts` | Audio recording/playback support for group messages. |
+| `mediaCacheService.ts` | Local media caching helpers. |
+| `geoapifyMapService.ts` | Static map URL generation for shared locations. |
+| `placesService.ts` | Nearby place lookup support. |
+| `permissionService.ts` | Platform permission helpers. |
+| `recentContactService.ts` | Recent contact persistence. |
+
+## Backend Integration
+
+The mobile app reads its backend base URL from `src/constants/api.ts`.
+
+```ts
+BASE_URL: 'http://192.168.29.17:8000'
+```
+
+Main backend integrations:
+
+| Feature | Backend route family |
+| --- | --- |
+| Email auth, OTP, profile | `/api/auth/*` |
+| Google auth | `/api/auth/google/*` |
+| Emergency contacts | `/api/emergency-contacts/*` |
+| Groups and messages | `/api/groups/*` |
+| SOS alerts | `/api/sos/*` |
+| Location sharing | `/api/location/*` |
+| Health check | `/onbaording` |
+
+Socket.IO is connected to the same base URL and authenticates with the stored JWT.
+
+## Environment Configuration
+
+The app uses `react-native-config`. A local `.env` file can provide:
+
+```env
+GEOAPIFY_API_KEY=your_geoapify_key
+```
+
+The current code contains a fallback Geoapify key in `src/constants/api.ts`. For production, keep API keys outside source control and inject them through environment configuration.
+
+## Setup
+
+Install dependencies:
 
 ```sh
-# Using npm
+npm install
+```
+
+Start Metro:
+
+```sh
 npm start
-
-# OR using Yarn
-yarn start
 ```
 
-## Step 2: Build and run your app
-
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
+Run on Android:
 
 ```sh
-# Using npm
 npm run android
-
-# OR using Yarn
-yarn android
 ```
 
-### iOS
-
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+Run on iOS:
 
 ```sh
 bundle install
-```
-
-Then, and every time you update your native dependencies, run:
-
-```sh
-bundle exec pod install
-```
-
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
-
-```sh
-# Using npm
+bundle exec pod install --project-directory=ios
 npm run ios
-
-# OR using Yarn
-yarn ios
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+Run tests:
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+```sh
+npm test
+```
 
-## Step 3: Modify your app
+Build Android release artifacts:
 
-Now that you have successfully run the app, let's make changes!
+```sh
+npm run android:release
+npm run android:bundle
+```
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+## Runtime Requirements
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+- Node.js 20 or newer.
+- Android Studio and Android SDK for Android builds.
+- Xcode, Ruby Bundler, and CocoaPods for iOS builds.
+- A running backend service reachable from the device/emulator.
+- Location, contacts, microphone, and notification permissions enabled on the mobile device for full functionality.
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+## Notes for Research Documentation
 
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+The frontend architecture diagram is maintained in [`../docs/architecture-diagrams.md`](../docs/architecture-diagrams.md). It separates the mobile app into presentation, state/session, service, native capability, backend integration, and external provider layers so it can be exported cleanly for papers or presentations.

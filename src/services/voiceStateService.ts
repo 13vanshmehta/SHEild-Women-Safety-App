@@ -14,7 +14,6 @@ class VoiceStateService {
   async saveState(state: VoiceState): Promise<void> {
     try {
       await AsyncStorage.setItem(VOICE_STATE_KEY, JSON.stringify(state));
-      console.log('💾 Voice state saved:', state);
     } catch (error) {
       console.error('Error saving voice state:', error);
     }
@@ -28,7 +27,6 @@ class VoiceStateService {
       const stateStr = await AsyncStorage.getItem(VOICE_STATE_KEY);
       if (stateStr) {
         const state = JSON.parse(stateStr);
-        console.log('📂 Voice state loaded:', state);
         return state;
       }
       return null;
@@ -44,7 +42,6 @@ class VoiceStateService {
   async clearState(): Promise<void> {
     try {
       await AsyncStorage.removeItem(VOICE_STATE_KEY);
-      console.log('🗑️ Voice state cleared');
     } catch (error) {
       console.error('Error clearing voice state:', error);
     }

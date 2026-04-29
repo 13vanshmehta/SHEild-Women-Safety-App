@@ -39,17 +39,12 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignupSuccess, onNavigate
 
   // Google Sign-In configuration
   useEffect(() => {
-    console.log('Configuring Google Sign-In with:', {
-      webClientId: Config.GOOGLE_WEB_CLIENT_ID,
-      iosClientId: Config.GOOGLE_IOS_CLIENT_ID,
-      platform: Platform.OS,
-    });
 
     GoogleSignin.configure({
       // For Android, we must use the Web Client ID (server client ID) 
       // This is required for ID token generation that will be verified on the backend
-      webClientId: Config.GOOGLE_WEB_CLIENT_ID || '387247252263-fggkf3drod1j2fn9ms7sa9gruep1cpg0.apps.googleusercontent.com',
-      iosClientId: Config.GOOGLE_IOS_CLIENT_ID || '387247252263-lvekppuc0mp48t8flckb4obphsra96h2.apps.googleusercontent.com',
+      webClientId: Config.GOOGLE_WEB_CLIENT_ID,
+      iosClientId: Config.GOOGLE_IOS_CLIENT_ID,
       offlineAccess: true,
       forceCodeForRefreshToken: true,
     });
@@ -97,7 +92,6 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignupSuccess, onNavigate
       }
     } catch (error) {
       Alert.alert('Error', 'Network error. Please check your connection and try again.');
-      console.log(error);
     } finally {
       setLoading(false);
     }
@@ -113,7 +107,6 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignupSuccess, onNavigate
       // Sign in with Google
       const userInfo = await GoogleSignin.signIn();
 
-      console.log('Google Sign-Up Response:', JSON.stringify(userInfo, null, 2));
 
       if (userInfo.data?.idToken) {
         // Get user info from Google API to extract user details
@@ -133,7 +126,6 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignupSuccess, onNavigate
 
         // Get user details from Google
         const googleUserInfo = await getUserInfo(userInfo.data.serverAuthCode || userInfo.data.idToken);
-        console.log('Google User Info:', googleUserInfo);
 
         // Try to register the user with Google (this will handle both new and existing users)
         const response = await authService.googleRegisterMobile(userInfo.data.idToken);
@@ -171,7 +163,6 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignupSuccess, onNavigate
 
       if (error.code === 'SIGN_IN_CANCELLED') {
         // User cancelled the sign-in flow
-        console.log('User cancelled Google sign-up');
       } else if (error.code === 'IN_PROGRESS') {
         Alert.alert('Error', 'Sign-up is already in progress');
       } else if (error.code === 'PLAY_SERVICES_NOT_AVAILABLE') {

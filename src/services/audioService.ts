@@ -23,7 +23,6 @@ class AudioService {
         );
         return granted === PermissionsAndroid.RESULTS.GRANTED;
       } catch (err) {
-        console.warn('Audio permission error:', err);
         return false;
       }
     }
@@ -64,7 +63,6 @@ class AudioService {
                 reject(error);
               } else {
                 this.recordingStartTime = Date.now();
-                console.log('Recording started successfully');
                 resolve();
               }
             });
@@ -92,7 +90,6 @@ class AudioService {
             console.error('Recorder stop error:', err);
             reject(err);
           } else {
-            console.log('Recording stopped successfully');
             resolve();
           }
         });
@@ -148,7 +145,6 @@ class AudioService {
             }
           }
         } catch (deleteError) {
-          console.warn('Error deleting recording file:', deleteError);
         }
 
         this.recordingPath = null;
@@ -231,7 +227,6 @@ class AudioService {
       }
       this.isPlaying = false;
     } catch (error) {
-      console.warn('Error stopping audio:', error);
       this.isPlaying = false;
     }
   }

@@ -113,7 +113,6 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
       }
     } catch (error) {
       Alert.alert('Error', 'Network error. Please try again.');
-      console.log(error);
     } finally {
       setLoading(false);
     }
@@ -144,7 +143,6 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
       }
     } catch (error) {
       Alert.alert('Error', 'Network error. Please try again.');
-      console.log(error);
     } finally {
       setResendLoading(false);
     }

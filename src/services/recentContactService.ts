@@ -129,7 +129,6 @@ class RecentContactService {
           PermissionsAndroid.PERMISSIONS.READ_CALL_LOG
         );
         if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-          console.warn('Call log permission denied');
           return [];
         }
       } else {

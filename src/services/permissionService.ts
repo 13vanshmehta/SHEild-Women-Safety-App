@@ -27,7 +27,6 @@ async function cacheStatus(type: PermissionType, status: PermissionStatus): Prom
   try {
     await AsyncStorage.setItem(cacheKey(type), status);
   } catch (e) {
-    console.warn('Failed to cache permission status', type, e);
   }
 }
 
@@ -38,7 +37,6 @@ export async function getCachedStatus(type: PermissionType): Promise<PermissionS
     if (v === 'granted' || v === 'denied' || v === 'blocked' || v === 'unavailable') return v;
     return null;
   } catch (e) {
-    console.warn('Failed to read cached permission status', type, e);
     return null;
   }
 }
@@ -53,7 +51,6 @@ async function checkAndroidPermission(permission: string): Promise<PermissionSta
     const granted = await PermissionsAndroid.check(permission as any);
     return granted ? 'granted' : 'denied';
   } catch (e) {
-    console.warn('checkAndroidPermission error', permission, e);
     return 'unavailable';
   }
 }
@@ -67,12 +64,11 @@ async function requestAndroidPermission(permission: string): Promise<PermissionS
     }
 
     // Heuristic for blocked: denied and no rationale
-    const canAskAgain = await PermissionsAndroid.shouldShowRequestPermissionRationale(
+    const canAskAgain = await (PermissionsAndroid as any).shouldShowRequestPermissionRationale(
       permission as any,
     );
     return canAskAgain ? 'denied' : 'blocked';
   } catch (e) {
-    console.warn('requestAndroidPermission error', permission, e);
     return 'unavailable';
   }
 }
@@ -81,7 +77,6 @@ export async function openAppSettings(): Promise<void> {
   try {
     await Linking.openSettings();
   } catch (e) {
-    console.warn('Failed to open app settings', e);
   }
 }
 
@@ -162,7 +157,6 @@ export async function requestPermissionWithRationale(
 ): Promise<PermissionStatus> {
   // 1. Check current status to avoid repeated prompts
   const current = await checkPermission(type);
-  console.log('[Permission] check', type, '=>', current);
 
   if (current === 'granted') {
     await cacheStatus(type, 'granted');
@@ -178,7 +172,6 @@ export async function requestPermissionWithRationale(
   // 2. Show custom rationale dialog
   const approved = await buildRationaleAlert(rationale);
   if (!approved) {
-    console.log('[Permission] user cancelled rationale for', type);
     return current === 'denied' ? 'denied' : 'unavailable';
   }
 
@@ -240,7 +233,6 @@ export async function requestPermissionWithRationale(
     result = 'unavailable';
   }
 
-  console.log('[Permission] request result', type, '=>', result);
   await cacheStatus(type, result);
 
   if (result === 'blocked') {
