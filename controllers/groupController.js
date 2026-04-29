@@ -742,7 +742,7 @@ const getGroupMessages = async (req, res) => {
     const { userId } = req.user;
     const { page = 1, limit = 50 } = req.query;
 
-    console.log('📥 getGroupMessages - groupId:', groupId, 'userId:', userId);
+    console.log('getGroupMessages', { groupId, userId });
 
     const group = await Group.findOne({
       _id: groupId,
@@ -752,7 +752,7 @@ const getGroupMessages = async (req, res) => {
     });
 
     if (!group) {
-      console.log('📥 Group not found or user not a member');
+      console.log('Group not found or user not a member');
       return res.status(404).json({
         success: false,
         message: 'Group not found or you are not a member'
@@ -760,21 +760,21 @@ const getGroupMessages = async (req, res) => {
     }
 
     const query = { groupId, isDeleted: false };
-    console.log('📥 Query:', JSON.stringify(query));
+    console.log('Query:', JSON.stringify(query));
     const numericLimit = parseInt(limit) || 50;
     const numericPage = parseInt(page) || 1;
 
     const total = await GroupMessage.countDocuments(query);
-    console.log('📥 Total messages in DB:', total);
+    console.log('Total messages in DB:', total);
 
     const messages = await GroupMessage.find(query)
       .sort({ createdAt: -1 }) // Newest first
       .limit(numericLimit)
       .skip((numericPage - 1) * numericLimit);
 
-    console.log('📥 Found', messages.length, 'messages (sorted newest first, then reversed for display)');
+    console.log(`Found ${messages.length} messages`);
     if (messages.length > 0) {
-      console.log('📥 First message:', {
+      console.log('First message:', {
         _id: messages[0]._id,
         text: messages[0].content?.text,
         type: messages[0].messageType,
@@ -1140,7 +1140,7 @@ const uploadGroupMedia = [
         // Delete the temporary file since we're storing as blob
         fs.unlinkSync(filePath);
         
-        console.log(`Image converted to base64 blob (${Math.round(base64Data.length / 1024)}KB)`);
+        console.log(`Image converted to base64 blob (${Math.round(base64Data.length / 1024)} KB)`);
       } else {
         // For audio files, keep file-based storage
         const relativePath = `/uploads/group-media/${req.file.filename}`;

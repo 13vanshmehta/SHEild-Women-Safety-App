@@ -22,8 +22,8 @@ const sendOTPEmail = async (email, otp) => {
     try {
         // Check if email service is configured
         if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-            console.log('Email service not configured. OTP for testing:', otp);
-            return true; // Return true for development/testing
+            console.log('Email service not configured');
+            return true;
         }
 
         const transporter = createTransporter();
@@ -64,7 +64,7 @@ const sendOTPEmail = async (email, otp) => {
         };
 
         const result = await transporter.sendMail(mailOptions);
-        console.log('OTP email sent successfully:', result.messageId);
+        console.log('OTP email sent successfully');
         return true;
 
     } catch (error) {
@@ -72,9 +72,7 @@ const sendOTPEmail = async (email, otp) => {
         
         // For development/testing, log the OTP instead of failing
         if (process.env.NODE_ENV === 'development') {
-            console.log(`\n=== DEVELOPMENT MODE ===`);
-            console.log(`OTP for ${email}: ${otp}`);
-            console.log(`=======================\n`);
+            console.log('OTP generated in development mode');
             return true;
         }
         
@@ -87,8 +85,8 @@ const sendWelcomeEmail = async (email, firstName) => {
     try {
         // Check if email service is configured
         if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-            console.log('Email service not configured. Welcome email skipped for:', email);
-            return true; // Return true for development/testing
+            console.log('Email service not configured');
+            return true;
         }
 
         const transporter = createTransporter();
@@ -135,7 +133,7 @@ const sendWelcomeEmail = async (email, firstName) => {
         };
 
         const result = await transporter.sendMail(mailOptions);
-        console.log('Welcome email sent successfully:', result.messageId);
+        console.log('Welcome email sent successfully');
         return true;
 
     } catch (error) {
@@ -143,7 +141,7 @@ const sendWelcomeEmail = async (email, firstName) => {
         
         // For development/testing, don't fail if email service is not working
         if (process.env.NODE_ENV === 'development') {
-            console.log(`Welcome email failed for ${email}, but continuing in development mode`);
+            console.log('Welcome email failed in development mode');
             return true;
         }
         

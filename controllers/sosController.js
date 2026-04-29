@@ -69,7 +69,7 @@ exports.triggerSOS = async (req, res) => {
 
     await sosAlert.save();
 
-    console.log('🚨 SOS Alert created, starting to send notifications...');
+    console.log('SOS Alert created, starting to send notifications...');
 
     // Send notifications synchronously to ensure they're sent before responding
     try {
@@ -81,7 +81,7 @@ exports.triggerSOS = async (req, res) => {
       const groupsSent = updatedAlert.notificationsSent.filter(n => n.recipientType === 'group').length;
       const totalNotifications = updatedAlert.notificationsSent.length;
 
-      console.log(`✅ SOS Alert completed. Contacts: ${emergencyContactsSent}, Groups: ${groupsSent}, Total: ${totalNotifications}`);
+      console.log(`SOS Alert completed. Contacts: ${emergencyContactsSent}, Groups: ${groupsSent}, Total: ${totalNotifications}`);
 
       return res.status(200).json({
         success: true,
@@ -92,7 +92,7 @@ exports.triggerSOS = async (req, res) => {
         groupsSent
       });
     } catch (notificationError) {
-      console.error('❌ Error sending notifications:', notificationError);
+      console.error('Error sending notifications:', notificationError);
 
       return res.status(200).json({
         success: true,
@@ -106,7 +106,7 @@ exports.triggerSOS = async (req, res) => {
     }
 
   } catch (error) {
-    console.error('❌ Error triggering SOS:', error);
+    console.error('Error triggering SOS:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to trigger SOS alert',
@@ -117,23 +117,12 @@ exports.triggerSOS = async (req, res) => {
 
 // Send SOS notifications to emergency contacts and groups
 async function sendSOSNotifications(alertId, user, emergencyContacts, location, deviceInfo, triggerMode = 'manual_button') {
-  console.log('\n🚨 ═══════════════════════════════════════');
-  console.log('🚨 STARTING SOS NOTIFICATION PROCESS');
-  console.log('🚨 ═══════════════════════════════════════\n');
-
-  console.log(`📋 Alert ID: ${alertId}`);
-  console.log(`👤 User: ${user.firstName} ${user.lastName}`);
-  console.log(`📞 User Phone: ${user.phoneNumber || 'Not provided'}`);
-  console.log(`📍 Location: ${location.latitude}, ${location.longitude}`);
-  console.log(`🔋 Battery: ${deviceInfo?.batteryLevel || 0}%`);
-  console.log(`📶 Network: ${deviceInfo?.networkStatus || 'unknown'}`);
-  console.log(`📱 Emergency Contacts: ${emergencyContacts.length}`);
-  console.log('');
+  console.log('Starting SOS notification process');
 
   try {
     const sosAlert = await SOSAlert.findById(alertId);
     if (!sosAlert) {
-      console.error('❌ SOS Alert not found in database!');
+      console.error('SOS Alert not found in database!');
       throw new Error('SOS Alert not found');
     }
 
@@ -159,7 +148,6 @@ async function sendSOSNotifications(alertId, user, emergencyContacts, location, 
           const data = await response.json();
           if (data.display_name) {
             address = data.display_name;
-            console.log(`📍 Address resolved: ${address}`);
           } else {
             address = `${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`;
           }
@@ -167,7 +155,6 @@ async function sendSOSNotifications(alertId, user, emergencyContacts, location, 
           address = `${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`;
         }
       } catch (error) {
-        console.log(`⚠️  Could not resolve address: ${error.message}`);
         address = `${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`;
       }
     }
@@ -207,28 +194,17 @@ Please respond immediately!
 
 Location: ${googleMapsLink}`;
 
-    console.log('📝 SMS Message (Short):');
-    console.log('─────────────────────────────────────');
-    console.log(smsMessage);
-    console.log('─────────────────────────────────────\n');
+    // Messages prepared
+    console.log('SOS messages prepared');
 
-    console.log('📝 WhatsApp Message (Full):');
-    console.log('─────────────────────────────────────');
-    console.log(whatsappMessage);
-    console.log('─────────────────────────────────────\n');
-
-    // ═══════════════════════════════════════
     // STEP 1: Send to Emergency Contacts
-    // ═══════════════════════════════════════
-    console.log('📱 STEP 1: Sending to Emergency Contacts\n');
+    console.log('Sending to emergency contacts');
 
     let emergencyContactsSuccess = 0;
     let emergencyContactsFailed = 0;
 
     for (let i = 0; i < emergencyContacts.length; i++) {
       const contact = emergencyContacts[i];
-      console.log(`\n👤 Contact ${i + 1}/${emergencyContacts.length}: ${contact.name}`);
-      console.log(`   Phone: ${contact.phoneNumber}`);
 
       const notification = {
         recipientType: 'emergency_contact',
@@ -242,46 +218,37 @@ Location: ${googleMapsLink}`;
 
       let contactSuccess = false;
 
-      // Send SMS (independent - don't stop if fails)
-      console.log(`   📱 Sending SMS...`);
       try {
         const smsResult = await twilioService.sendSMS(contact.phoneNumber, smsMessage);
 
         if (smsResult.success) {
           notification.smsStatus = 'sent';
           notification.smsSid = smsResult.sid;
-          console.log(`   ✅ SMS SENT! SID: ${smsResult.sid}`);
           contactSuccess = true;
         } else {
           notification.smsStatus = 'failed';
           notification.error = smsResult.error;
-          console.log(`   ❌ SMS FAILED: ${smsResult.error}`);
         }
       } catch (smsError) {
         notification.smsStatus = 'failed';
         notification.error = smsError.message;
-        console.log(`   ❌ SMS ERROR: ${smsError.message}`);
       }
 
       // Send WhatsApp (independent - don't stop if fails)
-      console.log(`   💬 Sending WhatsApp...`);
       try {
         const whatsappResult = await twilioService.sendWhatsApp(contact.phoneNumber, whatsappMessage);
 
         if (whatsappResult.success) {
           notification.whatsappStatus = 'sent';
           notification.whatsappSid = whatsappResult.sid;
-          console.log(`   ✅ WHATSAPP SENT! SID: ${whatsappResult.sid}`);
           contactSuccess = true;
         } else {
           notification.whatsappStatus = 'failed';
           if (!notification.error) notification.error = whatsappResult.error;
-          console.log(`   ❌ WHATSAPP FAILED: ${whatsappResult.error}`);
         }
       } catch (whatsappError) {
         notification.whatsappStatus = 'failed';
         if (!notification.error) notification.error = whatsappError.message;
-        console.log(`   ❌ WHATSAPP ERROR: ${whatsappError.message}`);
       }
 
       // Track success/failure
@@ -298,17 +265,14 @@ Location: ${googleMapsLink}`;
         contact.lastContacted = new Date();
         await contact.save();
       } catch (saveError) {
-        console.log(`   ⚠️  Could not update last contacted: ${saveError.message}`);
+        // Silently continue
       }
     }
 
-    console.log(`\n✅ Emergency contacts processed: ${emergencyContacts.length}`);
-    console.log(`   Success: ${emergencyContactsSuccess}, Failed: ${emergencyContactsFailed}\n`);
+    console.log('Emergency contacts processed');
 
-    // ═══════════════════════════════════════
-    // STEP 2: Send to Trust Circle Groups (IN-APP ONLY)
-    // ═══════════════════════════════════════
-    console.log('👥 STEP 2: Sending to Trust Circle Groups (In-App Messages)\n');
+    // STEP 2: Send to Trust Circle Groups
+    console.log('Sending to trust circle groups');
 
     const userGroups = await Group.find({
       'members.user': user._id,
@@ -316,7 +280,7 @@ Location: ${googleMapsLink}`;
       isActive: true
     });
 
-    console.log(`   Found ${userGroups.length} groups\n`);
+    console.log(`Found ${userGroups.length} groups`);
 
     const GroupMessage = require('../models/groupMessage');
 
@@ -325,7 +289,6 @@ Location: ${googleMapsLink}`;
 
     for (let i = 0; i < userGroups.length; i++) {
       const group = userGroups[i];
-      console.log(`\n📢 Group ${i + 1}/${userGroups.length}: ${group.name}`);
 
       // Create in-app message in the group chat (independent - don't stop if one fails)
       try {
@@ -340,14 +303,13 @@ Location: ${googleMapsLink}`;
         });
 
         await groupMessage.save();
-        console.log(`   ✅ In-app message saved to group chat`);
 
         // Update group's last activity
         try {
           group.lastActivity = new Date();
           await group.save();
         } catch (saveError) {
-          console.log(`   ⚠️  Could not update group activity: ${saveError.message}`);
+          // Silently continue
         }
 
         // Send real-time notification via Socket.io
@@ -380,13 +342,9 @@ Location: ${googleMapsLink}`;
               groupName: group.name,
               groupId: group._id
             });
-
-            console.log(`   ✅ Real-time notification sent via Socket.io`);
-          } else {
-            console.log(`   ⚠️  Socket.io not available (message still saved in chat)`);
           }
         } catch (ioError) {
-          console.log(`   ⚠️  Socket.io error: ${ioError.message} (message still saved in chat)`);
+          // Silently continue
         }
 
         // Track in SOS alert (use 'pending' for in-app, not 'n/a')
@@ -403,7 +361,7 @@ Location: ${googleMapsLink}`;
         groupsSuccess++;
 
       } catch (groupError) {
-        console.log(`   ❌ Error sending to group: ${groupError.message}`);
+        console.log(`Error sending to group: ${groupError.message}`);
         groupsFailed++;
 
         // Still track the failed attempt
@@ -420,12 +378,8 @@ Location: ${googleMapsLink}`;
       }
     }
 
-    console.log(`\n✅ Groups processed: ${userGroups.length} (in-app messages only)`);
-    console.log(`   Success: ${groupsSuccess}, Failed: ${groupsFailed}\n`);
+    console.log('Groups processed');
 
-    // ═══════════════════════════════════════
-    // FINAL: Update SOS Alert Status
-    // ═══════════════════════════════════════
     sosAlert.status = 'sent';
     await sosAlert.save();
 
@@ -436,22 +390,11 @@ Location: ${googleMapsLink}`;
     const smsSuccess = emergencyContactNotifications.filter(n => n.smsStatus === 'sent').length;
     const whatsappSuccess = emergencyContactNotifications.filter(n => n.whatsappStatus === 'sent').length;
 
-    console.log('\n🚨 ═══════════════════════════════════════');
-    console.log('🚨 SOS NOTIFICATION SUMMARY');
-    console.log('🚨 ═══════════════════════════════════════');
-    console.log(`📱 Emergency Contacts: ${emergencyContactNotifications.length}`);
-    console.log(`   SMS Sent: ${smsSuccess}/${emergencyContactNotifications.length}`);
-    console.log(`   WhatsApp Sent: ${whatsappSuccess}/${emergencyContactNotifications.length}`);
-    console.log(`👥 Groups (In-App): ${groupNotifications.length}`);
-    console.log(`✅ Total Notifications: ${sosAlert.notificationsSent.length}`);
-    console.log('🚨 ═══════════════════════════════════════\n');
+    console.log('SOS notification summary completed');
 
   } catch (error) {
-    console.error('\n❌ ═══════════════════════════════════════');
-    console.error('❌ ERROR IN SEND SOS NOTIFICATIONS');
-    console.error('❌ ═══════════════════════════════════════');
+    console.error('Error in send SOS notifications');
     console.error(error);
-    console.error('❌ ═══════════════════════════════════════\n');
 
     // Update status to failed
     try {
@@ -536,17 +479,13 @@ exports.updateLocation = async (req, res) => {
 
       // Send update to emergency contacts (async, don't wait)
       for (const contact of emergencyContacts) {
-        twilioService.sendSMS(contact.phoneNumber, statusMessage).catch(err =>
-          console.error('Error sending location update SMS:', err)
-        );
-        twilioService.sendWhatsApp(contact.phoneNumber, statusMessage).catch(err =>
-          console.error('Error sending location update WhatsApp:', err)
-        );
+        twilioService.sendSMS(contact.phoneNumber, statusMessage).catch(err => {});
+        twilioService.sendWhatsApp(contact.phoneNumber, statusMessage).catch(err => {});
       }
 
-      console.log(`📍 Status change notification sent: ${isOffline ? 'OFFLINE' : 'ONLINE'}`);
+      console.log('Status change notification sent');
     } else {
-      console.log(`📍 Location updated (no notification needed)`);
+      console.log('Location updated');
     }
 
     return res.status(200).json({

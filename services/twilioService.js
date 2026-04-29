@@ -36,13 +36,13 @@ class TwilioService {
   // Format phone number to E.164 format
   formatPhoneNumber(phoneNumber) {
     if (!phoneNumber) {
-      console.error('❌ Phone number is empty or undefined');
+      console.error('Phone number is empty or undefined');
       return '';
     }
 
     // Validate first
     if (!this.isValidPhoneNumber(phoneNumber)) {
-      console.error(`❌ Invalid phone number format: ${phoneNumber}`);
+      console.error(`Invalid phone number format: ${phoneNumber}`);
       return '';
     }
 
@@ -59,7 +59,7 @@ class TwilioService {
       cleaned = '+' + cleaned;
     }
     
-    console.log(`📞 Formatted phone: ${phoneNumber} → ${cleaned}`);
+    // Phone formatted for Twilio
     return cleaned;
   }
 
@@ -82,7 +82,7 @@ class TwilioService {
         to: formattedTo
       });
 
-      console.log('SMS sent successfully:', result.sid);
+      console.log('SMS sent successfully');
       
       return {
         success: true,
@@ -117,7 +117,7 @@ class TwilioService {
         to: `whatsapp:${formattedTo}`
       });
 
-      console.log('WhatsApp sent successfully:', result.sid);
+      console.log('WhatsApp sent successfully');
       
       return {
         success: true,

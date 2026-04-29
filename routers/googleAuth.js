@@ -65,7 +65,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     }
     }));
 } else {
-    console.log('Google OAuth not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env');
+    console.log('Google OAuth not configured');
 }
 
 // Serialize user for session
@@ -97,18 +97,18 @@ router.get('/google/callback',
             const token = jwt.sign({ userId: req.user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
             
             // Redirect to frontend with token
-            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+            const frontendUrl = process.env.FRONTEND_URL;
             res.redirect(`${frontendUrl}/auth/callback?token=${token}&success=true`);
         } catch (error) {
             console.error('Google callback error:', error);
-            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+            const frontendUrl = process.env.FRONTEND_URL;
             res.redirect(`${frontendUrl}/auth/callback?success=false&error=authentication_failed`);
         }
     }
 );
 
 router.get('/google/failure', (req, res) => {
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const frontendUrl = process.env.FRONTEND_URL;
     res.redirect(`${frontendUrl}/auth/callback?success=false&error=google_auth_failed`);
 });
 

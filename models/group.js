@@ -100,7 +100,6 @@ const groupSchema = new mongoose.Schema({
 });
 
 // Indexes for efficient queries
-groupSchema.index({ joinCode: 1 });
 groupSchema.index({ createdBy: 1, isActive: 1 });
 groupSchema.index({ 'members.user': 1, isActive: 1 });
 groupSchema.index({ isPinned: -1, lastActivity: -1 });

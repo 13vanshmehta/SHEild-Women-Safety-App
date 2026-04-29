@@ -13,7 +13,6 @@ const generateToken = (userId) => {
     return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
 };
 
-// Register User
 router.post('/register', [
     body('firstName').notEmpty().withMessage('First name is required'),
     body('lastName').notEmpty().withMessage('Last name is required'),
@@ -143,7 +142,6 @@ router.post('/verify-otp', [
         user.otpExpires = null;
         await user.save();
 
-        // Generate JWT token
         const token = generateToken(user._id);
 
         res.json({
@@ -363,8 +361,7 @@ router.put('/profile', authenticateToken, [
 
         updateData.updatedAt = new Date();
 
-        console.log('Updating user profile with data:', updateData);
-        console.log('User ID:', req.user.userId);
+        console.log('Updating user profile');
 
         const user = await User.findByIdAndUpdate(
             req.user.userId,
@@ -379,7 +376,7 @@ router.put('/profile', authenticateToken, [
             });
         }
 
-        console.log('User updated successfully:', user);
+        console.log('User updated successfully');
 
         res.json({
             success: true,

@@ -120,7 +120,6 @@ const userLocationSchema = new mongoose.Schema({
 });
 
 // Indexes for efficient queries
-userLocationSchema.index({ userId: 1 });
 userLocationSchema.index({ 'currentLocation.latitude': 1, 'currentLocation.longitude': 1 });
 userLocationSchema.index({ 'sharingSettings.isLocationVisible': 1 });
 userLocationSchema.index({ lastUpdated: -1 });

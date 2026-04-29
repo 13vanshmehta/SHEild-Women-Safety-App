@@ -1,6 +1,5 @@
 // Connecting to database
 const dotenv = require('dotenv');
-dotenv.config();
 const mongoose = require('mongoose');
 const dns = require('dns');
 
@@ -16,10 +15,10 @@ const connection = async () => {
             await mongoose.connect(dbURI, {
                 serverSelectionTimeoutMS: 15000,
             });
-            console.log('✅ Connected to Database Successfully!');
+            console.log('Database connected');
         } catch (error) {
-            console.error('❌ Database connection error:', error.message);
-            console.log('🔄 Retrying database connection in 5 seconds...');
+            console.error('Database connection error:', error.message);
+            console.log('Retrying database connection in 5 seconds...');
             setTimeout(tryConnect, 5000);
         }
     };
