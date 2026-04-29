@@ -17,12 +17,15 @@ const createTransporter = () => {
 
 // Send OTP Email
 const sendOTPEmail = async (email, otp) => {
+    console.log(`Attempting to send OTP email to: ${email}...`);
     try {
         // Check if email service is configured
         if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-            console.log('Email service not configured');
+            console.warn('CRITICAL: Email service credentials (EMAIL_USER/EMAIL_PASS) are missing in environment variables!');
             return true;
         }
+
+        console.log('Credentials found. Creating transporter...');
 
         const transporter = createTransporter();
 

@@ -17,6 +17,7 @@ const apiRoutes = require('./routers/index');
 
 // Initialize App
 const app = express();
+app.set('trust proxy', 1); // Trust Render proxy
 const server = http.createServer(app);
 const port = process.env.PORT || 8000;
 
