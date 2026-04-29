@@ -57,6 +57,16 @@ const userSchema = new mongoose.Schema({
         type: String,
         default: null,
     },
+    fcmToken: {
+        type: String,
+        default: null,
+    },
+    notificationSettings: {
+        allEnabled: { type: Boolean, default: true },
+        groupMessages: { type: Boolean, default: true },
+        sosAlerts: { type: Boolean, default: true },
+        emergencyAlerts: { type: Boolean, default: true }
+    },
     createdAt: {
         type: Date,
         default: Date.now,

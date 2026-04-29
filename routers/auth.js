@@ -450,4 +450,68 @@ router.delete('/profile', authenticateToken, async (req, res) => {
     }
 });
 
+// Update FCM Token
+router.post('/fcm-token', authenticateToken, async (req, res) => {
+    try {
+        const { fcmToken } = req.body;
+        if (!fcmToken) {
+            return res.status(400).json({
+                success: false,
+                message: 'FCM Token is required'
+            });
+        }
+
+        await User.findByIdAndUpdate(req.user.userId, { fcmToken, updatedAt: new Date() });
+
+        res.json({
+            success: true,
+            message: 'FCM Token updated successfully'
+        });
+    } catch (error) {
+        console.error('Update FCM Token error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error'
+        });
+    }
+});
+
+// Update Notification Settings
+router.put('/notification-settings', authenticateToken, async (req, res) => {
+    try {
+        const { settings } = req.body;
+        if (!settings) {
+            return res.status(400).json({
+                success: false,
+                message: 'Settings are required'
+            });
+        }
+
+        const user = await User.findById(req.user.userId);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        user.notificationSettings = { ...user.notificationSettings, ...settings };
+        user.updatedAt = new Date();
+        await user.save();
+
+        res.json({
+            success: true,
+            message: 'Notification settings updated successfully',
+            data: { settings: user.notificationSettings }
+        });
+    } catch (error) {
+        console.error('Update notification settings error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error'
+        });
+    }
+});
+
 module.exports = router;
+

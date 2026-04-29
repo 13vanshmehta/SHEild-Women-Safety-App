@@ -167,7 +167,45 @@ const initSocket = (server) => {
           ...basePayload,
           isOwn: false,
         });
+
+        // --- Push Notification Integration ---
+        try {
+          const { sendToGroup } = require('./notificationService');
+          
+          // Get group name for the notification
+          const groupName = group.name || 'Group Chat';
+          
+          // Determine notification body based on message type
+          let body = '';
+          if (finalType === 'text') {
+            body = text.length > 100 ? `${text.substring(0, 97)}...` : text;
+          } else if (finalType === 'image') {
+            body = '📷 Photo';
+          } else if (finalType === 'audio') {
+            body = '🎵 Audio message';
+          } else if (finalType === 'location') {
+            body = '📍 Location shared';
+          } else {
+            body = `New ${finalType} message`;
+          }
+
+          // Send push notifications to group members (except sender)
+          await sendToGroup(groupId, userId, {
+            title: `${name} @ ${groupName}`,
+            body,
+            data: {
+              groupId: groupId.toString(),
+              senderId: userId.toString(),
+              type: 'group_message',
+              messageId: messageDoc._id.toString()
+            }
+          });
+        } catch (notifyError) {
+          // Log but don't fail the message send if notification fails
+          console.error('Failed to send push notification:', notifyError);
+        }
       } catch (error) {
+
         console.error('sendGroupMessage error:', error);
         const groupId = (payload && payload.groupId) || undefined;
         socket.emit('groupError', { groupId, message: 'Failed to send message' });

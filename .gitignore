@@ -259,3 +259,8 @@ ecosystem.config.js
 # Lock files (uncomment if you want to ignore them)
 # package-lock.json
 # yarn.lock
+
+# Firebase service account
+firebase-service-account.json
+config/firebase-service-account.json
+
