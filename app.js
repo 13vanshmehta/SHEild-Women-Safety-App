@@ -80,13 +80,33 @@ server.listen(port, () => {
     console.log(`Server is running on port ${port}`);
 
     // Self-ping to keep backend alive (especially for Render free tier)
-    setInterval(() => {
-        http.get(`http://localhost:${port}/onboarding`, (res) => {
-            res.on('data', () => { });
-        }).on('error', (err) => {
-            // Silently handle error
-        });
-    }, 60000); // 1 minute
+    const { SELF_PING_URL, BACKEND_URL, SELF_PING_INTERVAL_MS } = process.env;
+    const pingUrl = SELF_PING_URL || BACKEND_URL || `http://localhost:${port}/onboarding`;
+    const interval = parseInt(SELF_PING_INTERVAL_MS || '', 10) || 1 * 60 * 1000; // default 5 minutes
+
+    // Use native http/https based on URL protocol
+    try {
+        const urlObj = new URL(pingUrl);
+        const client = urlObj.protocol === 'https:' ? require('https') : require('http');
+
+        setInterval(() => {
+            const req = client.get(pingUrl, (res) => {
+                // drain response
+                res.on('data', () => { });
+                res.on('end', () => { });
+            });
+
+            req.on('error', () => { /* ignore network errors */ });
+            req.setTimeout(5000, () => req.abort());
+        }, interval);
+    } catch (err) {
+        // If URL is invalid, fall back to local onboarding ping
+        setInterval(() => {
+            http.get(`http://localhost:${port}/onboarding`, (res) => {
+                res.on('data', () => { });
+            }).on('error', () => { });
+        }, 5 * 60 * 1000);
+    }
 });
 
 module.exports = app;
