@@ -336,34 +336,51 @@ const sendWelcomeEmail = async (email, firstName) => {
                 <meta charset="utf-8">
                 <style>
                     body { font-family: 'Segoe UI', Arial, sans-serif; background: #000000; color: #FFFFFF; margin: 0; padding: 0; }
-                    .container { max-width: 600px; margin: 0 auto; padding: 48px 20px; }
-                    .card { background: #0b0b0b; border-radius: 14px; padding: 36px; border: 1px solid rgba(255,255,255,0.04); box-shadow: 0 6px 24px rgba(0,0,0,0.6); }
-                    h1 { text-align: center; font-size: 24px; margin-bottom: 18px; color: #FFFFFF; }
-                    p { color: #cfcfcf; font-size: 15px; line-height: 1.6; margin-bottom: 14px; }
-                    .highlight { background: linear-gradient(135deg, rgba(232,67,147,0.04), rgba(255,102,102,0.02)); border-left: 4px solid rgba(255,105,180,0.14); border-radius: 8px; padding: 16px 20px; margin: 20px 0; }
-                    ul { color: #cfcfcf; margin: 0; padding-left: 20px; }
-                    li { margin-bottom: 6px; }
-                    .footer { text-align: center; margin-top: 24px; color: #7a7a7a; font-size: 12px; }
+                    .container { max-width: 600px; margin: 0 auto; background: #000000; }
+                    .header { background: linear-gradient(135deg, #ff69b4 0%, #e84393 100%); padding: 24px 20px; text-align: center; }
+                    .logo { font-size: 28px; font-weight: 900; color: #FFFFFF; letter-spacing: 2px; margin: 0; }
+                    .main { padding: 48px 20px; background: #000000; }
+                    .card { background: #000000; border-radius: 14px; padding: 36px; border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 6px 24px rgba(0,0,0,0.8); }
+                    h1 { text-align: center; font-size: 28px; margin: 0 0 8px 0; color: #FFFFFF; font-weight: 700; }
+                    .subtitle { text-align: center; color: #ff69b4; font-size: 14px; margin-bottom: 20px; font-weight: 600; }
+                    .intro { color: #e0e0e0; font-size: 16px; line-height: 1.7; margin-bottom: 28px; }
+                    .section-title { color: #ff69b4; font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; margin: 24px 0 16px 0; }
+                    .features { list-style: none; margin: 0; padding: 0; }
+                    .features li { color: #d0d0d0; font-size: 15px; line-height: 1.8; margin-bottom: 12px; padding-left: 24px; position: relative; }
+                    .features li:before { content: '✓'; position: absolute; left: 0; color: #ff69b4; font-weight: 900; font-size: 16px; }
+                    .cta-box { background: rgba(255,105,180,0.06); border: 1px solid rgba(255,105,180,0.25); border-radius: 10px; padding: 20px; margin: 24px 0; }
+                    .cta-text { color: #d0d0d0; font-size: 14px; line-height: 1.6; margin: 0; }
+                    .support { color: #999; font-size: 14px; margin-top: 24px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.08); }
+                    .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; background: #000000; }
                 </style>
             </head>
             <body>
                 <div class="container">
-                    <div class="card">
-                        <h1>🛡️ Welcome to SHEild, ${firstName}!</h1>
-                        <p>Your email has been verified. You're all set to start your safety journey.</p>
-                        <div class="highlight">
-                            <strong>What's Next?</strong>
-                            <ul>
-                                <li>Set up your emergency contacts</li>
-                                <li>Configure your SOS preferences</li>
-                                <li>Explore safe routes & community features</li>
-                                <li>Stay safe, stay connected!</li>
-                            </ul>
-                        </div>
-                        <p>If you have any questions, feel free to reach out to our support team.</p>
+                    <div class="header">
+                        <p class="logo">SHEild</p>
                     </div>
-                    <div class="footer">
-                        <p>© ${new Date().getFullYear()} SHEild. All rights reserved.</p>
+                    <div class="main">
+                        <div class="card">
+                            <h1>Welcome, ${firstName}!</h1>
+                            <p class="subtitle">Your safety journey starts now</p>
+                            <p class="intro">Your email has been verified successfully. You now have full access to SHEild's safety features designed to keep you secure and empowered.</p>
+                            
+                            <p class="section-title">Get Started in 3 Steps:</p>
+                            <ul class="features">
+                                <li>Add emergency contacts who can help in critical moments</li>
+                                <li>Set up your SOS preferences and alert methods</li>
+                                <li>Explore safe routes, community tips, and more</li>
+                            </ul>
+                            
+                            <div class="cta-box">
+                                <p class="cta-text"><strong>Pro Tip:</strong> Enable notifications to stay updated on important features and community alerts. Your safety is our priority.</p>
+                            </div>
+                            
+                            <p class="support">Have questions? Our support team is here to help. Visit our help center or reply to this email anytime.</p>
+                        </div>
+                        <div class="footer">
+                            <p>© ${new Date().getFullYear()} SHEild. All rights reserved.</p>
+                        </div>
                     </div>
                 </div>
             </body>
