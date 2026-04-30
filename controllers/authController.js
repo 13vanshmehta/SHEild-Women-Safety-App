@@ -1,7 +1,25 @@
 const jwt = require('jsonwebtoken');
 const { validationResult } = require('express-validator');
 const User = require('../models/user');
-const { sendOTPEmail, sendWelcomeEmail } = require('../utilities/emailService');
+const { sendOTPEmail, sendPasswordResetOtpEmail, sendWelcomeEmail } = require('../utilities/emailService');
+
+// ==========================================
+// Password Strength Validator
+// ==========================================
+const validatePasswordStrength = (password) => {
+    if (password.length < 8) {
+        return { valid: false, message: 'Password must be at least 8 characters long.' };
+    }
+    // At least one uppercase, one lowercase, one number, one special character
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>])/;
+    if (!passwordRegex.test(password)) {
+        return { 
+            valid: false, 
+            message: 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character.' 
+        };
+    }
+    return { valid: true };
+};
 
 const generateToken = (userId) => {
     return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
@@ -36,6 +54,15 @@ const register = async (req, res) => {
 
         const { firstName, lastName, email, password } = req.body;
 
+        // Validate password strength
+        const passwordValidation = validatePasswordStrength(password);
+        if (!passwordValidation.valid) {
+            return res.status(400).json({
+                success: false,
+                message: passwordValidation.message
+            });
+        }
+
         const existingUser = await User.findOne({ email: email.toLowerCase() });
         if (existingUser) {
             return res.status(409).json({
@@ -58,7 +85,7 @@ const register = async (req, res) => {
         const otp = user.generateEmailVerifyOtp();
         await user.save();
 
-        sendOTPEmail(user.email, otp).catch(err =>
+        sendOTPEmail(user.email, otp, user.firstName).catch(err =>
             console.error('[OTP] Register send failed:', err.message)
         );
 
@@ -170,7 +197,7 @@ const resendOtp = async (req, res) => {
         const otp = user.generateEmailVerifyOtp();
         await user.save();
 
-        sendOTPEmail(user.email, otp).catch(err =>
+        sendOTPEmail(user.email, otp, user.firstName).catch(err =>
             console.error('[OTP] Resend send failed:', err.message)
         );
 
@@ -221,7 +248,7 @@ const login = async (req, res) => {
             const otp = user.generateEmailVerifyOtp();
             await user.save();
 
-            sendOTPEmail(user.email, otp).catch(err =>
+            sendOTPEmail(user.email, otp, user.firstName).catch(err =>
                 console.error('[OTP] Login resend failed:', err.message)
             );
 
@@ -265,6 +292,7 @@ const forgotPassword = async (req, res) => {
         const user = await User.findOne({ email: email.toLowerCase(), loginType: 'email' });
 
         if (!user) {
+            // Don't reveal if user exists (security best practice)
             return res.status(200).json({
                 success: true,
                 message: 'If an account with this email exists, an OTP has been sent.'
@@ -274,7 +302,7 @@ const forgotPassword = async (req, res) => {
         const otp = user.generateResetOtp();
         await user.save();
 
-        sendOTPEmail(user.email, otp).catch(err =>
+        sendPasswordResetOtpEmail(user.email, otp, user.firstName).catch(err =>
             console.error('[OTP] Password reset send failed:', err.message)
         );
 
@@ -297,6 +325,16 @@ const resetPassword = async (req, res) => {
         if (handleValidationErrors(req, res)) return;
 
         const { email, otp, newPassword } = req.body;
+        
+        // Validate new password strength
+        const passwordValidation = validatePasswordStrength(newPassword);
+        if (!passwordValidation.valid) {
+            return res.status(400).json({
+                success: false,
+                message: passwordValidation.message
+            });
+        }
+
         const user = await User.findOne({ email: email.toLowerCase(), loginType: 'email' }).select('+password');
 
         if (!user) {

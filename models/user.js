@@ -168,6 +168,38 @@ userSchema.methods.generateResetOtp = function () {
 userSchema.methods.verifyResetOtp = function (candidateOtp) {
     if (!this.resetOtp.code) return false;
     if (this.resetOtp.expiresAt < new Date()) return false;
+    if (this.resetOtp.attempts >= 5) return false; // Max 5 attempts
+    
+    this.resetOtp.attempts += 1;
+    return this.resetOtp.code === candidateOtp;
+};
+
+/**
+ * Clear reset OTP
+ */
+userSchema.methods.clearResetOtp = function () {
+    this.resetOtp = { code: null, expiresAt: null, attempts: 0 };
+};
+
+/**
+ * Generate OTP for password reset (6 digits)
+ */
+userSchema.methods.generateResetOtp = function () {
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    this.resetOtp = {
+        code: otp,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+        attempts: 0,
+    };
+    return otp;
+};
+
+/**
+ * Verify reset OTP
+ */
+userSchema.methods.verifyResetOtp = function (candidateOtp) {
+    if (!this.resetOtp.code) return false;
+    if (this.resetOtp.expiresAt < new Date()) return false;
     if (this.resetOtp.attempts >= 5) return false;
 
     this.resetOtp.attempts += 1;

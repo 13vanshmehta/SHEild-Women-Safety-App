@@ -128,9 +128,9 @@ const createResendTransporter = () => {
 };
 
 /**
- * Send OTP email for email verification
+ * Send OTP email for email verification (after registration)
  */
-const sendOTPEmail = async (email, otp) => {
+const sendOTPEmail = async (email, otp, userName) => {
     const transporter = createTransporter();
 
     const mailOptions = {
@@ -143,27 +143,81 @@ const sendOTPEmail = async (email, otp) => {
             <head>
                 <meta charset="utf-8">
                 <style>
-                    body { font-family: 'Segoe UI', Arial, sans-serif; background: #0A0A1A; color: #EAEAFF; margin: 0; padding: 0; }
-                    .container { max-width: 500px; margin: 0 auto; padding: 40px 20px; }
-                    .card { background: #12122A; border-radius: 16px; padding: 40px; border: 1px solid rgba(255,255,255,0.06); }
-                    h1 { text-align: center; font-size: 22px; margin-bottom: 16px; color: #EAEAFF; }
-                    p { color: #A0A0CC; font-size: 14px; line-height: 1.6; margin-bottom: 16px; }
-                    .otp-box { text-align: center; margin: 24px 0; }
-                    .otp-code { display: inline-block; font-size: 36px; font-weight: 800; letter-spacing: 12px; padding: 16px 32px; border-radius: 12px; background: linear-gradient(135deg, rgba(233,30,140,0.1), rgba(9,132,227,0.1)); border: 2px solid rgba(233,30,140,0.3); color: #E91E8C; font-family: monospace; }
-                    .expiry { text-align: center; color: #FF7675; font-size: 12px; margin-top: 8px; }
-                    .footer { text-align: center; margin-top: 24px; color: #5A5A80; font-size: 12px; }
+                    body { font-family: 'Segoe UI', Arial, sans-serif; background: #000000; color: #FFFFFF; margin: 0; padding: 0; }
+                    .container { max-width: 600px; margin: 0 auto; padding: 48px 20px; }
+                    .card { background: #0b0b0b; border-radius: 14px; padding: 36px; border: 1px solid rgba(255,255,255,0.04); box-shadow: 0 6px 24px rgba(0,0,0,0.6); }
+                    h1 { text-align: center; font-size: 24px; margin-bottom: 18px; color: #FFFFFF; }
+                    p { color: #cfcfcf; font-size: 15px; line-height: 1.6; margin-bottom: 14px; }
+                    .otp-box { text-align: center; margin: 15px 0; overflow: hidden; }
+                    .otp-code { box-sizing: border-box; display: inline-block; font-size: 28px; font-weight: 800; letter-spacing: 6px; padding: 10px 20px; border-radius: 12px; background: linear-gradient(135deg, rgba(232,67,147,0.06), rgba(255,102,102,0.02)); border: 1px solid rgba(255,255,255,0.06); color: #ff69b4; font-family: monospace; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                    @media only screen and (max-width:480px) { .otp-code { font-size: 22px; letter-spacing: 4px; padding: 8px 14px; } }
+                    .expiry { text-align: center; color: #ff9fa8; font-size: 12px; margin-top: 8px; }
+                    .footer { text-align: center; margin-top: 24px; color: #7a7a7a; font-size: 12px; }
                 </style>
             </head>
             <body>
                 <div class="container">
                     <div class="card">
-                        <h1>🛡️ Verify Your Email</h1>
+                        <h1>Verify Your Email</h1>
+                        <p>Hi ${userName || 'there'},</p>
                         <p>Welcome to SHEild! Please use the following code to verify your email address:</p>
                         <div class="otp-box">
                             <div class="otp-code">${otp}</div>
                             <div class="expiry">Expires in 10 minutes</div>
                         </div>
                         <p>If you didn't create a SHEild account, please ignore this email.</p>
+                    </div>
+                    <div class="footer">
+                        <p>© ${new Date().getFullYear()} SHEild. All rights reserved.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `,
+    };
+
+    await transporter.sendMail(mailOptions);
+};
+
+/**
+ * Send OTP email for password reset
+ */
+const sendPasswordResetOtpEmail = async (email, otp, userName) => {
+    const transporter = createTransporter();
+
+    const mailOptions = {
+        from: process.env.EMAIL_FROM || 'noreply@sheildapp.com',
+        to: email,
+        subject: 'SHEild — Password Reset OTP',
+        html: `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <style>
+                    body { font-family: 'Segoe UI', Arial, sans-serif; background: #000000; color: #FFFFFF; margin: 0; padding: 0; }
+                    .container { max-width: 600px; margin: 0 auto; padding: 48px 20px; }
+                    .card { background: #0b0b0b; border-radius: 14px; padding: 36px; border: 1px solid rgba(255,255,255,0.04); box-shadow: 0 6px 24px rgba(0,0,0,0.6); }
+                    h1 { text-align: center; font-size: 24px; margin-bottom: 18px; color: #FFFFFF; }
+                    p { color: #cfcfcf; font-size: 15px; line-height: 1.6; margin-bottom: 14px; }
+                    .otp-box { text-align: center; margin: 22px 0; overflow: hidden; }
+                    .otp-code { box-sizing: border-box; display: inline-block; font-size: 28px; font-weight: 800; letter-spacing: 6px; padding: 10px 20px; border-radius: 12px; background: linear-gradient(135deg, rgba(232,67,147,0.06), rgba(255,102,102,0.02)); border: 1px solid rgba(255,255,255,0.06); color: #ff69b4; font-family: monospace; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                    @media only screen and (max-width:480px) { .otp-code { font-size: 22px; letter-spacing: 4px; padding: 8px 14px; } }
+                    .expiry { text-align: center; color: #ff9fa8; font-size: 12px; margin-top: 8px; }
+                    .footer { text-align: center; margin-top: 24px; color: #7a7a7a; font-size: 12px; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="card">
+                        <h1>🔐 Password Reset</h1>
+                        <p>Hi ${userName || 'there'},</p>
+                        <p>We received a request to reset your SHEild account password. Use the following OTP to proceed:</p>
+                        <div class="otp-box">
+                            <div class="otp-code">${otp}</div>
+                            <div class="expiry">Expires in 10 minutes</div>
+                        </div>
+                        <p>If you didn't request this, please ignore this email. Your password will remain unchanged.</p>
                     </div>
                     <div class="footer">
                         <p>© ${new Date().getFullYear()} SHEild. All rights reserved.</p>
@@ -193,15 +247,15 @@ const sendWelcomeEmail = async (email, firstName) => {
             <head>
                 <meta charset="utf-8">
                 <style>
-                    body { font-family: 'Segoe UI', Arial, sans-serif; background: #F8F8F8; color: #333; margin: 0; padding: 0; }
-                    .container { max-width: 500px; margin: 0 auto; padding: 40px 20px; }
-                    .card { background: #FFFFFF; border-radius: 16px; padding: 40px; border: 1px solid #EAEAEA; }
-                    h1 { text-align: center; font-size: 22px; margin-bottom: 16px; color: #1A1A1A; }
-                    p { color: #666; font-size: 14px; line-height: 1.6; margin-bottom: 16px; }
-                    .highlight { background: linear-gradient(135deg, rgba(233,30,140,0.08), rgba(9,132,227,0.08)); border-left: 4px solid #E91E8C; border-radius: 8px; padding: 16px 20px; margin: 20px 0; }
-                    ul { color: #555; margin: 0; padding-left: 20px; }
+                    body { font-family: 'Segoe UI', Arial, sans-serif; background: #000000; color: #FFFFFF; margin: 0; padding: 0; }
+                    .container { max-width: 600px; margin: 0 auto; padding: 48px 20px; }
+                    .card { background: #0b0b0b; border-radius: 14px; padding: 36px; border: 1px solid rgba(255,255,255,0.04); box-shadow: 0 6px 24px rgba(0,0,0,0.6); }
+                    h1 { text-align: center; font-size: 24px; margin-bottom: 18px; color: #FFFFFF; }
+                    p { color: #cfcfcf; font-size: 15px; line-height: 1.6; margin-bottom: 14px; }
+                    .highlight { background: linear-gradient(135deg, rgba(232,67,147,0.04), rgba(255,102,102,0.02)); border-left: 4px solid rgba(255,105,180,0.14); border-radius: 8px; padding: 16px 20px; margin: 20px 0; }
+                    ul { color: #cfcfcf; margin: 0; padding-left: 20px; }
                     li { margin-bottom: 6px; }
-                    .footer { text-align: center; margin-top: 24px; color: #BBB; font-size: 12px; }
+                    .footer { text-align: center; margin-top: 24px; color: #7a7a7a; font-size: 12px; }
                 </style>
             </head>
             <body>
@@ -234,5 +288,6 @@ const sendWelcomeEmail = async (email, firstName) => {
 
 module.exports = {
     sendOTPEmail,
+    sendPasswordResetOtpEmail,
     sendWelcomeEmail,
 };
