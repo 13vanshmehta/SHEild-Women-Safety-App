@@ -5,6 +5,7 @@
  */
 
 const nodemailer = require('nodemailer');
+const fetch = require('node-fetch');
 
 /**
  * Create email transporter based on configured provider
@@ -128,11 +129,80 @@ const createResendTransporter = () => {
 };
 
 /**
+ * Send email via SendGrid Web API
+ */
+const sendViaSendGridAPI = async ({ from, to, subject, html }) => {
+    const apiKey = process.env.SENDGRID_API_KEY;
+    if (!apiKey) throw new Error('SENDGRID_API_KEY not configured');
+
+    // Support `from` values like 'Name <email@example.com>' or just 'email@example.com'
+    let fromObj = { email: from };
+    const m = /^(.*)\s*<([^>]+)>\s*$/.exec(from);
+    if (m) {
+        const name = m[1].trim();
+        const emailAddr = m[2].trim();
+        fromObj = { email: emailAddr, name: name };
+    }
+
+    const payload = {
+        personalizations: [{ to: [{ email: to }] }],
+        from: fromObj,
+        subject,
+        content: [{ type: 'text/html', value: html }],
+    };
+
+    const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        timeout: 10000,
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`SendGrid API error: ${res.status} ${text}`);
+    }
+    return true;
+};
+
+/**
+ * Send email via Resend API
+ */
+const sendViaResendAPI = async ({ from, to, subject, html }) => {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) throw new Error('RESEND_API_KEY not configured');
+
+    const payload = {
+        from,
+        to,
+        subject,
+        html,
+    };
+
+    const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        timeout: 10000,
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Resend API error: ${res.status} ${text}`);
+    }
+    return true;
+};
+
+/**
  * Send OTP email for email verification (after registration)
  */
 const sendOTPEmail = async (email, otp, userName) => {
-    const transporter = createTransporter();
-
     const mailOptions = {
         from: process.env.EMAIL_FROM || 'noreply@sheildapp.com',
         to: email,
@@ -176,6 +246,25 @@ const sendOTPEmail = async (email, otp, userName) => {
         `,
     };
 
+    // If configured to use API-based sending (helps when SMTP ports are blocked on hosts like Render)
+    if ((process.env.EMAIL_USE_API || '').toLowerCase() === 'true') {
+        try {
+            if (process.env.EMAIL_PROVIDER === 'resend' && process.env.RESEND_API_KEY) {
+                await sendViaResendAPI({ from: mailOptions.from, to: mailOptions.to, subject: mailOptions.subject, html: mailOptions.html });
+                return;
+            }
+
+            if (process.env.SENDGRID_API_KEY) {
+                await sendViaSendGridAPI({ from: mailOptions.from, to: mailOptions.to, subject: mailOptions.subject, html: mailOptions.html });
+                return;
+            }
+        } catch (err) {
+            console.error('[OTP] API send failed, falling back to SMTP transporter:', err.message || err);
+            // fallthrough to SMTP transporter
+        }
+    }
+
+    const transporter = createTransporter();
     await transporter.sendMail(mailOptions);
 };
 
@@ -183,8 +272,6 @@ const sendOTPEmail = async (email, otp, userName) => {
  * Send OTP email for password reset
  */
 const sendPasswordResetOtpEmail = async (email, otp, userName) => {
-    const transporter = createTransporter();
-
     const mailOptions = {
         from: process.env.EMAIL_FROM || 'noreply@sheildapp.com',
         to: email,
@@ -228,6 +315,23 @@ const sendPasswordResetOtpEmail = async (email, otp, userName) => {
         `,
     };
 
+    if ((process.env.EMAIL_USE_API || '').toLowerCase() === 'true') {
+        try {
+            if (process.env.EMAIL_PROVIDER === 'resend' && process.env.RESEND_API_KEY) {
+                await sendViaResendAPI({ from: mailOptions.from, to: mailOptions.to, subject: mailOptions.subject, html: mailOptions.html });
+                return;
+            }
+
+            if (process.env.SENDGRID_API_KEY) {
+                await sendViaSendGridAPI({ from: mailOptions.from, to: mailOptions.to, subject: mailOptions.subject, html: mailOptions.html });
+                return;
+            }
+        } catch (err) {
+            console.error('[OTP] Password reset API send failed, falling back to SMTP transporter:', err.message || err);
+        }
+    }
+
+    const transporter = createTransporter();
     await transporter.sendMail(mailOptions);
 };
 
@@ -235,8 +339,6 @@ const sendPasswordResetOtpEmail = async (email, otp, userName) => {
  * Send Welcome email after successful verification
  */
 const sendWelcomeEmail = async (email, firstName) => {
-    const transporter = createTransporter();
-
     const mailOptions = {
         from: process.env.EMAIL_FROM || 'noreply@sheildapp.com',
         to: email,
@@ -283,6 +385,23 @@ const sendWelcomeEmail = async (email, firstName) => {
         `,
     };
 
+    if ((process.env.EMAIL_USE_API || '').toLowerCase() === 'true') {
+        try {
+            if (process.env.EMAIL_PROVIDER === 'resend' && process.env.RESEND_API_KEY) {
+                await sendViaResendAPI({ from: mailOptions.from, to: mailOptions.to, subject: mailOptions.subject, html: mailOptions.html });
+                return;
+            }
+
+            if (process.env.SENDGRID_API_KEY) {
+                await sendViaSendGridAPI({ from: mailOptions.from, to: mailOptions.to, subject: mailOptions.subject, html: mailOptions.html });
+                return;
+            }
+        } catch (err) {
+            console.error('[Welcome] API send failed, falling back to SMTP transporter:', err.message || err);
+        }
+    }
+
+    const transporter = createTransporter();
     await transporter.sendMail(mailOptions);
 };
 
