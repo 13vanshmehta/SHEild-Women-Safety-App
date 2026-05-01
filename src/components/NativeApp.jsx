@@ -25,23 +25,23 @@ export default function NativeApp() {
   }, []);
 
   return (
-    <section ref={containerRef} className="pt-24 pb-32 md:pt-32 md:pb-48 bg-transparent relative overflow-hidden flex flex-col items-center justify-center">
+    <section ref={containerRef} className="pt-24 pb-[100px] md:pt-32 md:pb-32 bg-transparent relative overflow-hidden flex flex-col items-center justify-center">
       {/* Optimized Background glow (No filter blur to fix lag) */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[500px] rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(255,20,147,0.1) 0%, transparent 70%)' }} />
 
-      <div className="max-w-4xl mx-auto px-6 relative z-20 mb-32 text-center flex flex-col items-center reveal">
+      <div className="max-w-4xl mx-auto px-6 relative z-20 mb-12 md:mb-20 text-center flex flex-col items-center reveal">
         <div className="badge mb-10 px-6 py-2.5 bg-[#FF1493]/10 text-[#FF1493] border-[#FF1493]/20 text-[10px] tracking-[0.4em] uppercase font-bold rounded-full">Built with React Native</div>
-        <h2 className="font-outfit font-black mb-10 tracking-tightest leading-[1.1] text-balance mx-auto" style={{ fontSize: 'clamp(2.5rem, 6vw, 5rem)' }}>
+        <h2 className="font-outfit font-black mb-7 tracking-tightest leading-[1.1] text-balance mx-auto" style={{ fontSize: 'clamp(2.5rem, 6vw, 5rem)' }}>
           One Codebase. <br className="md:hidden" />
           <span className="text-shimmer">Any Devices.</span>
         </h2>
       </div>
 
       {/* Overlapping tilted layout (V Shape) */}
-      <div className="w-full max-w-4xl mx-auto flex items-center justify-center relative z-10 h-[650px] mt-10 overflow-hidden">
+      <div className="w-full max-w-4xl mx-auto flex items-center justify-center relative z-5 h-[650px] md:h-[650px] overflow-hidden">
 
         {/* Samsung S24 Ultra Mockup (Left, tilted right) */}
-        <div className="absolute left-1/2 -translate-x-[100%] md:-translate-x-[90%] z-10 rotate-12 hover:rotate-6 hover:z-30 transition-all duration-500 ease-out group">
+        <div className="absolute left-1/2 -translate-x-[75%] md:-translate-x-[90%] z-10 rotate-[-10deg] md:rotate-12 hover:rotate-[-5deg] md:hover:rotate-6 hover:z-30 transition-all duration-500 ease-out group scale-[0.85] md:scale-100 origin-bottom md:origin-center">
           {/* Armor Aluminum Frame (Sharp corners) */}
           <div className="relative w-[280px] h-[580px] bg-black rounded-[12px] shadow-2xl border-[6px] border-[#3a3a3a] border-y-[#2a2a2a] p-[2px] overflow-hidden flex flex-col items-center">
             {/* Screen bezel */}
@@ -58,7 +58,7 @@ export default function NativeApp() {
         </div>
 
         {/* iPhone 17 Pro Max Mockup (Right, tilted left) */}
-        <div className="absolute left-1/2 translate-x-[0%] md:translate-x-[10%] z-20 -rotate-12 hover:-rotate-6 hover:z-30 transition-all duration-500 ease-out group">
+        <div className="absolute left-1/2 -translate-x-[25%] md:translate-x-[10%] z-20 rotate-[10deg] md:-rotate-12 hover:rotate-[5deg] md:hover:-rotate-6 hover:z-30 transition-all duration-500 ease-out group scale-[0.85] md:scale-100 origin-bottom md:origin-center">
           {/* Titanium Frame */}
           <div className="relative w-[280px] h-[580px] bg-[#000] rounded-[55px] shadow-[0_20px_50px_rgba(255,20,147,0.15)] border-[8px] border-[#5a5a5c] p-[3px] overflow-hidden flex flex-col items-center">
             {/* Screen bezel */}
@@ -81,7 +81,7 @@ export default function NativeApp() {
       </div>
 
       {/* Foolproof Gap Spacer */}
-      <div className="w-full h-[100px] md:h-[70px]"></div>
+      <div className="hidden md:block w-full h-[70px]"></div>
 
       {/* Scroll Indicator
       <div className="relative pb-5 flex flex-col items-center gap-0 animate-bounce opacity-60 z-30">

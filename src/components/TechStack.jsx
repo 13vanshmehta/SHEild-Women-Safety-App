@@ -44,12 +44,12 @@ export default function TechStack() {
   }, []);
 
   return (
-    <section id="tech" ref={sectionRef} className="pt-[300px] mb-[300px] mb-[100px] px-6 bg-transparent relative overflow-hidden z-20 flex flex-col items-center">
+    <section id="tech" ref={sectionRef} className="pt-[80px] md:pt-[160px] mb-[80px] md:mb-[160px] px-6 bg-transparent relative overflow-hidden z-20 flex flex-col items-center">
       {/* Background glow */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#FF1493]/5 blur-[120px] rounded-full pointer-events-none" />
 
       <div className="w-full max-w-5xl mx-auto relative z-10">
-        <div className="text-center mb-[120px] flex flex-col items-center">
+        <div className="text-center mb-20 flex flex-col items-center">
           <div className="badge inline-flex mb-10 px-6 py-2.5 bg-[#111] border border-white/10 text-[#FF1493] text-[10px] tracking-[0.4em] uppercase font-bold rounded-full">
             <span className="badge-dot mr-2" />
             Infrastructure & Technology

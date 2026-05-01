@@ -111,10 +111,14 @@ h6 {
 }
 
 .text-gradient-pink {
-  background: linear-gradient(135deg, var(--pink-light) 0%, var(--pink) 100%);
+  background: linear-gradient(135deg, #fff 0%, var(--pink) 50%, var(--pink-dark) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+
+.text-glow-pink {
+  text-shadow: 0 0 20px rgba(255, 20, 147, 0.4);
 }
 
 /* ─── Layout & Sections ──────────────────────────────────────── */

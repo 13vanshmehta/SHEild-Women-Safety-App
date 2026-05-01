@@ -27,7 +27,7 @@ export default function Footer() {
   ];
 
   return (
-    <footer className="w-full relative overflow-hidden mt-[300px]">
+    <footer className="w-full relative overflow-hidden mt-[100px] md:mt-[160px]">
       {/* Subtle glow */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[200px] bg-[#FF1493]/4 blur-[100px] rounded-full pointer-events-none" />
 

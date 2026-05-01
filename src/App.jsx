@@ -10,6 +10,7 @@ import Features from './components/Features';
 import TechStack from './components/TechStack';
 import Team from './components/Team';
 import Footer from './components/Footer';
+import { Toaster } from 'react-hot-toast';
 import './index.css';
 
 gsap.registerPlugin(ScrollTrigger, ScrollToPlugin);
@@ -35,6 +36,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen overflow-x-hidden relative cursor-none">
+      <Toaster position="bottom-right" reverseOrder={false} />
       <CustomCursor />
       <div className="grain-bg" />
       <main>

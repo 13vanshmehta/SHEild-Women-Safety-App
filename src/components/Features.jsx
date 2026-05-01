@@ -127,10 +127,17 @@ export default function Features() {
         const pinnedTop = 0;
 
         const phoneCenterY = pinnedTop + phoneTopRelative + (phoneHeight / 2);
-        phoneTargetYOffset = (window.innerHeight / 2) - phoneCenterY;
-
         const textCenterY = pinnedTop + (containerHeight / 2);
-        textTargetYOffset = (window.innerHeight / 2) - textCenterY;
+
+        const isMobile = window.innerWidth < 768;
+        if (isMobile) {
+          // Cluster phone and text in the middle
+          phoneTargetYOffset = (window.innerHeight * 0.32) - phoneCenterY;
+          textTargetYOffset = 0;
+        } else {
+          phoneTargetYOffset = (window.innerHeight / 2) - phoneCenterY;
+          textTargetYOffset = (window.innerHeight / 2) - textCenterY;
+        }
       }
     };
 
@@ -184,8 +191,10 @@ export default function Features() {
             ease: 'power2.inOut'
           },
           onUpdate: (self) => {
+            const isMobile = window.innerWidth < 768;
             const p = self.progress;
-            const xTarget = - (window.innerWidth * 0.20);
+            const xTarget = isMobile ? 0 : -(window.innerWidth * 0.20);
+            const targetScale = isMobile ? 1.45 : 1.15; // Increased mobile scale even more for better visibility
 
             // PHASE 0: HOLD (0.0 to 0.1)
             if (p < 0.1) {
@@ -223,7 +232,7 @@ export default function Features() {
               gsap.set(centerPhoneRef.current, {
                 x: transProgress * xTarget,
                 y: transProgress * phoneTargetYOffset,
-                scale: 1 + (transProgress * 0.15),
+                scale: 1 + (transProgress * (targetScale - 1)),
                 opacity: 1
               });
 
@@ -232,7 +241,7 @@ export default function Features() {
             else if (p < 0.35) {
               const settleProgress = (p - 0.25) / 0.1;
 
-              gsap.set(centerPhoneRef.current, { x: xTarget, y: phoneTargetYOffset, scale: 1.15, opacity: 1 });
+              gsap.set(centerPhoneRef.current, { x: xTarget, y: phoneTargetYOffset, scale: targetScale, opacity: 1 });
               gsap.set([farLeftPhoneRef.current, leftPhoneRef.current, rightPhoneRef.current, farRightPhoneRef.current, headingRef.current, badgeRef.current], { opacity: 0, pointerEvents: 'none' });
 
               gsap.set(contentWrapperRef.current, { y: textTargetYOffset, opacity: settleProgress, pointerEvents: 'auto' });
@@ -248,7 +257,7 @@ export default function Features() {
               gsap.set([farLeftPhoneRef.current, leftPhoneRef.current, rightPhoneRef.current, farRightPhoneRef.current, headingRef.current, badgeRef.current], { opacity: 0, pointerEvents: 'none' });
               gsap.set(contentWrapperRef.current, { y: textTargetYOffset, opacity: 1, pointerEvents: 'auto' });
 
-              gsap.set(centerPhoneRef.current, { x: xTarget, y: phoneTargetYOffset, scale: 1.15, opacity: 1 });
+              gsap.set(centerPhoneRef.current, { x: xTarget, y: phoneTargetYOffset, scale: targetScale, opacity: 1 });
 
               const presentationProgress = (p - 0.35) / 0.65;
               const rawIndex = presentationProgress * totalSlides;
@@ -294,7 +303,7 @@ export default function Features() {
     <section
       id="features"
       ref={containerRef}
-      className="relative bg-transparent w-full h-screen overflow-hidden z-40 flex flex-col items-center justify-center"
+      className="relative bg-transparent w-full min-h-screen md:h-screen overflow-hidden z-40 flex flex-col items-center justify-start pt-24 md:justify-center md:pt-0"
     >
       {/* Refined Ambient Background Gradient */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[500px] bg-gradient-to-br from-[#FF1493]/10 via-[#9b4dca]/5 to-transparent blur-[120px] rounded-full pointer-events-none" />
@@ -302,27 +311,38 @@ export default function Features() {
       {/* PHASE 1: OVERVIEW */}
       <div className="relative z-10 px-6 flex flex-col items-center justify-center w-full">
 
-        <div ref={headingContainerRef} className="flex flex-col items-center text-center w-full will-change-transform mb-6 mt-8">
-          <div ref={badgeRef} className="badge mb-10 px-6 py-2.5 bg-[#FF1493]/10 text-[#FF1493] border border-[#FF1493]/20 text-[10px] tracking-[0.4em] uppercase font-bold rounded-full">
-            Core Features · Safety Ecosystem
+        <div
+          ref={headingContainerRef}
+          className="flex flex-col items-center text-center w-full will-change-transform mb-2 md:mb-4 md:mt-6"
+          style={{ marginTop: window.innerWidth < 768 ? '100px' : '24px' }}
+        >
+          <div
+            ref={badgeRef}
+            className="badge px-6 py-2.5 bg-[#FF1493]/10 text-[#FF1493] border border-[#FF1493]/20 text-[10px] tracking-[0.4em] uppercase font-bold rounded-full"
+            style={{ marginBottom: window.innerWidth < 768 ? '10px' : undefined }}
+          >
+            Core Features & Safety Ecosystem
           </div>
-          <div ref={headingRef}>
-            <h2 className="font-outfit font-black mb-10 tracking-tightest leading-[1.1] text-balance mx-auto text-white" style={{ fontSize: 'clamp(2.5rem, 6vw, 5rem)' }}>
+          <div
+            ref={headingRef}
+            style={{ marginBottom: window.innerWidth < 768 ? '40px' : undefined }}
+          >
+            <h2 className="font-outfit font-black mb-2 md:mb-8 tracking-tighter leading-[1.05] text-balance mx-auto text-white" style={{ fontSize: 'clamp(2.5rem, 6vw, 5.5rem)' }}>
               Everything You Need To <br className="md:hidden" />
-              Stay <span className="text-shimmer">Protected.</span>
+              Stay <span className="text-gradient-pink text-glow-pink">Protected.</span>
             </h2>
           </div>
         </div>
 
         {/* Scaled phones with an elegant stagger */}
         <div className="flex items-center justify-center gap-2 sm:gap-4 md:gap-8 lg:gap-10 relative w-full overflow-visible mt-6">
-          <div ref={farLeftPhoneRef} className="hidden sm:block w-[90px] sm:w-[120px] md:w-[150px] lg:w-[180px] aspect-[9/19] rotate-[-24deg] translate-y-16 opacity-40 hover:opacity-100 transition-opacity duration-500 -mr-6 md:-mr-10">
+          <div ref={farLeftPhoneRef} className="hidden sm:block w-[180px] sm:w-[150px] md:w-[200px] lg:w-[250px] aspect-[9/19] rotate-[-24deg] translate-y-16 opacity-40 hover:opacity-100 transition-opacity duration-500 -mr-6 md:-mr-10">
             <SamsungPhone image="/screenshots/phone_far_left.jpg" alt="Far Left Screen" />
           </div>
           <div ref={leftPhoneRef} className="w-[110px] sm:w-[140px] md:w-[170px] lg:w-[210px] aspect-[9/19] rotate-[-12deg] translate-y-8 opacity-60 hover:opacity-100 transition-opacity duration-500">
             <SamsungPhone image="/screenshots/track_me.jpg" alt="Track Me" />
           </div>
-          <div ref={centerPhoneRef} className="w-[130px] sm:w-[170px] md:w-[200px] lg:w-[250px] aspect-[9/19] z-50 shadow-[0_0_80px_rgba(255,20,147,0.2)] rounded-[10px] opacity-0">
+          <div ref={centerPhoneRef} className="w-[150px] sm:w-[270px] md:w-[300px] lg:w-[250px] aspect-[10/21] z-50 shadow-[0_0_80px_rgba(255,20,147,0.2)] rounded-[10px] opacity-0">
             <SamsungPhone images={slides.map(s => s.image)} activeIndex={activeSlide} alt="SHEild App Interface" />
           </div>
           <div ref={rightPhoneRef} className="w-[110px] sm:w-[140px] md:w-[170px] lg:w-[210px] aspect-[9/19] rotate-[12deg] translate-y-8 opacity-60 hover:opacity-100 transition-opacity duration-500">
@@ -337,27 +357,28 @@ export default function Features() {
       {/* PHASE 2: PPTX */}
       <div
         ref={contentWrapperRef}
-        className="absolute top-1/2 left-[52%] -translate-y-1/2 w-full max-w-xl h-[60vh] z-20 pointer-events-none opacity-0 px-6"
+        className="absolute top-[65%] md:top-1/2 left-0 md:left-[52%] md:-translate-y-1/2 w-full md:max-w-xl h-auto md:h-[60vh] z-20 pointer-events-none opacity-0 px-12 md:px-6 flex flex-col justify-start md:justify-center"
       >
         {slides.map((s, i) => (
           <div
             key={s.title}
             ref={(el) => (slideContentRefs.current[i] = el)}
-            className="absolute inset-0 flex flex-col justify-center gap-4 will-change-transform"
+            className="absolute inset-0 flex flex-col items-center md:items-start justify-start md:justify-center gap-4 will-change-transform text-center md:text-left"
           >
-            <div className="flex items-center gap-4">
-              <div className="h-[2px] w-10 bg-gradient-to-r from-[#FF1493] to-transparent" />
+            <div className="flex items-center justify-center md:justify-start gap-3">
+              <div className="h-[2px] w-8 bg-gradient-to-r from-[#FF1493] to-transparent" />
               <span className="text-xs font-semibold tracking-[0.3em] uppercase text-[#FF1493]/90">
                 {s.tag}
               </span>
+              <div className="h-[2px] w-8 bg-gradient-to-l from-[#FF1493] to-transparent md:hidden" />
             </div>
-            <h3 className="font-outfit font-bold text-white leading-tight tracking-tight" style={{ fontSize: 'clamp(2.5rem, 4vw, 4rem)' }}>
+            <h3 className="font-outfit font-bold text-white leading-tight tracking-tight text-[2.5rem] md:text-[3rem] lg:text-[4rem]">
               {s.title}
             </h3>
-            <p className="text-white/60 leading-relaxed max-w-md text-base md:text-lg font-light mt-2">
+            <p className="text-white/70 leading-snug text-[0.78rem] sm:text-sm md:text-lg font-light mt-1 text-justify md:text-left max-w-[310px] sm:max-w-sm md:max-w-md px-2 md:px-0">
               {s.description}
             </p>
-            <div className="flex items-center gap-3 pt-6">
+            <div className="flex items-center gap-3 pt-3">
               {slides.map((_, j) => (
                 <div
                   key={j}
