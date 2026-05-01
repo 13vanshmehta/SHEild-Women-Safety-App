@@ -1,0 +1,443 @@
+@import "tailwindcss";
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
+
+/* ─── Premium Design Tokens ───────────────────────────────────────────── */
+:root {
+  --pink: #FF1493;
+  --pink-light: #ff66b8;
+  --pink-dark: #c0156f;
+
+  --bg: #050505;
+  --bg-card: rgba(20, 20, 20, 0.6);
+  --bg-card-hover: rgba(30, 30, 30, 0.8);
+
+  --border: rgba(255, 255, 255, 0.06);
+  --border-glow: rgba(255, 255, 255, 0.15);
+  --border-pink: rgba(255, 20, 147, 0.3);
+
+  --text-primary: #ffffff;
+  --text-muted: #888888;
+}
+
+/* ─── Base Reset ──────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  font-size: 16px;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: var(--bg);
+  color: var(--text-primary);
+  overflow-x: hidden;
+  line-height: 1.6;
+  cursor: none !important;
+}
+
+a, button, [role="button"], input, select, textarea, .cursor-pointer {
+  cursor: none !important;
+}
+
+/* ─── Premium Noise Background ───────────────────────────────── */
+.grain-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+/* ─── Typography Enhancements ────────────────────────────────── */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: 'Outfit', sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.tracking-tightest {
+  letter-spacing: -0.04em;
+}
+
+/* Shimmering metallic gradient for primary headings */
+.text-shimmer {
+  background: linear-gradient(to right, #999 0%, #fff 20%, #999 40%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shine 5s linear infinite;
+}
+
+@keyframes shine {
+  to {
+    background-position: 200% center;
+  }
+}
+
+/* ─── Custom Scrollbar ────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #222;
+  border-radius: 10px;
+  border: 2px solid var(--bg);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--pink);
+}
+
+.text-gradient-pink {
+  background: linear-gradient(135deg, var(--pink-light) 0%, var(--pink) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ─── Layout & Sections ──────────────────────────────────────── */
+.section-pad {
+  padding: 120px 0;
+}
+
+/* ─── Buttons (Magnetic & Glowing) ───────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 28px;
+  border-radius: 9999px;
+  font-weight: 500;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+  text-decoration: none;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid transparent;
+}
+
+.btn-primary {
+  background: var(--text-primary);
+  color: var(--bg);
+}
+
+.btn-primary:hover {
+  transform: scale(1.02);
+  box-shadow: 0 10px 40px rgba(255, 255, 255, 0.2);
+}
+
+.btn-pink {
+  background: var(--pink);
+  color: #fff;
+  box-shadow: 0 0 20px rgba(255, 20, 147, 0.3);
+}
+
+.btn-pink:hover {
+  transform: scale(1.02);
+  box-shadow: 0 0 30px rgba(255, 20, 147, 0.5);
+  background: var(--pink-light);
+}
+
+.btn-pink:hover {
+  transform: scale(1.02);
+  box-shadow: 0 0 30px rgba(255, 20, 147, 0.5);
+  background: var(--pink-light);
+}
+
+.btn-magical {
+  position: relative;
+  background: linear-gradient(180deg, rgba(255, 20, 147, 0.9) 0%, rgba(192, 21, 111, 0.9) 100%);
+  color: white;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2) inset, 0 8px 25px rgba(255, 20, 147, 0.4);
+  overflow: hidden;
+  border: none;
+}
+
+.btn-magical::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  animation: sweep 3s infinite;
+}
+
+@keyframes sweep {
+  0% {
+    left: -100%;
+  }
+
+  50%,
+  100% {
+    left: 200%;
+  }
+}
+
+.btn-magical:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.3) inset, 0 12px 30px rgba(255, 20, 147, 0.6);
+}
+
+.btn-glass {
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+}
+
+.btn-glass:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--border-glow);
+  transform: translateY(-2px);
+}
+
+/* ─── Bento Box Cards ────────────────────────────────────────── */
+.bento-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  padding: 32px;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.4s ease;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.bento-card:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-glow);
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+}
+
+/* Inner 1px border glow technique */
+.bento-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 24px;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* ─── Hero Section Elements ──────────────────────────────────── */
+.hero-glow {
+  position: absolute;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(255, 20, 147, 0.15) 0%, transparent 70%);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  filter: blur(60px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.mockup-wrapper {
+  perspective: 1000px;
+}
+
+.mockup-phone {
+  border-radius: 44px;
+  border: 4px solid #111;
+  box-shadow:
+    0 0 0 1px #333,
+    0 30px 60px rgba(0, 0, 0, 0.8),
+    0 0 100px rgba(255, 20, 147, 0.1);
+  overflow: hidden;
+  background: #000;
+  transform: rotateX(15deg) rotateY(-10deg) rotateZ(5deg);
+  transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.mockup-phone:hover {
+  transform: rotateX(5deg) rotateY(-5deg) rotateZ(2deg) scale(1.02);
+}
+
+.mockup-screen {
+  width: 100%;
+  border-radius: 38px;
+  display: block;
+}
+
+/* ─── Badges ─────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+}
+
+.badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--pink);
+  box-shadow: 0 0 10px var(--pink);
+  animation: pulse-dot 2s infinite;
+}
+
+/* ─── Scroll Marquee ─────────────────────────────────────────── */
+.marquee-container {
+  display: flex;
+  overflow: hidden;
+  position: relative;
+  /* subtle perspective tilt */
+  transform: rotate(-2deg) scale(1.05);
+}
+
+.marquee-track {
+  display: flex;
+  gap: 24px;
+  width: max-content;
+  animation: scrollTrack 40s linear infinite;
+}
+
+.marquee-container:hover .marquee-track {
+  animation-play-state: paused;
+}
+
+.marquee-item {
+  width: 240px;
+  border-radius: 32px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+  flex-shrink: 0;
+  transition: all 0.4s ease;
+}
+
+.marquee-item:hover {
+  transform: translateY(-10px);
+  border-color: var(--border-glow);
+  box-shadow: 0 30px 60px rgba(255, 20, 147, 0.1);
+}
+
+.marquee-item img {
+  width: 100%;
+  display: block;
+}
+
+/* ─── Forms & Inputs ─────────────────────────────────────────── */
+.input-premium {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px 20px;
+  color: #fff;
+  font-family: 'Inter', sans-serif;
+  transition: all 0.3s ease;
+  outline: none;
+}
+
+.input-premium:focus {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.02);
+}
+
+.input-premium::placeholder {
+  color: #555;
+}
+
+/* ─── Navbar ─────────────────────────────────────────────────── */
+.navbar {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 48px);
+  max-width: 900px;
+  z-index: 100;
+  padding: 12px 24px;
+  border-radius: 999px;
+  background: rgba(15, 15, 15, 0.5);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--border);
+  transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.navbar.scrolled {
+  top: 16px;
+  background: rgba(20, 20, 20, 0.85);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+}
+
+/* ─── Mobile Menu ────────────────────────────────────────────── */
+.mobile-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 99;
+  background: rgba(5, 5, 5, 0.98);
+  backdrop-filter: blur(30px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  transform: translateX(100%);
+  transition: transform 0.4s cubic-bezier(0.77, 0, 0.18, 1);
+}
+
+.mobile-menu.open {
+  transform: translateX(0);
+}
+
+/* ─── Utilities ──────────────────────────────────────────────── */
+.text-balance {
+  text-wrap: balance;
+}
+
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+@keyframes pulse-dot {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.5); opacity: 0.5; }
+  100% { transform: scale(1); opacity: 1; }
+}
