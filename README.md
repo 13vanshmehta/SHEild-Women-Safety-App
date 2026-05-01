@@ -1,16 +1,80 @@
-# React + Vite
+# SHEild — Women Safety Redefined
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+<div align="center">
+  <img src="./public/logo.png" alt="SHEild Logo" width="120" />
+  <p><strong>Your Shield, Every Step of the Way.</strong></p>
+  <p>
+    <img src="https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" />
+    <img src="https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white" />
+    <img src="https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" />
+    <img src="https://img.shields.io/badge/GSAP-88CE02?style=for-the-badge&logo=greensock&logoColor=white" />
+  </p>
+</div>
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 🌟 Overview
 
-## React Compiler
+**SHEild** is a premium, high-performance landing page for the SHEild Women Safety Application. Designed with a focus on high-end aesthetics, seamless interactivity, and modern UI/UX principles, this landing page showcases the core mission of providing a reliable safety ecosystem for women everywhere.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## ✨ Key Features
 
-## Expanding the ESLint configuration
+- **Voice-Based SOS:** Instant emergency triggering via custom voice commands.
+- **Real-Time Live Tracking:** Keep your trust circle updated with your exact GPS coordinates.
+- **Secure Trust Circles:** Encrypted communication and location sharing within private groups.
+- **Safe Haven Locator:** Intelligent routing to nearby police stations, hospitals, and safe public spots.
+- **Cross-Platform:** Built with React Native for a seamless experience on both Android and iOS.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## 🛠️ Tech Stack
+
+- **Frontend:** React.js + Vite
+- **Styling:** Tailwind CSS (Modern Glassmorphism Design)
+- **Animations:** GSAP (GreenSock Animation Platform) + ScrollTrigger
+- **Typography:** Outfit & Inter (Google Fonts)
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- Node.js (v18.0.0 or higher)
+- npm or yarn
+
+### Installation
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/13vanshmehta/SHEild-Women-Safety-App.git
+   cd SHEild-Web-Landing-Page
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Run the development server:**
+   ```bash
+   npm run dev
+   ```
+
+4. **Build for production:**
+   ```bash
+   npm run build
+   ```
+
+## 👥 Our Brilliant Team
+
+| Name | Role | Links |
+| :--- | :--- | :--- |
+| **Vansh Mehta** | Software Developer Engineer | [GitHub](https://github.com/13vanshmehta) / [LinkedIn](https://www.linkedin.com/in/vansh-mehta-vsm13) |
+| **Swarnim Bane** | Software Developer Engineer | [GitHub](https://github.com/swarnim0129) / [LinkedIn](https://www.linkedin.com/in/swarnimbane0129) |
+| **Sohan Neogi** | AI Engineer | [GitHub](https://github.com/Mr123Anonymous) / [LinkedIn](https://www.linkedin.com/in/sohan-neogi-7848a92aa) |
+| **Umar Khatri** | Software Developer Engineer | [GitHub](https://github.com/umar-khatri) / [LinkedIn](https://www.linkedin.com/in/umar-khatri/) |
+
+**Mentored by:** [Prof. Monali Deshmukh](https://www.linkedin.com/in/monali-deshmukh-732ab421)
+
+---
+
+<div align="center">
+  <p>© 2026 SHEild Team. All rights reserved.</p>
+</div>
