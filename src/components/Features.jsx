@@ -292,6 +292,7 @@ export default function Features() {
 
   return (
     <section
+      id="features"
       ref={containerRef}
       className="relative bg-transparent w-full h-screen overflow-hidden z-40 flex flex-col items-center justify-center"
     >

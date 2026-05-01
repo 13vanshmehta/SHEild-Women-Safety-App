@@ -19,8 +19,8 @@ export default function Navbar() {
         onUpdate: (self) => {
           const progress = self.progress;
           // Move up faster than scroll and fade out
-          gsap.set(navRef.current, { 
-            y: progress * -150, 
+          gsap.set(navRef.current, {
+            y: progress * -150,
             opacity: 1 - (progress * 1.5)
           });
         }
@@ -46,8 +46,8 @@ export default function Navbar() {
 
   const navLinks = [
     { name: 'Features', id: '#features' },
-    { name: 'Interface', id: '#screenshots' },
-    { name: 'Support', id: '#contact' },
+    { name: 'Technology', id: '#tech' },
+    { name: 'Team', id: '#team' },
   ];
 
   return (
