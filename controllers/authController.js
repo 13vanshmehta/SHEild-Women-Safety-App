@@ -219,7 +219,7 @@ const login = async (req, res) => {
     try {
         if (handleValidationErrors(req, res)) return;
 
-        const { email, password } = req.body;
+        const { email, password, latitude, longitude } = req.body;
         const user = await User.findOne({ email: email.toLowerCase(), loginType: 'email' }).select('+password');
 
         if (!user) {
@@ -263,6 +263,23 @@ const login = async (req, res) => {
                     isEmailVerified: false
                 }
             });
+        }
+
+        // Store coordinates if provided during login
+        if (latitude && longitude) {
+            const UserLocation = require('../models/userLocation');
+            const userData = {
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                profilePicture: user.profilePicture,
+                isOnline: true,
+                lastActiveAt: new Date()
+            };
+            const newCoords = { latitude, longitude };
+            await UserLocation.updateWithHistory(user._id, userData, newCoords).catch(err => 
+                console.error('Failed to update location during login:', err)
+            );
         }
 
         const token = generateToken(user._id);

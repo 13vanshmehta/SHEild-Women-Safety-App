@@ -114,7 +114,16 @@ const userLocationSchema = new mongoose.Schema({
       type: String,
       default: null
     }
-  }
+  },
+  // History of coordinates (last 20 unique locations)
+  locationHistory: [{
+    latitude: Number,
+    longitude: Number,
+    timestamp: {
+      type: Date,
+      default: Date.now
+    }
+  }]
 }, {
   timestamps: true
 });
@@ -210,5 +219,48 @@ userLocationSchema.pre('save', function(next) {
   this.lastUpdated = new Date();
   next();
 });
+
+// Static method to update location with history logic
+userLocationSchema.statics.updateWithHistory = async function(userId, userData, newCoords) {
+  const existing = await this.findOne({ userId });
+  
+  if (existing) {
+    const lastCoords = existing.currentLocation;
+    const isSame = lastCoords && 
+                   lastCoords.latitude === newCoords.latitude && 
+                   lastCoords.longitude === newCoords.longitude;
+
+    if (!isSame) {
+      // Push current to history before updating
+      existing.locationHistory.unshift({
+        latitude: lastCoords.latitude,
+        longitude: lastCoords.longitude,
+        timestamp: existing.lastUpdated || new Date()
+      });
+      
+      // Keep only last 20
+      if (existing.locationHistory.length > 20) {
+        existing.locationHistory = existing.locationHistory.slice(0, 20);
+      }
+    }
+    
+    // Update all fields
+    Object.assign(existing, userData);
+    existing.currentLocation = newCoords;
+    existing.lastUpdated = new Date();
+    existing.isOnline = true;
+    
+    return await existing.save();
+  } else {
+    // Create new
+    return await this.create({
+      userId,
+      ...userData,
+      currentLocation: newCoords,
+      isOnline: true,
+      locationHistory: []
+    });
+  }
+};
 
 module.exports = mongoose.model('UserLocation', userLocationSchema);

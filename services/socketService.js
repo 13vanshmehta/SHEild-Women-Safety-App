@@ -38,8 +38,21 @@ const initSocket = (server) => {
   });
 
   // Socket.io events
-  io.on('connection', (socket) => {
+  io.on('connection', async (socket) => {
     console.log('Socket connected');
+    
+    // Set user as online when connected
+    if (socket.user && socket.user.userId) {
+      try {
+        const UserLocation = require("../models/userLocation");
+        await UserLocation.findOneAndUpdate(
+          { userId: socket.user.userId },
+          { isOnline: true, lastActiveAt: new Date() }
+        );
+      } catch (err) {
+        console.error('Error setting user online:', err);
+      }
+    }
 
     socket.on('joinGroup', async ({ groupId }) => {
       try {
@@ -212,8 +225,20 @@ const initSocket = (server) => {
       }
     });
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', async () => {
       console.log('Socket disconnected');
+      // Set user as offline when disconnected
+      if (socket.user && socket.user.userId) {
+        try {
+          const UserLocation = require("../models/userLocation");
+          await UserLocation.findOneAndUpdate(
+            { userId: socket.user.userId },
+            { isOnline: false, lastActiveAt: new Date() }
+          );
+        } catch (err) {
+          console.error('Error setting user offline:', err);
+        }
+      }
     });
   });
 

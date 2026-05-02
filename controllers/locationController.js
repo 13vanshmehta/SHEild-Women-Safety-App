@@ -6,12 +6,12 @@ const Group = require('../models/group');
 const updateLocation = async (req, res) => {
   try {
     const { userId } = req.user;
-    const { 
-      latitude, 
-      longitude, 
-      accuracy, 
-      altitude, 
-      speed, 
+    const {
+      latitude,
+      longitude,
+      accuracy,
+      altitude,
+      speed,
       heading,
       address,
       batteryLevel,
@@ -37,7 +37,7 @@ const updateLocation = async (req, res) => {
 
     // Get user details
     const user = await User.findById(userId).select('firstName lastName email profilePicture');
-    
+
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -45,25 +45,14 @@ const updateLocation = async (req, res) => {
       });
     }
 
-    // Update or create location record
-    const locationData = {
-      userId,
+    // Update or create location record with history logic
+    const userData = {
       firstName: user.firstName,
       lastName: user.lastName,
       email: user.email,
       profilePicture: user.profilePicture,
-      currentLocation: {
-        latitude,
-        longitude,
-        accuracy: accuracy || null,
-        altitude: altitude || null,
-        speed: speed || null,
-        heading: heading || null
-      },
       address: address || null,
-      lastUpdated: new Date(),
       lastActiveAt: new Date(),
-      isOnline: true,
       batteryLevel: batteryLevel || null,
       isCharging: isCharging || false,
       deviceInfo: {
@@ -72,11 +61,16 @@ const updateLocation = async (req, res) => {
       }
     };
 
-    const userLocation = await UserLocation.findOneAndUpdate(
-      { userId },
-      locationData,
-      { upsert: true, new: true, runValidators: true }
-    );
+    const newCoords = {
+      latitude,
+      longitude,
+      accuracy: accuracy || null,
+      altitude: altitude || null,
+      speed: speed || null,
+      heading: heading || null
+    };
+
+    const userLocation = await UserLocation.updateWithHistory(userId, userData, newCoords);
 
     // Broadcast location update via Socket.io
     const io = require('../app').io || global.io;
@@ -134,29 +128,34 @@ const getVisibleLocations = async (req, res) => {
     const { userId } = req.user;
 
     // Get all locations visible to this user
-    const locations = await UserLocation.getVisibleLocations(userId);
-
-    // Filter out stale locations (optional - older than 30 minutes)
-    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
-    const activeLocations = locations.filter(loc => loc.lastUpdated > thirtyMinutesAgo);
+    const activeLocations = await UserLocation.getVisibleLocations(userId);
+    console.log(`[Location] Found ${activeLocations.length} visible locations for user ${userId}`);
 
     // Format response
-    const formattedLocations = activeLocations.map(loc => ({
-      userId: loc.userId,
-      firstName: loc.firstName,
-      lastName: loc.lastName,
-      fullName: `${loc.firstName} ${loc.lastName}`.trim(),
-      email: loc.email,
-      profilePicture: loc.profilePicture,
-      latitude: loc.currentLocation.latitude,
-      longitude: loc.currentLocation.longitude,
-      accuracy: loc.currentLocation.accuracy,
-      address: loc.address,
-      lastUpdated: loc.lastUpdated,
-      isOnline: loc.isOnline,
-      batteryLevel: loc.batteryLevel,
-      isCharging: loc.isCharging
-    }));
+    // Format response
+    const formattedLocations = activeLocations.map(loc => {
+      // Check if user is active (heartbeat in last 5 minutes)
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      const isActuallyOnline = loc.isOnline && (loc.lastActiveAt || loc.lastUpdated) > fiveMinutesAgo;
+      
+      return {
+        userId: loc.userId,
+        firstName: loc.firstName,
+        lastName: loc.lastName,
+        fullName: `${loc.firstName} ${loc.lastName}`.trim(),
+        email: loc.email,
+        profilePicture: loc.profilePicture,
+        latitude: loc.currentLocation.latitude,
+        longitude: loc.currentLocation.longitude,
+        accuracy: loc.currentLocation.accuracy,
+        address: loc.address,
+        lastUpdated: loc.lastUpdated,
+        lastActiveAt: loc.lastActiveAt,
+        isOnline: isActuallyOnline,
+        batteryLevel: loc.batteryLevel,
+        isCharging: loc.isCharging
+      };
+    });
 
     res.json({
       success: true,
@@ -284,7 +283,7 @@ const updateOnlineStatus = async (req, res) => {
 
     await UserLocation.findOneAndUpdate(
       { userId },
-      { 
+      {
         isOnline: isOnline !== undefined ? isOnline : true,
         lastActiveAt: new Date()
       }
