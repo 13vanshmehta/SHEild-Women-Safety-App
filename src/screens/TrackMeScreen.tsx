@@ -65,7 +65,7 @@ const MapViewComponent: React.FC<{
   if (!coordinates) return null;
 
   // Resolve the local avatar image
-  const defaultAvatarUri = Image.resolveAssetSource(require('../assets/images/map-avatar.png')).uri;
+  const defaultAvatarUri = Image.resolveAssetSource(require('../assets/images/map-avatar.jpg')).uri;
 
   const mapDataJson = JSON.stringify({
     current: coordinates,
