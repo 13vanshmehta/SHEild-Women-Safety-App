@@ -129,7 +129,6 @@ const getVisibleLocations = async (req, res) => {
 
     // Get all locations visible to this user
     const activeLocations = await UserLocation.getVisibleLocations(userId);
-    console.log(`[Location] Found ${activeLocations.length} visible locations for user ${userId}`);
 
     // Format response
     // Format response
