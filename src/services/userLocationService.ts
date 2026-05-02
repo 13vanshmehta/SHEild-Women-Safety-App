@@ -1,5 +1,5 @@
 import { apiService } from './apiService';
-import { connectSocket } from './socketService';
+import { connectSocket, disconnectSocket } from './socketService';
 import Geolocation from 'react-native-geolocation-service';
 import { Platform } from 'react-native';
 
@@ -35,7 +35,7 @@ export interface LocationUpdate {
 }
 
 class UserLocationService {
-  private locationUpdateInterval: number | null = null;
+  private locationUpdateInterval: any = null;
   private socket: any = null;
 
   /**
@@ -170,12 +170,15 @@ class UserLocationService {
     }
   }
 
+  private lastCoords: { latitude: number; longitude: number } | null = null;
+  private heartbeatInterval: any = null;
+
   /**
    * Start automatic location updates (every 30 seconds when app is active)
    */
   async startLocationTracking(updateIntervalMs: number = 30000) {
     
-    // Clear any existing interval
+    // Clear any existing intervals
     this.stopLocationTracking();
 
     // Setup socket connection for real-time updates
@@ -187,21 +190,47 @@ class UserLocationService {
 
     // Update location immediately
     await this.updateCurrentLocation();
+    await this.updateOnlineStatus(true);
 
     // Set up periodic updates
     this.locationUpdateInterval = setInterval(async () => {
       await this.updateCurrentLocation();
     }, updateIntervalMs);
 
+    // Set up heartbeat to keep device "Online"
+    this.heartbeatInterval = setInterval(async () => {
+      try {
+        await this.updateOnlineStatus(true);
+      } catch (err) {
+        console.error('Heartbeat failed:', err);
+      }
+    }, updateIntervalMs);
   }
 
   /**
    * Stop automatic location updates
    */
-  stopLocationTracking() {
+  async stopLocationTracking() {
     if (this.locationUpdateInterval) {
       clearInterval(this.locationUpdateInterval);
       this.locationUpdateInterval = null;
+    }
+
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
+
+    // Set status to offline before disconnecting
+    try {
+      await this.updateOnlineStatus(false);
+    } catch (err) {
+      console.error('Error setting offline on stop:', err);
+    }
+
+    if (this.socket) {
+      disconnectSocket();
+      this.socket = null;
     }
   }
 
@@ -217,6 +246,17 @@ class UserLocationService {
       }
 
       const { latitude, longitude, accuracy, altitude, speed, heading } = location;
+
+      // Only update if coordinates have significantly changed
+      // (Using 6 decimal places for precision check, roughly 0.1 meter)
+      if (this.lastCoords && 
+          this.lastCoords.latitude.toFixed(6) === latitude.toFixed(6) && 
+          this.lastCoords.longitude.toFixed(6) === longitude.toFixed(6)) {
+        console.log('[Location] No change, skipping update');
+        return;
+      }
+
+      this.lastCoords = { latitude, longitude };
 
       // Get address (optional, can be slow)
       const address = await this.getAddressFromCoordinates(latitude, longitude);

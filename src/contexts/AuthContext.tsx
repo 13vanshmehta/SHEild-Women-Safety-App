@@ -119,7 +119,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = async () => {
     try {
       // Stop location tracking
-      userLocationService.stopLocationTracking();
+      await userLocationService.stopLocationTracking();
       
       // Call backend to logout (expire JWT token)
       if (token) {

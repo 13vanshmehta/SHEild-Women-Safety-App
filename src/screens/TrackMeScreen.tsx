@@ -10,6 +10,7 @@ import {
   Animated,
   Easing,
   Pressable,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -58,13 +59,20 @@ const MapViewComponent: React.FC<{
   coordinates: Coordinates | null;
   otherUsers: UserLocation[];
   emergencyContactLocations: EmergencyContactLocation[];
+  userAvatar: string | null;
   onInteractionChange: (isInteracting: boolean) => void;
-}> = ({ coordinates, otherUsers, emergencyContactLocations, onInteractionChange }) => {
+}> = ({ coordinates, otherUsers, emergencyContactLocations, userAvatar, onInteractionChange }) => {
   if (!coordinates) return null;
+
+  // Resolve the local avatar image
+  const defaultAvatarUri = Image.resolveAssetSource(require('../assets/images/map-avatar.png')).uri;
+
   const mapDataJson = JSON.stringify({
     current: coordinates,
     otherUsers,
     emergencyContactLocations,
+    defaultAvatarUri,
+    userAvatar
   });
 
   const mapHtml = [
@@ -75,12 +83,19 @@ const MapViewComponent: React.FC<{
     '<style>',
     'html, body, #map { height: 100%; width: 100%; margin: 0; padding: 0; background: #111827; }',
     '.leaflet-container { background: #111827; }',
-    '.marker-wrap { display: flex; align-items: center; justify-content: center; }',
-    '.marker-dot { width: 18px; height: 18px; border-radius: 999px; border: 2px solid #fff; box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.18); background: #2563eb; }',
-    '.marker-dot.other { background: #8b5cf6; box-shadow: 0 0 0 6px rgba(139, 92, 246, 0.16); }',
-    '.marker-dot.emergency { background: #ef4444; box-shadow: 0 0 0 6px rgba(239, 68, 68, 0.16); }',
-    '.marker-label { margin-top: 4px; padding: 2px 6px; border-radius: 999px; font-size: 10px; line-height: 12px; color: #fff; background: rgba(17, 24, 39, 0.82); white-space: nowrap; }',
-    '.self-marker { width: 20px; height: 20px; border-radius: 999px; background: #2563eb; border: 3px solid #fff; box-shadow: 0 0 0 10px rgba(37, 99, 235, 0.18); }',
+    '.marker-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; }',
+    '.avatar-pin { width: 44px; height: 44px; border-radius: 22px; position: relative; background: #fff; border: 2.5px solid #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 2; display: flex; align-items: center; justify-content: center; }',
+    '.avatar-pin::after { content: ""; position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%); border-left: 8px solid transparent; border-right: 8px solid transparent; border-top: 10px solid #fff; z-index: 1; }',
+    '.avatar-pin.self { border-color: #3b82f6; box-shadow: 0 0 15px rgba(59, 130, 246, 0.6); }',
+    '.avatar-pin.self::after { border-top-color: #3b82f6; }',
+    '.avatar-pin.offline { opacity: 0.7; filter: grayscale(0.3); }',
+    '.avatar-pin.group { border-color: #f59e0b; box-shadow: 0 0 15px rgba(245, 158, 11, 0.4); }',
+    '.avatar-pin.group::after { border-top-color: #f59e0b; }',
+    '.avatar-img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }',
+    '.group-badge { position: absolute; top: -10px; right: -10px; background: #f59e0b; color: #fff; font-size: 11px; font-weight: 900; width: 22px; height: 22px; border-radius: 11px; display: flex; align-items: center; justify-content: center; border: 2.5px solid #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.3); z-index: 5; }',
+    '.marker-label { margin-top: 10px; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; color: #fff; background: rgba(15, 23, 42, 0.85); white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); z-index: 3; }',
+    '.marker-label.self { background: rgba(59, 130, 246, 0.9); }',
+    '.online-dot { width: 12px; height: 12px; border-radius: 6px; background: #22c55e; border: 2.5px solid #fff; position: absolute; top: 0; right: 0; z-index: 4; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }',
     '</style>',
     '<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />',
     '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>',
@@ -88,36 +103,76 @@ const MapViewComponent: React.FC<{
     '<body>',
     '<div id="map"></div>',
     '<script>',
-    'const mapData = ' + mapDataJson + ';',
-    "const map = L.map('map', { zoomControl: false, attributionControl: true });",
+    'try {',
+    'var mapData = ' + mapDataJson + ';',
+    "var map = L.map('map', { zoomControl: false, attributionControl: true });",
     "L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);",
-    'let interactionTimer = null;',
+    'var interactionTimer = null;',
     "function notifyInteraction(active) { if (window.ReactNativeWebView) { window.ReactNativeWebView.postMessage(active ? 'MAP_INTERACTION_START' : 'MAP_INTERACTION_END'); } }",
     'function startInteraction() { if (interactionTimer) { clearTimeout(interactionTimer); interactionTimer = null; } notifyInteraction(true); }',
     'function stopInteractionSoon() { if (interactionTimer) { clearTimeout(interactionTimer); } interactionTimer = setTimeout(function () { notifyInteraction(false); }, 180); }',
-    "function createMarkerHtml(className, label) { return '<div class=\"marker-wrap\">' + '<div style=\"display:flex;flex-direction:column;align-items:center;transform:translateY(-6px);\">' + '<div class=\"marker-dot ' + className + '\"></div>' + (label ? '<div class=\"marker-label\">' + label + '</div>' : '') + '</div>' + '</div>'; }",
-    "function createSelfHtml() { return '<div class=\"self-marker\"></div>'; }",
-    "function addMarker(lat, lng, html, popupText) { const icon = L.divIcon({ className: '', html: html, iconSize: [28, 40], iconAnchor: [14, 30], popupAnchor: [0, -28] }); const marker = L.marker([lat, lng], { icon: icon }).addTo(map); if (popupText) { marker.bindPopup(popupText); } return marker; }",
-    'const points = [];',
-    'const current = mapData.current;',
-    'points.push([current.latitude, current.longitude]);',
-    "addMarker(current.latitude, current.longitude, createSelfHtml(), '<b>Your Location</b><br/>' + current.latitude.toFixed(6) + ', ' + current.longitude.toFixed(6));",
-    'mapData.otherUsers.forEach(function (locationUser) {',
-    '  points.push([locationUser.latitude, locationUser.longitude]);',
-    "  addMarker(locationUser.latitude, locationUser.longitude, createMarkerHtml('other', (locationUser.firstName || '').slice(0, 1).toUpperCase()), '<b>' + (locationUser.firstName || 'User') + ' ' + (locationUser.lastName || '') + '</b><br/>' + (locationUser.isOnline ? 'Online' : 'Last seen: ' + new Date(locationUser.lastUpdated).toLocaleString()));",
-    '});',
-    'mapData.emergencyContactLocations.forEach(function (contactLocation) {',
-    '  points.push([contactLocation.latitude, contactLocation.longitude]);',
-    "  addMarker(contactLocation.latitude, contactLocation.longitude, createMarkerHtml('emergency', '!'), '<b>' + contactLocation.name + ' (Emergency Contact)</b><br/>Shared from app location (' + contactLocation.matchedBy + ')');",
-    '});',
-    'if (points.length > 1) { map.fitBounds(points, { padding: [36, 36] }); } else { map.setView([current.latitude, current.longitude], 15); }',
-    "['dragstart', 'zoomstart', 'movestart'].forEach(function (eventName) { map.on(eventName, startInteraction); });",
-    "['dragend', 'zoomend', 'moveend'].forEach(function (eventName) { map.on(eventName, stopInteractionSoon); });",
-    "var mapElement = document.getElementById('map');",
-    "mapElement.addEventListener('touchstart', startInteraction, { passive: true });",
-    "mapElement.addEventListener('touchend', stopInteractionSoon, { passive: true });",
-    "mapElement.addEventListener('mousedown', startInteraction);",
-    "mapElement.addEventListener('mouseup', stopInteractionSoon);",
+    "function formatTime(dateStr) { if(!dateStr) return ''; var date = new Date(dateStr); return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase(); }",
+    "function createMarkerHtml(avatarUrl, label, isOnline, isSelf, count) { " +
+    "  var avatar = (avatarUrl && avatarUrl.trim() !== '') ? avatarUrl : mapData.defaultAvatarUri; " +
+    "  var html = '<div class=\"marker-wrap\">'; " +
+    "  if (count > 1) { " +
+    "    html += '<div class=\"avatar-pin group' + (isSelf ? ' self' : '') + '\">'; " +
+    "    html += '<img src=\"' + avatar + '\" class=\"avatar-img\" />'; " +
+    "    html += '<div class=\"group-badge\">' + count + '</div>'; " +
+    "    html += '</div>'; " +
+    "  } else { " +
+    "    html += '<div class=\"avatar-pin' + (isSelf ? ' self' : '') + (!isOnline && !isSelf ? ' offline' : '') + '\">'; " +
+    "    html += '<img src=\"' + avatar + '\" class=\"avatar-img\" />'; " +
+    "    if (isOnline) html += '<div class=\"online-dot\"></div>'; " +
+    "    html += '</div>'; " +
+    "  } " +
+    "  if (label) html += '<div class=\"marker-label' + (isSelf ? ' self' : '') + '\">' + label + '</div>'; " +
+    "  html += '</div>'; " +
+    "  return html; " +
+    "}",
+    "function addMarker(lat, lng, html, popupText, isSelf) { var icon = L.divIcon({ className: '', html: html, iconSize: [44, 70], iconAnchor: [22, 52], popupAnchor: [0, -50] }); var marker = L.marker([lat, lng], { icon: icon, zIndexOffset: isSelf ? 1000 : 0 }).addTo(map); if (popupText) { marker.bindPopup(popupText); } return marker; }",
+    'var points = []; var clusters = {};',
+    'var currentLat = parseFloat(mapData.current.latitude); var currentLng = parseFloat(mapData.current.longitude);',
+    'var selfKey = currentLat.toFixed(4) + \",\" + currentLng.toFixed(4);',
+    'clusters[selfKey] = [{ type: \"self\", data: mapData.current }];',
+    'if (mapData.otherUsers) { for (var i=0; i<mapData.otherUsers.length; i++) { var u = mapData.otherUsers[i]; var uLat = parseFloat(u.latitude); var uLng = parseFloat(u.longitude); var key = uLat.toFixed(4) + \",\" + uLng.toFixed(4); if (!clusters[key]) clusters[key] = []; clusters[key].push({ type: \"user\", data: u }); } }',
+    'if (mapData.emergencyContactLocations) { for (var j=0; j<mapData.emergencyContactLocations.length; j++) { var c = mapData.emergencyContactLocations[j]; var cLat = parseFloat(c.latitude); var cLng = parseFloat(c.longitude); var key = cLat.toFixed(4) + \",\" + cLng.toFixed(4); if (!clusters[key]) clusters[key] = []; clusters[key].push({ type: \"contact\", data: c }); } }',
+    'for (var k in clusters) { ' +
+    '  var items = clusters[k]; var pos = k.split(\",\"); var lat = parseFloat(pos[0]); var lng = parseFloat(pos[1]); points.push([lat, lng]); ' +
+    '  var isSelf = false; var primaryItem = items[0]; var anyOnline = false; ' +
+    '  for (var m=0; m<items.length; m++) { if (items[m].type === \"self\") { isSelf = true; primaryItem = items[m]; anyOnline = true; } if (items[m].data && items[m].data.isOnline) anyOnline = true; } ' +
+    '  if (items.length > 1) { ' +
+    '    var label = isSelf ? \"You +\" + (items.length-1) : (primaryItem.data.firstName || \"User\") + \" +\" + (items.length-1); ' +
+    '    var html = createMarkerHtml(isSelf ? mapData.userAvatar : primaryItem.data.profilePicture, label, anyOnline, isSelf, items.length); ' +
+    '    var popupHtml = \"<div style=\'min-width:120px\'><b>\" + items.length + \" People here:</b><hr style=\'margin:5px 0;opacity:0.2\'/>\"; ' +
+    '    for (var n=0; n<items.length; n++) { ' +
+    '      var item = items[n]; var name = item.type === \"self\" ? \"You\" : (item.data.firstName || item.data.name || \"User\"); ' +
+    '      var isOnline = (item.type === \"self\" || (item.data && item.data.isOnline)); ' +
+    '      var statusText = isOnline ? \"● Online\" : \"Online @\" + formatTime(item.data.lastUpdated || item.data.lastActiveAt); ' +
+    '      var status = \"<span style=\'color:\" + (isOnline ? \"#22c55e\" : \"#64748b\") + \"\'>\" + statusText + \"</span>\"; ' +
+    '      popupHtml += \"<div style=\'margin-bottom:4px\'>\" + name + \" \" + status + \"</div>\"; ' +
+    '    } ' +
+    '    popupHtml += \"</div>\"; ' +
+    '    addMarker(lat, lng, html, popupHtml, isSelf); ' +
+    '  } else { ' +
+    '    if (primaryItem.type === \"self\") { ' +
+    '      addMarker(lat, lng, createMarkerHtml(mapData.userAvatar, \"You\", true, true, 1), \"<b>Your Location</b>\", true); ' +
+    '    } else if (primaryItem.type === \"user\") { ' +
+    '      var u = primaryItem.data; var statusText = u.isOnline ? \"Online\" : \"Online @\" + formatTime(u.lastUpdated); ' +
+    '      addMarker(lat, lng, createMarkerHtml(u.profilePicture, u.firstName, u.isOnline, false, 1), \"<b>\" + u.firstName + \"</b><br/>\" + statusText, false); ' +
+    '    } else { ' +
+    '      var c = primaryItem.data; ' +
+    '      addMarker(lat, lng, createMarkerHtml(null, c.name, false, false, 1), \"<b>\" + c.name + \"</b> (Emergency)\", false); ' +
+    '    } ' +
+    '  } ' +
+    '}',
+    'if (points.length > 1) { map.fitBounds(points, { padding: [36, 36] }); } else { map.setView([currentLat, currentLng], 15); }',
+    '[\"dragstart\", \"zoomstart\", \"movestart\"].forEach(function (eventName) { map.on(eventName, startInteraction); });',
+    '[\"dragend\", \"zoomend\", \"moveend\"].forEach(function (eventName) { map.on(eventName, stopInteractionSoon); });',
+    'var mapElement = document.getElementById(\"map\");',
+    'mapElement.addEventListener(\"touchstart\", startInteraction, { passive: true });',
+    'mapElement.addEventListener(\"touchend\", stopInteractionSoon, { passive: true });',
+    '} catch (err) { if (window.ReactNativeWebView) { window.ReactNativeWebView.postMessage(\"MAP_ERROR: \" + err.message); } }',
     '</script>',
     '</body>',
     '</html>',
@@ -140,6 +195,8 @@ const MapViewComponent: React.FC<{
           onInteractionChange(true);
         } else if (message === 'MAP_INTERACTION_END') {
           onInteractionChange(false);
+        } else if (message.startsWith('MAP_ERROR:')) {
+          console.error('🔴 ' + message);
         }
       }}
       startInLoadingState={true}
@@ -309,9 +366,9 @@ const TrackMeScreen: React.FC = () => {
     try {
       const locations = await userLocationService.getVisibleLocations();
 
-      // Filter out current user
+      const currentUserId = user?.id;
       const filteredLocations = locations.filter(
-        (loc) => loc.userId !== user?.id
+        (loc) => loc.userId !== currentUserId
       );
 
       setOtherUsers(filteredLocations);
@@ -448,12 +505,28 @@ const TrackMeScreen: React.FC = () => {
       }),
     ]).start();
 
-    // Refresh other users' locations every 30 seconds
+    // Subscribe to real-time updates
+    userLocationService.subscribeToLocationUpdates((updatedLoc) => {
+      setOtherUsers((prev) => {
+        const index = prev.findIndex((u) => u.userId === updatedLoc.userId);
+        if (index !== -1) {
+          const newUsers = [...prev];
+          newUsers[index] = updatedLoc;
+          return newUsers;
+        }
+        return [...prev, updatedLoc];
+      });
+    });
+
+    // Refresh other users' locations every 30 seconds (fallback)
     const interval = setInterval(() => {
       fetchOtherUsersLocations();
     }, 30000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      userLocationService.unsubscribeFromLocationUpdates();
+    };
   }, [getCurrentLocation, fetchOtherUsersLocations, fetchEmergencyContacts, screenFadeAnim, screenTranslateAnim]);
 
   return (
@@ -476,6 +549,7 @@ const TrackMeScreen: React.FC = () => {
                 coordinates={coordinates}
                 otherUsers={nonEmergencyOtherUsers}
                 emergencyContactLocations={emergencyContactLocations}
+                userAvatar={user?.profilePicture || null}
                 onInteractionChange={setIsMapInteracting}
               />
               <View style={styles.mapTopOverlay}>

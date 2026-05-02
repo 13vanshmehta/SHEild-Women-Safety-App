@@ -341,7 +341,10 @@ const CreateGroupModal: React.FC<{
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.modalOverlay}
+      >
         <View style={styles.groupModalContent}>
           <View style={styles.groupModalHeader}>
             <Text style={styles.groupModalTitle}>Create New Group</Text>
@@ -394,7 +397,7 @@ const CreateGroupModal: React.FC<{
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };
@@ -439,7 +442,10 @@ const JoinGroupModal: React.FC<{
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.modalOverlay}
+      >
         <View style={styles.groupModalContent}>
           <View style={styles.groupModalHeader}>
             <Text style={styles.groupModalTitle}>Join Group</Text>
@@ -485,7 +491,7 @@ const JoinGroupModal: React.FC<{
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };
@@ -1730,7 +1736,10 @@ const GroupChatScreen: React.FC<{
             animationType="fade"
             onRequestClose={() => setIsEditModalVisible(false)}
           >
-            <View style={styles.modalOverlay}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              style={styles.modalOverlay}
+            >
               <View style={styles.editMessageContent}>
                 <Text style={styles.editMessageTitle}>Edit message</Text>
                 <TextInput
@@ -1756,7 +1765,7 @@ const GroupChatScreen: React.FC<{
                   </TouchableOpacity>
                 </View>
               </View>
-            </View>
+            </KeyboardAvoidingView>
           </Modal>
         ) : null}
 
@@ -1817,7 +1826,7 @@ const GroupChatScreen: React.FC<{
         {/* Messages and Input - Wrapped in KeyboardAvoidingView */}
         <KeyboardAvoidingView
           style={styles.keyboardAvoidingView}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         >
           {/* Messages */}
@@ -2180,7 +2189,10 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.modalOverlay}
+      >
         <View style={styles.addMemberModalContent}>
           {/* Header */}
           <View style={styles.addMemberModalHeader}>
@@ -2281,7 +2293,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
             )}
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };

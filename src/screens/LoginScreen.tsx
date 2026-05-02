@@ -16,6 +16,7 @@ import {
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { Colors } from '../constants';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Geolocation from 'react-native-geolocation-service';
 import { useAuth } from '../contexts/AuthContext';
 import { authService } from '../services/authService';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
@@ -38,6 +39,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNavigateToS
 
   // Google Sign-In configuration
   useEffect(() => {
+    console.log('Configuring Google Sign-In with Web Client ID from Config');
 
     GoogleSignin.configure({
       // For Android, we must use the Web Client ID (server client ID) 
@@ -57,13 +59,31 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onNavigateToS
 
     setLoading(true);
     try {
+      // Get current location for login coordinate storage
+      let latitude: number | null = null;
+      let longitude: number | null = null;
+
+      try {
+        const position: any = await new Promise((resolve, reject) => {
+          Geolocation.getCurrentPosition(resolve, reject, { 
+            enableHighAccuracy: true, 
+            timeout: 5000, 
+            maximumAge: 10000 
+          });
+        });
+        latitude = position.coords.latitude;
+        longitude = position.coords.longitude;
+      } catch (err) {
+        console.warn('Could not get location for login:', err);
+      }
+
       const { API_CONFIG } = require('../constants/api');
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, latitude, longitude }),
       });
 
       const data = await response.json();
