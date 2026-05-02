@@ -60,19 +60,17 @@ const MapViewComponent: React.FC<{
   otherUsers: UserLocation[];
   emergencyContactLocations: EmergencyContactLocation[];
   userAvatar: string | null;
+  userName: string;
   onInteractionChange: (isInteracting: boolean) => void;
-}> = ({ coordinates, otherUsers, emergencyContactLocations, userAvatar, onInteractionChange }) => {
+}> = ({ coordinates, otherUsers, emergencyContactLocations, userAvatar, userName, onInteractionChange }) => {
   if (!coordinates) return null;
-
-  // Resolve the local avatar image
-  const defaultAvatarUri = Image.resolveAssetSource(require('../assets/images/map-avatar.jpg')).uri;
 
   const mapDataJson = JSON.stringify({
     current: coordinates,
     otherUsers,
     emergencyContactLocations,
-    defaultAvatarUri,
-    userAvatar
+    userAvatar,
+    userName
   });
 
   const mapHtml = [
@@ -84,21 +82,23 @@ const MapViewComponent: React.FC<{
     'html, body, #map { height: 100%; width: 100%; margin: 0; padding: 0; background: #111827; }',
     '.leaflet-container { background: #111827; }',
     '.marker-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; }',
-    '.avatar-pin { width: 44px; height: 44px; border-radius: 22px; position: relative; background: #fff; border: 2.5px solid #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 2; display: flex; align-items: center; justify-content: center; }',
-    '.avatar-pin::after { content: ""; position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%); border-left: 8px solid transparent; border-right: 8px solid transparent; border-top: 10px solid #fff; z-index: 1; }',
-    '.avatar-pin.self { border-color: #3b82f6; box-shadow: 0 0 15px rgba(59, 130, 246, 0.6); }',
-    '.avatar-pin.self::after { border-top-color: #3b82f6; }',
-    '.avatar-pin.offline { opacity: 0.7; filter: grayscale(0.3); }',
-    '.avatar-pin.group { border-color: #f59e0b; box-shadow: 0 0 15px rgba(245, 158, 11, 0.4); }',
-    '.avatar-pin.group::after { border-top-color: #f59e0b; }',
-    '.avatar-img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }',
-    '.group-badge { position: absolute; top: -10px; right: -10px; background: #f59e0b; color: #fff; font-size: 11px; font-weight: 900; width: 22px; height: 22px; border-radius: 11px; display: flex; align-items: center; justify-content: center; border: 2.5px solid #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.3); z-index: 5; }',
-    '.marker-label { margin-top: 10px; display: flex; gap: 4px; z-index: 3; }',
+    '.pin-container { display: flex; flex-direction: column; align-items: center; position: relative; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.4)); }',
+    '.pin-avatar { width: 42px; height: 42px; border-radius: 21px; background: #1E3A8A; border: 2.5px solid #FFFFFF; overflow: hidden; display: flex; align-items: center; justify-content: center; z-index: 2; color: #FFFFFF; font-weight: 800; font-size: 15px; position: relative; }',
+    '.pin-avatar img { width: 100%; height: 100%; object-fit: cover; }',
+    '.pin-avatar.initials { background: #1E3A8A; }',
+    '.pin-avatar.offline { filter: grayscale(0.6) opacity(0.8); }',
+    '.pin-pointer { width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-top: 10px solid #FFFFFF; margin-top: -1px; z-index: 1; }',
+    '.pin-container.self .pin-avatar { border-color: #3b82f6; box-shadow: 0 0 15px rgba(59, 130, 246, 0.6); }',
+    '.pin-container.self .pin-pointer { border-top-color: #3b82f6; }',
+    '.pin-container.group .pin-avatar { border-color: #f59e0b; box-shadow: 0 0 15px rgba(245, 158, 11, 0.4); }',
+    '.pin-container.group .pin-pointer { border-top-color: #f59e0b; }',
+    '.group-badge { position: absolute; top: -8px; right: -8px; background: #f59e0b; color: #fff; font-size: 10px; font-weight: 900; width: 20px; height: 20px; border-radius: 10px; display: flex; align-items: center; justify-content: center; border: 2px solid #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.3); z-index: 5; }',
+    '.marker-label { margin-top: 8px; display: flex; gap: 4px; z-index: 3; }',
     '.tag { padding: 4px 10px; border-radius: 999px; font-size: 10px; font-weight: 800; color: #fff; white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); text-transform: uppercase; letter-spacing: 0.5px; }',
     '.tag.online { background: rgba(34, 197, 94, 0.9); }',
     '.tag.offline { background: rgba(100, 116, 139, 0.9); }',
     '.tag.self { background: rgba(59, 130, 246, 0.9); }',
-    '.online-dot { width: 12px; height: 12px; border-radius: 6px; background: #22c55e; border: 2.5px solid #fff; position: absolute; top: 0; right: 0; z-index: 4; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }',
+    '.online-dot { width: 11px; height: 11px; border-radius: 6px; background: #22c55e; border: 2px solid #fff; position: absolute; top: 0; right: 0; z-index: 4; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }',
     '</style>',
     '<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />',
     '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>',
@@ -115,20 +115,21 @@ const MapViewComponent: React.FC<{
     'function startInteraction() { if (interactionTimer) { clearTimeout(interactionTimer); interactionTimer = null; } notifyInteraction(true); }',
     'function stopInteractionSoon() { if (interactionTimer) { clearTimeout(interactionTimer); } interactionTimer = setTimeout(function () { notifyInteraction(false); }, 180); }',
     "function formatDateTime(dateStr) { if(!dateStr) return ''; var date = new Date(dateStr); var d = date.toLocaleDateString([], { day: 'numeric', month: 'numeric', year: 'numeric' }); var t = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase(); return d + ', ' + t; }",
-    "function createMarkerHtml(avatarUrl, label, isOnline, isSelf, count) { " +
-    "  var avatar = (avatarUrl && avatarUrl.trim() !== '') ? avatarUrl : mapData.defaultAvatarUri; " +
+    "function createMarkerHtml(avatarUrl, label, isOnline, isSelf, count, name) { " +
+    "  var initials = (name || '?').split(' ').map(function(n){return n[0]}).join('').toUpperCase().substring(0, 2); " +
     "  var html = '<div class=\"marker-wrap\">'; " +
-    "  if (count > 1) { " +
-    "    html += '<div class=\"avatar-pin group' + (isSelf ? ' self' : '') + '\">'; " +
-    "    html += '<img src=\"' + avatar + '\" class=\"avatar-img\" />'; " +
-    "    html += '<div class=\"group-badge\">' + count + '</div>'; " +
-    "    html += '</div>'; " +
+    "  html += '<div class=\"pin-container' + (isSelf ? ' self' : '') + (count > 1 ? ' group' : '') + '\">'; " +
+    "  html += '<div class=\"pin-avatar' + (!isOnline && !isSelf ? ' offline' : '') + '\">'; " +
+    "  if (avatarUrl && avatarUrl.trim() !== '') { " +
+    "    html += '<img src=\"' + avatarUrl + '\" onerror=\"this.style.display=\\'none\\'; this.parentElement.innerHTML=\\'' + initials + '\\'; this.parentElement.classList.add(\\'initials\\')\" />'; " +
     "  } else { " +
-    "    html += '<div class=\"avatar-pin' + (isSelf ? ' self' : '') + (!isOnline && !isSelf ? ' offline' : '') + '\">'; " +
-    "    html += '<img src=\"' + avatar + '\" class=\"avatar-img\" />'; " +
-    "    if (isOnline) html += '<div class=\"online-dot\"></div>'; " +
-    "    html += '</div>'; " +
+    "    html += '<div class=\"initials\">' + initials + '</div>'; " +
     "  } " +
+    "  if (isOnline) html += '<div class=\"online-dot\"></div>'; " +
+    "  if (count > 1) html += '<div class=\"group-badge\">' + count + '</div>'; " +
+    "  html += '</div>'; " +
+    "  html += '<div class=\"pin-pointer\"></div>'; " +
+    "  html += '</div>'; " +
     "  if (label) html += '<div class=\"marker-label\">' + label + '</div>'; " +
     "  html += '</div>'; " +
     "  return html; " +
@@ -152,7 +153,8 @@ const MapViewComponent: React.FC<{
     '    var label = \"\"; ' +
     '    if (onlineCount > 0) label += \"<div class=\'tag online\'>\" + onlineCount + \" Online</div>\"; ' +
     '    if (offlineCount > 0) label += \"<div class=\'tag offline\'>\" + offlineCount + \" Offline</div>\"; ' +
-    '    var html = createMarkerHtml(isSelf ? mapData.userAvatar : primaryItem.data.profilePicture, label, anyOnline, isSelf, items.length); ' +
+    '    var primaryName = isSelf ? mapData.userName : (primaryItem.data.firstName || primaryItem.data.name || \"User\"); ' +
+    '    var html = createMarkerHtml(isSelf ? mapData.userAvatar : primaryItem.data.profilePicture, label, anyOnline, isSelf, items.length, primaryName); ' +
     '    var popupHtml = \"<div style=\'min-width:120px\'><b>\" + items.length + \" People here:</b><hr style=\'margin:5px 0;opacity:0.2\'/>\"; ' +
     '    for (var n=0; n<items.length; n++) { ' +
     '      var item = items[n]; var name = item.type === \"self\" ? \"You\" : (item.data.firstName || item.data.name || \"User\"); ' +
@@ -165,15 +167,15 @@ const MapViewComponent: React.FC<{
     '    addMarker(lat, lng, html, popupHtml, isSelf); ' +
     '  } else { ' +
     '    if (primaryItem.type === \"self\") { ' +
-    '      addMarker(lat, lng, createMarkerHtml(mapData.userAvatar, \"<div class=\'tag self\'>You</div>\", true, true, 1), \"<b>Your Location</b>\", true); ' +
+    '      addMarker(lat, lng, createMarkerHtml(mapData.userAvatar, \"<div class=\'tag self\'>You</div>\", true, true, 1, mapData.userName), \"<b>Your Location</b>\", true); ' +
     '    } else if (primaryItem.type === \"user\") { ' +
     '      var u = primaryItem.data; var timeStr = formatDateTime(u.lastUpdated || u.lastActiveAt); ' +
     '      var statusText = u.isOnline ? \"<span style=\'color:#22c55e\'>● Online</span>\" : \"<span style=\'color:#64748b\'>Last seen: \" + timeStr + \"</span>\"; ' +
     '      var tagClass = u.isOnline ? \"online\" : \"offline\"; ' +
-    '      addMarker(lat, lng, createMarkerHtml(u.profilePicture, \"<div class=\'tag \" + tagClass + \"\'>\" + u.firstName + \"</div>\", u.isOnline, false, 1), \"<b>\" + u.firstName + \"</b><br/>\" + statusText, false); ' +
+    '      addMarker(lat, lng, createMarkerHtml(u.profilePicture, \"<div class=\'tag \" + tagClass + \"\'>\" + u.firstName + \"</div>\", u.isOnline, false, 1, u.firstName + \" \" + (u.lastName || \"\")), \"<b>\" + u.firstName + \"</b><br/>\" + statusText, false); ' +
     '    } else { ' +
     '      var c = primaryItem.data; ' +
-    '      addMarker(lat, lng, createMarkerHtml(null, c.name, false, false, 1), \"<b>\" + c.name + \"</b> (Emergency)\", false); ' +
+    '      addMarker(lat, lng, createMarkerHtml(null, c.name, false, false, 1, c.name), \"<b>\" + c.name + \"</b> (Emergency)\", false); ' +
     '    } ' +
     '  } ' +
     '}',
@@ -561,6 +563,7 @@ const TrackMeScreen: React.FC = () => {
                 otherUsers={nonEmergencyOtherUsers}
                 emergencyContactLocations={emergencyContactLocations}
                 userAvatar={user?.profilePicture || null}
+                userName={user ? `${user.firstName} ${user.lastName || ''}`.trim() : 'You'}
                 onInteractionChange={setIsMapInteracting}
               />
               <View style={styles.mapTopOverlay}>
