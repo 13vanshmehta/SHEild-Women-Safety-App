@@ -93,8 +93,11 @@ const MapViewComponent: React.FC<{
     '.avatar-pin.group::after { border-top-color: #f59e0b; }',
     '.avatar-img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }',
     '.group-badge { position: absolute; top: -10px; right: -10px; background: #f59e0b; color: #fff; font-size: 11px; font-weight: 900; width: 22px; height: 22px; border-radius: 11px; display: flex; align-items: center; justify-content: center; border: 2.5px solid #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.3); z-index: 5; }',
-    '.marker-label { margin-top: 10px; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; color: #fff; background: rgba(15, 23, 42, 0.85); white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); z-index: 3; }',
-    '.marker-label.self { background: rgba(59, 130, 246, 0.9); }',
+    '.marker-label { margin-top: 10px; display: flex; gap: 4px; z-index: 3; }',
+    '.tag { padding: 4px 10px; border-radius: 999px; font-size: 10px; font-weight: 800; color: #fff; white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); text-transform: uppercase; letter-spacing: 0.5px; }',
+    '.tag.online { background: rgba(34, 197, 94, 0.9); }',
+    '.tag.offline { background: rgba(100, 116, 139, 0.9); }',
+    '.tag.self { background: rgba(59, 130, 246, 0.9); }',
     '.online-dot { width: 12px; height: 12px; border-radius: 6px; background: #22c55e; border: 2.5px solid #fff; position: absolute; top: 0; right: 0; z-index: 4; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }',
     '</style>',
     '<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />',
@@ -111,7 +114,7 @@ const MapViewComponent: React.FC<{
     "function notifyInteraction(active) { if (window.ReactNativeWebView) { window.ReactNativeWebView.postMessage(active ? 'MAP_INTERACTION_START' : 'MAP_INTERACTION_END'); } }",
     'function startInteraction() { if (interactionTimer) { clearTimeout(interactionTimer); interactionTimer = null; } notifyInteraction(true); }',
     'function stopInteractionSoon() { if (interactionTimer) { clearTimeout(interactionTimer); } interactionTimer = setTimeout(function () { notifyInteraction(false); }, 180); }',
-    "function formatTime(dateStr) { if(!dateStr) return ''; var date = new Date(dateStr); return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase(); }",
+    "function formatDateTime(dateStr) { if(!dateStr) return ''; var date = new Date(dateStr); var d = date.toLocaleDateString([], { day: 'numeric', month: 'numeric', year: 'numeric' }); var t = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase(); return d + ', ' + t; }",
     "function createMarkerHtml(avatarUrl, label, isOnline, isSelf, count) { " +
     "  var avatar = (avatarUrl && avatarUrl.trim() !== '') ? avatarUrl : mapData.defaultAvatarUri; " +
     "  var html = '<div class=\"marker-wrap\">'; " +
@@ -126,7 +129,7 @@ const MapViewComponent: React.FC<{
     "    if (isOnline) html += '<div class=\"online-dot\"></div>'; " +
     "    html += '</div>'; " +
     "  } " +
-    "  if (label) html += '<div class=\"marker-label' + (isSelf ? ' self' : '') + '\">' + label + '</div>'; " +
+    "  if (label) html += '<div class=\"marker-label\">' + label + '</div>'; " +
     "  html += '</div>'; " +
     "  return html; " +
     "}",
@@ -139,27 +142,35 @@ const MapViewComponent: React.FC<{
     'if (mapData.emergencyContactLocations) { for (var j=0; j<mapData.emergencyContactLocations.length; j++) { var c = mapData.emergencyContactLocations[j]; var cLat = parseFloat(c.latitude); var cLng = parseFloat(c.longitude); var key = cLat.toFixed(4) + \",\" + cLng.toFixed(4); if (!clusters[key]) clusters[key] = []; clusters[key].push({ type: \"contact\", data: c }); } }',
     'for (var k in clusters) { ' +
     '  var items = clusters[k]; var pos = k.split(\",\"); var lat = parseFloat(pos[0]); var lng = parseFloat(pos[1]); points.push([lat, lng]); ' +
-    '  var isSelf = false; var primaryItem = items[0]; var anyOnline = false; ' +
-    '  for (var m=0; m<items.length; m++) { if (items[m].type === \"self\") { isSelf = true; primaryItem = items[m]; anyOnline = true; } if (items[m].data && items[m].data.isOnline) anyOnline = true; } ' +
+    '  var isSelf = false; var primaryItem = items[0]; var anyOnline = false; var onlineCount = 0; var offlineCount = 0; ' +
+    '  for (var m=0; m<items.length; m++) { ' +
+    '    var isItemOnline = (items[m].type === \"self\" || (items[m].data && items[m].data.isOnline)); ' +
+    '    if (isItemOnline) { onlineCount++; anyOnline = true; } else { offlineCount++; } ' +
+    '    if (items[m].type === \"self\") { isSelf = true; primaryItem = items[m]; } ' +
+    '  } ' +
     '  if (items.length > 1) { ' +
-    '    var label = isSelf ? \"You +\" + (items.length-1) : (primaryItem.data.firstName || \"User\") + \" +\" + (items.length-1); ' +
+    '    var label = \"\"; ' +
+    '    if (onlineCount > 0) label += \"<div class=\'tag online\'>\" + onlineCount + \" Online</div>\"; ' +
+    '    if (offlineCount > 0) label += \"<div class=\'tag offline\'>\" + offlineCount + \" Offline</div>\"; ' +
     '    var html = createMarkerHtml(isSelf ? mapData.userAvatar : primaryItem.data.profilePicture, label, anyOnline, isSelf, items.length); ' +
     '    var popupHtml = \"<div style=\'min-width:120px\'><b>\" + items.length + \" People here:</b><hr style=\'margin:5px 0;opacity:0.2\'/>\"; ' +
     '    for (var n=0; n<items.length; n++) { ' +
     '      var item = items[n]; var name = item.type === \"self\" ? \"You\" : (item.data.firstName || item.data.name || \"User\"); ' +
     '      var isOnline = (item.type === \"self\" || (item.data && item.data.isOnline)); ' +
-    '      var statusText = isOnline ? \"● Online\" : \"Online @\" + formatTime(item.data.lastUpdated || item.data.lastActiveAt); ' +
-    '      var status = \"<span style=\'color:\" + (isOnline ? \"#22c55e\" : \"#64748b\") + \"\'>\" + statusText + \"</span>\"; ' +
-    '      popupHtml += \"<div style=\'margin-bottom:4px\'>\" + name + \" \" + status + \"</div>\"; ' +
+    '      var timeStr = formatDateTime(item.data.lastUpdated || item.data.lastActiveAt); ' +
+    '      var statusText = isOnline ? \"<span style=\'color:#22c55e\'>● Online</span>\" : \"<span style=\'color:#64748b\'>Last seen: \" + timeStr + \"</span>\"; ' +
+    '      popupHtml += \"<div style=\'margin-bottom:4px\'>\" + name + \" \" + statusText + \"</div>\"; ' +
     '    } ' +
     '    popupHtml += \"</div>\"; ' +
     '    addMarker(lat, lng, html, popupHtml, isSelf); ' +
     '  } else { ' +
     '    if (primaryItem.type === \"self\") { ' +
-    '      addMarker(lat, lng, createMarkerHtml(mapData.userAvatar, \"You\", true, true, 1), \"<b>Your Location</b>\", true); ' +
+    '      addMarker(lat, lng, createMarkerHtml(mapData.userAvatar, \"<div class=\'tag self\'>You</div>\", true, true, 1), \"<b>Your Location</b>\", true); ' +
     '    } else if (primaryItem.type === \"user\") { ' +
-    '      var u = primaryItem.data; var statusText = u.isOnline ? \"Online\" : \"Online @\" + formatTime(u.lastUpdated); ' +
-    '      addMarker(lat, lng, createMarkerHtml(u.profilePicture, u.firstName, u.isOnline, false, 1), \"<b>\" + u.firstName + \"</b><br/>\" + statusText, false); ' +
+    '      var u = primaryItem.data; var timeStr = formatDateTime(u.lastUpdated || u.lastActiveAt); ' +
+    '      var statusText = u.isOnline ? \"<span style=\'color:#22c55e\'>● Online</span>\" : \"<span style=\'color:#64748b\'>Last seen: \" + timeStr + \"</span>\"; ' +
+    '      var tagClass = u.isOnline ? \"online\" : \"offline\"; ' +
+    '      addMarker(lat, lng, createMarkerHtml(u.profilePicture, \"<div class=\'tag \" + tagClass + \"\'>\" + u.firstName + \"</div>\", u.isOnline, false, 1), \"<b>\" + u.firstName + \"</b><br/>\" + statusText, false); ' +
     '    } else { ' +
     '      var c = primaryItem.data; ' +
     '      addMarker(lat, lng, createMarkerHtml(null, c.name, false, false, 1), \"<b>\" + c.name + \"</b> (Emergency)\", false); ' +
